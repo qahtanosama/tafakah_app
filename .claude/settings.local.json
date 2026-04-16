@@ -7,7 +7,16 @@
       "Bash(npm run *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npm install *)",
+      "Bash(curl -L -o public/fonts/times-new-roman.ttf \"https://raw.githubusercontent.com/AlfredoSequeworthy/font-files/refs/heads/main/TimesNewRoman/times-new-roman.ttf\")",
+      "Bash(curl -L -o public/fonts/times-new-roman-bold.ttf \"https://raw.githubusercontent.com/AlfredoSequeworthy/font-files/refs/heads/main/TimesNewRoman/times-new-roman-bold.ttf\")",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(npx next *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -L -o \"C:\\\\Users\\\\Sam\\\\Documents\\\\tafakah-app\\\\public\\\\fonts\\\\NotoSansSC-Regular.ttf\" \"https://github.com/google/fonts/raw/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf\")"
     ]
   }
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -6,28 +7,43 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { FileText, Package, Receipt, ScrollText } from "lucide-react";
+import { ClipboardList, Database, FileText, Package, Receipt, ScrollText } from "lucide-react";
 
 const documentTypes = [
   {
     title: "Sales Contract",
     description: "Generate export sales contracts",
     icon: ScrollText,
+    href: "/sales-contract",
+    ready: true,
   },
   {
     title: "Commercial Invoice",
     description: "Create commercial invoices for shipments",
     icon: Receipt,
+    href: "#",
+    ready: false,
   },
   {
     title: "Customs Invoice",
     description: "Prepare customs declaration invoices",
     icon: FileText,
+    href: "#",
+    ready: false,
   },
   {
     title: "Packing List",
     description: "Generate detailed packing lists",
     icon: Package,
+    href: "#",
+    ready: false,
+  },
+  {
+    title: "Contract Log",
+    description: "View all submitted contracts",
+    icon: ClipboardList,
+    href: "/contract-log",
+    ready: true,
   },
 ];
 
@@ -51,6 +67,24 @@ export default function Home() {
           </p>
         </div>
 
+        {/* Master Data — hero card */}
+        <Link href="/master" className="mb-6 block">
+          <Card className="border-2 border-zinc-300 transition-shadow hover:shadow-lg dark:border-zinc-600">
+            <CardHeader className="flex flex-row items-center gap-4">
+              <Database className="h-10 w-10 text-zinc-700 dark:text-zinc-300" />
+              <div className="flex-1">
+                <CardTitle className="text-lg">Master Data Sheet</CardTitle>
+                <CardDescription>
+                  Single source of truth — fill once, generate all documents
+                </CardDescription>
+              </div>
+              <Button variant="default" size="lg">
+                Open
+              </Button>
+            </CardHeader>
+          </Card>
+        </Link>
+
         <div className="grid gap-6 sm:grid-cols-2">
           {documentTypes.map((doc) => (
             <Card key={doc.title} className="transition-shadow hover:shadow-md">
@@ -62,9 +96,15 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" disabled>
-                  Coming Soon
-                </Button>
+                {doc.ready ? (
+                  <Link href={doc.href}>
+                    <Button variant="default">Open</Button>
+                  </Link>
+                ) : (
+                  <Button variant="outline" disabled>
+                    Coming Soon
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}

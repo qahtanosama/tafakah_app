@@ -1,0 +1,892 @@
+"use client";
+
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import PortCombobox from "@/components/ui/port-combobox";
+import {
+  Plus,
+  Trash2,
+  RotateCcw,
+  Check,
+  Send,
+  CircleCheck,
+  AlertTriangle,
+  Upload,
+  X,
+} from "lucide-react";
+import type { SalesContractData, LineItem, Product } from "@/types/sales-contract";
+import {
+  PRODUCTS,
+  HS_CODES,
+  calcQtyMTS,
+  calcPricePerCarton,
+  createEmptyLineItem,
+  getDefaultContractData,
+  getPrefix,
+  generateContractNumber,
+  generateInvoiceNumber,
+} from "@/lib/sales-contract";
+import {
+  saveMasterData,
+  loadMasterData,
+  resetMasterData,
+  saveActiveContract,
+} from "@/lib/master-data";
+import {
+  getNextSequence,
+  contractNoExists,
+  addContractLogEntry,
+} from "@/lib/contract-log";
+
+function NumInput({
+  value,
+  onChange,
+  placeholder,
+  className,
+  step,
+}: {
+  value: number | "";
+  onChange: (v: number | "") => void;
+  placeholder?: string;
+  className?: string;
+  step?: string;
+}) {
+  return (
+    <Input
+      type="number"
+      step={step ?? "any"}
+      placeholder={placeholder}
+      className={className}
+      value={value === "" ? "" : value}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === "") {
+          onChange("");
+        } else {
+          const n = parseFloat(raw);
+          if (!isNaN(n)) onChange(n);
+        }
+      }}
+    />
+  );
+}
+
+const MAX_STAMP_SIZE = 2 * 1024 * 1024; // 2 MB
+
+export default function MasterDataForm() {
+  const [data, setData] = useState<SalesContractData>(getDefaultContractData);
+  const [loaded, setLoaded] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stampInputRef = useRef<HTMLInputElement>(null);
+
+  const firstProduct = data.lineItems[0]?.product || "";
+  const prefix = getPrefix(firstProduct);
+  const year = data.identifiers.year;
+  const sequence = data.identifiers.sequenceNumber;
+
+  const contractNo = useMemo(
+    () => generateContractNumber(year, sequence, firstProduct),
+    [year, sequence, firstProduct]
+  );
+  const invoiceNo = useMemo(
+    () => generateInvoiceNumber(year, sequence, firstProduct),
+    [year, sequence, firstProduct]
+  );
+
+  const computeSequence = useCallback(() => {
+    if (!prefix || !year) return;
+    const next = getNextSequence(year, prefix);
+    setData((prev) => ({
+      ...prev,
+      identifiers: { ...prev.identifiers, sequenceNumber: next },
+    }));
+  }, [year, prefix]);
+
+  useEffect(() => {
+    const stored = loadMasterData();
+    if (stored) setData(stored);
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    computeSequence();
+  }, [loaded, computeSequence]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    saveMasterData(data);
+    setShowSaved(true);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setShowSaved(false), 1500);
+  }, [data, loaded]);
+
+  const showToast = useCallback(
+    (type: "success" | "error", message: string) => {
+      setToast({ type, message });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
+    },
+    []
+  );
+
+  const update = useCallback(
+    <K extends keyof SalesContractData>(
+      section: K,
+      field: keyof SalesContractData[K],
+      value: SalesContractData[K][typeof field]
+    ) => {
+      setData((prev) => ({
+        ...prev,
+        [section]: { ...prev[section], [field]: value },
+      }));
+    },
+    []
+  );
+
+  const updateLineItem = useCallback(
+    (id: string, field: keyof LineItem, value: LineItem[typeof field]) => {
+      setData((prev) => ({
+        ...prev,
+        lineItems: prev.lineItems.map((item) => {
+          if (item.id !== id) return item;
+          const updated = { ...item, [field]: value };
+          if (field === "product" && value) {
+            updated.hsCode = HS_CODES[value as Product] ?? "";
+          }
+          updated.qtyMTS = calcQtyMTS(updated.nwPerCarton, updated.cartons);
+          updated.pricePerCarton = calcPricePerCarton(
+            updated.nwPerCarton,
+            updated.pricePerMT
+          );
+          return updated;
+        }),
+      }));
+    },
+    []
+  );
+
+  const addRow = useCallback(() => {
+    setData((prev) => {
+      if (prev.lineItems.length >= 10) return prev;
+      return {
+        ...prev,
+        lineItems: [...prev.lineItems, createEmptyLineItem()],
+      };
+    });
+  }, []);
+
+  const removeRow = useCallback((id: string) => {
+    setData((prev) => {
+      if (prev.lineItems.length <= 1) return prev;
+      return {
+        ...prev,
+        lineItems: prev.lineItems.filter((i) => i.id !== id),
+      };
+    });
+  }, []);
+
+  const handleReset = useCallback(() => {
+    const defaults = resetMasterData();
+    setData(defaults);
+  }, []);
+
+  // Stamp upload
+  const handleStampUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > MAX_STAMP_SIZE) {
+        showToast("error", "Stamp image must be under 2 MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        setData((prev) => ({
+          ...prev,
+          seller: { ...prev.seller, stamp: base64 },
+        }));
+      };
+      reader.readAsDataURL(file);
+      // Reset input so re-uploading the same file triggers onChange
+      e.target.value = "";
+    },
+    [showToast]
+  );
+
+  const removeStamp = useCallback(() => {
+    setData((prev) => ({
+      ...prev,
+      seller: { ...prev.seller, stamp: undefined },
+    }));
+  }, []);
+
+  const canSubmit =
+    firstProduct !== "" &&
+    data.buyer.company.trim() !== "" &&
+    year > 0 &&
+    sequence > 0;
+
+  const handleSubmit = useCallback(() => {
+    if (!canSubmit || !contractNo || !invoiceNo) return;
+
+    if (contractNoExists(contractNo)) {
+      showToast(
+        "error",
+        "\u26a0 Contract number already exists. Please refresh."
+      );
+      return;
+    }
+
+    const snapshot = structuredClone(data);
+    const dateSubmitted = new Date().toISOString();
+
+    addContractLogEntry({
+      id: crypto.randomUUID(),
+      contractNo,
+      invoiceNo,
+      dateSubmitted,
+      buyer: data.buyer.company,
+      product: firstProduct,
+      status: "Active",
+      masterSnapshot: snapshot,
+    });
+
+    saveActiveContract({
+      data: snapshot,
+      contractNo,
+      invoiceNo,
+      dateSubmitted,
+    });
+
+    showToast("success", `\u2713 Contract ${contractNo} submitted and logged`);
+    computeSequence();
+  }, [
+    canSubmit,
+    contractNo,
+    invoiceNo,
+    data,
+    firstProduct,
+    showToast,
+    computeSequence,
+  ]);
+
+  const fmt = (n: number, d = 2) => n.toFixed(d);
+  const isDuplicate = contractNo ? contractNoExists(contractNo) : false;
+
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center py-20 text-zinc-500">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-6 py-8">
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 rounded-lg px-5 py-3 text-sm font-medium shadow-lg ${
+            toast.type === "success"
+              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {/* Top bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {showSaved && (
+            <span className="flex items-center gap-1 text-sm font-medium text-emerald-600 transition-opacity">
+              <Check className="h-4 w-4" />
+              Saved
+            </span>
+          )}
+        </div>
+        <Button variant="outline" onClick={handleReset} className="gap-2">
+          <RotateCcw className="h-4 w-4" />
+          Reset to Defaults
+        </Button>
+      </div>
+
+      {/* ───── A) COMPANY INFO (Seller) ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>A) Company Info (Seller)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label>Company Name</Label>
+            <Input
+              value={data.seller.company}
+              onChange={(e) => update("seller", "company", e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Address</Label>
+            <Input
+              value={data.seller.address}
+              onChange={(e) => update("seller", "address", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Tel</Label>
+            <Input
+              value={data.seller.tel}
+              onChange={(e) => update("seller", "tel", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Email</Label>
+            <Input
+              value={data.seller.email}
+              onChange={(e) => update("seller", "email", e.target.value)}
+            />
+          </div>
+
+          {/* Stamp upload */}
+          <div className="sm:col-span-2">
+            <Label>Company Stamp (optional)</Label>
+            <div className="mt-1 flex items-center gap-4">
+              {data.seller.stamp ? (
+                <div className="relative h-[60px] w-[60px] shrink-0 overflow-hidden rounded border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={data.seller.stamp}
+                    alt="Stamp preview"
+                    className="h-full w-full object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeStamp}
+                    className="absolute -top-1 -right-1 rounded-full bg-red-500 p-0.5 text-white shadow hover:bg-red-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : null}
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => stampInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  {data.seller.stamp ? "Replace" : "Upload"}
+                </Button>
+                <input
+                  ref={stampInputRef}
+                  type="file"
+                  accept=".png,.jpg,.jpeg"
+                  className="hidden"
+                  onChange={handleStampUpload}
+                />
+                <p className="mt-1 text-xs text-zinc-400">
+                  PNG with transparent background for best results. Max 2 MB.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ───── A cont.) BANK DETAILS ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>A) Bank Details</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label>SWIFT Code</Label>
+            <Input
+              value={data.bank.swift}
+              onChange={(e) => update("bank", "swift", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Beneficiary</Label>
+            <Input
+              value={data.bank.beneficiary}
+              onChange={(e) => update("bank", "beneficiary", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Account Number</Label>
+            <Input
+              value={data.bank.account}
+              onChange={(e) => update("bank", "account", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Bank Name</Label>
+            <Input
+              value={data.bank.bank}
+              onChange={(e) => update("bank", "bank", e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Bank Address</Label>
+            <Input
+              value={data.bank.bankAddress}
+              onChange={(e) => update("bank", "bankAddress", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Post Code</Label>
+            <Input
+              value={data.bank.postCode}
+              onChange={(e) => update("bank", "postCode", e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ───── B) CONTRACT IDENTIFIERS ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>B) Contract Identifiers</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <Label>Year</Label>
+              <NumInput
+                value={data.identifiers.year}
+                onChange={(v) => update("identifiers", "year", v)}
+                step="1"
+              />
+            </div>
+            <div>
+              <Label>Prefix</Label>
+              <Input
+                value={prefix || "\u2014"}
+                readOnly
+                className="bg-zinc-50 font-mono dark:bg-zinc-800"
+              />
+            </div>
+            <div>
+              <Label>Sequence No.</Label>
+              <Input
+                value={sequence || "\u2014"}
+                readOnly
+                className="bg-zinc-50 font-mono dark:bg-zinc-800"
+              />
+            </div>
+          </div>
+
+          {firstProduct ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border bg-zinc-50 px-4 py-3 dark:bg-zinc-900">
+                <p className="text-xs font-medium text-zinc-500">
+                  Contract No.
+                </p>
+                <p className="text-xl font-bold tracking-tight">
+                  {contractNo || "\u2014"}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-zinc-50 px-4 py-3 dark:bg-zinc-900">
+                <p className="text-xs font-medium text-zinc-500">Invoice No.</p>
+                <p className="text-xl font-bold tracking-tight">
+                  {invoiceNo || "\u2014"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">
+              Select a product below to generate contract and invoice numbers.
+            </p>
+          )}
+
+          {contractNo && (
+            <div className="flex items-center gap-2 text-sm">
+              {isDuplicate ? (
+                <>
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="text-red-600">Duplicate detected</span>
+                </>
+              ) : (
+                <>
+                  <CircleCheck className="h-4 w-4 text-emerald-500" />
+                  <span className="text-emerald-600">
+                    New contract &mdash; sequence auto-assigned
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <Label>Contract Date</Label>
+              <Input
+                type="date"
+                value={data.identifiers.contractDate}
+                onChange={(e) =>
+                  update("identifiers", "contractDate", e.target.value)
+                }
+              />
+            </div>
+            <div>
+              <Label>Invoice Date</Label>
+              <Input
+                type="date"
+                value={data.identifiers.invoiceDate}
+                onChange={(e) =>
+                  update("identifiers", "invoiceDate", e.target.value)
+                }
+              />
+            </div>
+            <div>
+              <Label>Seal Number</Label>
+              <Input
+                value={data.identifiers.sealNumber}
+                onChange={(e) =>
+                  update("identifiers", "sealNumber", e.target.value)
+                }
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <Label>Container Number</Label>
+              <Input
+                value={data.identifiers.containerNumber}
+                onChange={(e) =>
+                  update("identifiers", "containerNumber", e.target.value)
+                }
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <Label>B/L Number</Label>
+              <Input
+                value={data.identifiers.blNumber}
+                onChange={(e) =>
+                  update("identifiers", "blNumber", e.target.value)
+                }
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ───── C) BUYER ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>C) Buyer / Consignee</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label>Company Name</Label>
+            <Input
+              value={data.buyer.company}
+              onChange={(e) => update("buyer", "company", e.target.value)}
+              placeholder="Buyer company name"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Address</Label>
+            <Input
+              value={data.buyer.address}
+              onChange={(e) => update("buyer", "address", e.target.value)}
+              placeholder="Full address"
+            />
+          </div>
+          <div>
+            <Label>Additional Number</Label>
+            <Input
+              value={data.buyer.additionalNumber}
+              onChange={(e) =>
+                update("buyer", "additionalNumber", e.target.value)
+              }
+            />
+          </div>
+          <div>
+            <Label>City & Postal</Label>
+            <Input
+              value={data.buyer.cityPostal}
+              onChange={(e) => update("buyer", "cityPostal", e.target.value)}
+              placeholder="City, Postal Code"
+            />
+          </div>
+          <div>
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={data.buyer.email}
+              onChange={(e) => update("buyer", "email", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>CC Email</Label>
+            <Input
+              type="email"
+              value={data.buyer.ccEmail}
+              onChange={(e) => update("buyer", "ccEmail", e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ───── D) SHIPPING ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>D) Shipping & Delivery</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <Label>Loading Port</Label>
+            <PortCombobox
+              value={data.shipping.loadingPort}
+              onChange={(v) => update("shipping", "loadingPort", v)}
+            />
+          </div>
+          <div>
+            <Label>Discharge Port</Label>
+            <PortCombobox
+              value={data.shipping.dischargePort}
+              onChange={(v) => update("shipping", "dischargePort", v)}
+              buyerAddress={data.buyer.address}
+              placeholder="Select discharge port..."
+            />
+          </div>
+          <div>
+            <Label>Delivery From</Label>
+            <Input
+              type="date"
+              value={data.shipping.deliveryFrom}
+              onChange={(e) =>
+                update("shipping", "deliveryFrom", e.target.value)
+              }
+            />
+          </div>
+          <div>
+            <Label>Incoterm</Label>
+            <Input
+              value={data.shipping.incoterm}
+              onChange={(e) => update("shipping", "incoterm", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Origin</Label>
+            <Input
+              value={data.shipping.origin}
+              onChange={(e) => update("shipping", "origin", e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ───── E) LINE ITEMS ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>E) Line Items</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[150px]">Product</TableHead>
+                  <TableHead className="w-[100px]">HS Code</TableHead>
+                  <TableHead className="w-[100px]">N.W./Ctn (kg)</TableHead>
+                  <TableHead className="w-[100px]">G.W./Ctn (kg)</TableHead>
+                  <TableHead className="w-[90px]">Cartons</TableHead>
+                  <TableHead className="w-[90px]">Qty MTS</TableHead>
+                  <TableHead className="w-[110px]">Price/MT ($)</TableHead>
+                  <TableHead className="w-[100px]">Price/Ctn ($)</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.lineItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <Select
+                        value={item.product}
+                        onValueChange={(v) =>
+                          updateLineItem(item.id, "product", v as Product)
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRODUCTS.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={item.hsCode}
+                        readOnly
+                        className="bg-zinc-50 dark:bg-zinc-800"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumInput
+                        value={item.nwPerCarton}
+                        onChange={(v) =>
+                          updateLineItem(item.id, "nwPerCarton", v)
+                        }
+                        placeholder="0.00"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumInput
+                        value={item.gwPerCarton}
+                        onChange={(v) =>
+                          updateLineItem(item.id, "gwPerCarton", v)
+                        }
+                        placeholder="0.00"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumInput
+                        value={item.cartons}
+                        onChange={(v) =>
+                          updateLineItem(item.id, "cartons", v)
+                        }
+                        step="1"
+                        placeholder="0"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-medium">
+                        {fmt(item.qtyMTS, 3)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <NumInput
+                        value={item.pricePerMT}
+                        onChange={(v) =>
+                          updateLineItem(item.id, "pricePerMT", v)
+                        }
+                        placeholder="0.00"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-medium">
+                        ${fmt(item.pricePerCarton)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeRow(item.id)}
+                        disabled={data.lineItems.length <= 1}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={addRow}
+            disabled={data.lineItems.length >= 10}
+          >
+            <Plus className="mr-2 h-4 w-4" /> Add Row
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ───── F) TERMS ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>F) Terms</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label>Brand</Label>
+            <Input
+              value={data.terms.brand}
+              onChange={(e) => update("terms", "brand", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Damage Allowance</Label>
+            <Input
+              value={data.terms.damageAllowance}
+              onChange={(e) =>
+                update("terms", "damageAllowance", e.target.value)
+              }
+            />
+          </div>
+          <div>
+            <Label>Contract Valid To</Label>
+            <Input
+              type="date"
+              value={data.terms.contractValidTo}
+              onChange={(e) =>
+                update("terms", "contractValidTo", e.target.value)
+              }
+            />
+          </div>
+          <div>
+            <Label>Container Type</Label>
+            <Input
+              value={data.terms.containerType}
+              onChange={(e) =>
+                update("terms", "containerType", e.target.value)
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ───── SUBMIT ───── */}
+      <div className="flex justify-center pb-8">
+        <Button
+          size="lg"
+          className="gap-2 bg-emerald-600 px-8 py-6 text-lg font-bold text-white hover:bg-emerald-700"
+          disabled={!canSubmit || isDuplicate}
+          onClick={handleSubmit}
+        >
+          <Send className="h-5 w-5" />
+          Submit Contract
+        </Button>
+      </div>
+    </div>
+  );
+}
