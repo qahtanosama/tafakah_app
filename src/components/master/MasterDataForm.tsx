@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,18 +33,24 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import type { SalesContractData, LineItem, Product } from "@/types/sales-contract";
+import type { SalesContractData, LineItem, Product, ContractTotals } from "@/types/sales-contract";
 import {
   PRODUCTS,
   HS_CODES,
   calcQtyMTS,
   calcPricePerCarton,
+  calcTotals,
   createEmptyLineItem,
   getDefaultContractData,
   getPrefix,
   generateContractNumber,
   generateInvoiceNumber,
 } from "@/lib/sales-contract";
+
+const DownloadAllButton = dynamic(
+  () => import("./DownloadAllButton"),
+  { ssr: false }
+);
 import {
   saveMasterData,
   loadMasterData,
@@ -98,6 +105,12 @@ export default function MasterDataForm() {
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
+  } | null>(null);
+  const [lastSubmit, setLastSubmit] = useState<{
+    data: SalesContractData;
+    totals: ContractTotals;
+    contractNo: string;
+    invoiceNo: string;
   } | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -282,6 +295,13 @@ export default function MasterDataForm() {
       contractNo,
       invoiceNo,
       dateSubmitted,
+    });
+
+    setLastSubmit({
+      data: snapshot,
+      totals: calcTotals(snapshot.lineItems),
+      contractNo,
+      invoiceNo,
     });
 
     showToast("success", `\u2713 Contract ${contractNo} submitted and logged`);
@@ -876,7 +896,7 @@ export default function MasterDataForm() {
       </Card>
 
       {/* ───── SUBMIT ───── */}
-      <div className="flex justify-center pb-8">
+      <div className="flex flex-col items-center gap-4 pb-8">
         <Button
           size="lg"
           className="gap-2 bg-emerald-600 px-8 py-6 text-lg font-bold text-white hover:bg-emerald-700"
@@ -886,6 +906,14 @@ export default function MasterDataForm() {
           <Send className="h-5 w-5" />
           Submit Contract
         </Button>
+        {lastSubmit && (
+          <DownloadAllButton
+            data={lastSubmit.data}
+            totals={lastSubmit.totals}
+            contractNo={lastSubmit.contractNo}
+            invoiceNo={lastSubmit.invoiceNo}
+          />
+        )}
       </div>
     </div>
   );

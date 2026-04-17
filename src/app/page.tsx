@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ClipboardList, Database, FileText, Package, Receipt, ScrollText } from "lucide-react";
+import { ClipboardList, Database, FileSearch, FileText, Package, Receipt, ScrollText, Settings } from "lucide-react";
 
 const documentTypes = [
   {
@@ -21,22 +21,29 @@ const documentTypes = [
     title: "Commercial Invoice",
     description: "Create commercial invoices for shipments",
     icon: Receipt,
-    href: "#",
-    ready: false,
+    href: "/commercial-invoice",
+    ready: true,
   },
   {
     title: "Customs Invoice",
     description: "Prepare customs declaration invoices",
     icon: FileText,
-    href: "#",
-    ready: false,
+    href: "/customs-invoice",
+    ready: true,
   },
   {
     title: "Packing List",
     description: "Generate detailed packing lists",
     icon: Package,
-    href: "#",
-    ready: false,
+    href: "/packing-list",
+    ready: true,
+  },
+  {
+    title: "Trade Documents",
+    description: "Scan, validate & merge import documents",
+    icon: FileSearch,
+    href: "/documents",
+    ready: true,
   },
   {
     title: "Contract Log",
@@ -53,7 +60,12 @@ export default function Home() {
       <header className="w-full border-b bg-white dark:bg-zinc-900">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
           <h1 className="text-xl font-bold tracking-tight">TAFAKAH Food</h1>
-          <span className="text-sm text-zinc-500">Shanghai</span>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-zinc-500">Shanghai</span>
+            <Link href="/settings" className="text-zinc-400 hover:text-zinc-600" title="Settings">
+              <Settings className="h-5 w-5" />
+            </Link>
+          </div>
         </div>
       </header>
 

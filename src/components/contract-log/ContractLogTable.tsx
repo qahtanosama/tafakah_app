@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -17,7 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Pencil, Eye } from "lucide-react";
+import { Trash2, Pencil, Eye, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { ContractLogEntry, ContractStatus } from "@/types/sales-contract";
 import {
   getContractLog,
@@ -48,12 +49,25 @@ function formatDate(iso: string): string {
 export default function ContractLogTable() {
   const [log, setLog] = useState<ContractLogEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [search, setSearch] = useState("");
   const router = useRouter();
 
   useEffect(() => {
     setLog(getContractLog());
     setLoaded(true);
   }, []);
+
+  const filtered = useMemo(() => {
+    if (!search) return log;
+    const q = search.toLowerCase();
+    return log.filter(
+      (e) =>
+        e.contractNo.toLowerCase().includes(q) ||
+        e.invoiceNo.toLowerCase().includes(q) ||
+        e.buyer.toLowerCase().includes(q) ||
+        e.product.toLowerCase().includes(q)
+    );
+  }, [log, search]);
 
   const handleDelete = useCallback((id: string) => {
     deleteContractLogEntry(id);
@@ -106,7 +120,20 @@ export default function ContractLogTable() {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-4">
+      <div className="relative">
+        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by contract no, invoice no, buyer, or product..."
+          className="pl-9"
+        />
+      </div>
+      {filtered.length === 0 && search && (
+        <p className="py-8 text-center text-sm text-zinc-400">No contracts match &ldquo;{search}&rdquo;</p>
+      )}
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -121,7 +148,7 @@ export default function ContractLogTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {log.map((entry, i) => (
+          {filtered.map((entry, i) => (
             <TableRow key={entry.id}>
               <TableCell className="font-medium">{i + 1}</TableCell>
               <TableCell className="font-mono font-medium">{entry.contractNo}</TableCell>
@@ -178,6 +205,7 @@ export default function ContractLogTable() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

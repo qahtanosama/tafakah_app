@@ -16,7 +16,11 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
       "Bash(curl -s http://localhost:3000)",
       "Bash(pkill -f \"next dev\")",
-      "Bash(curl -L -o \"C:\\\\Users\\\\Sam\\\\Documents\\\\tafakah-app\\\\public\\\\fonts\\\\NotoSansSC-Regular.ttf\" \"https://github.com/google/fonts/raw/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf\")"
+      "Bash(curl -L -o \"C:\\\\Users\\\\Sam\\\\Documents\\\\tafakah-app\\\\public\\\\fonts\\\\NotoSansSC-Regular.ttf\" \"https://github.com/google/fonts/raw/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf\")",
+      "Bash(ls \"C:/Users/Sam/Documents/tafakah-app/.env\"*)",
+      "Bash(ls \"C:/Users/Sam/Documents/tafakah-app/.env.local\"*)",
+      "Bash(ls \"C:/Users/Sam/Documents/tafakah-app/.env.example\"*)",
+      "Bash(node -e \"const p = require\\('pdfjs-dist/package.json'\\); console.log\\(p.version\\)\")"
     ]
   }
 }
