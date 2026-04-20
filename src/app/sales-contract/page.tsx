@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import AppHeader from "@/components/ui/app-header";
 import SalesContractForm from "@/components/sales-contract/SalesContractForm";
 
 export const metadata: Metadata = {
@@ -10,20 +9,8 @@ export const metadata: Metadata = {
 
 export default function SalesContractPage() {
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans dark:bg-zinc-950">
-      <header className="sticky top-0 z-10 w-full border-b bg-white dark:bg-zinc-900">
-        <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-6">
-          <Link
-            href="/"
-            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Home
-          </Link>
-          <h1 className="text-lg font-bold tracking-tight">Sales Contract</h1>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-[#FAFAF8] font-sans dark:bg-zinc-950">
+      <AppHeader title="Sales Contract" />
       <SalesContractForm />
     </div>
   );

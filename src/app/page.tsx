@@ -1,130 +1,105 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { ClipboardList, Database, FileSearch, FileText, Package, Receipt, ScrollText, Settings } from "lucide-react";
+  ClipboardList, Database, FileSearch, FileText, Package,
+  Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge,
+} from "lucide-react";
 
 const documentTypes = [
-  {
-    title: "Sales Contract",
-    description: "Generate export sales contracts",
-    icon: ScrollText,
-    href: "/sales-contract",
-    ready: true,
-  },
-  {
-    title: "Commercial Invoice",
-    description: "Create commercial invoices for shipments",
-    icon: Receipt,
-    href: "/commercial-invoice",
-    ready: true,
-  },
-  {
-    title: "Customs Invoice",
-    description: "Prepare customs declaration invoices",
-    icon: FileText,
-    href: "/customs-invoice",
-    ready: true,
-  },
-  {
-    title: "Packing List",
-    description: "Generate detailed packing lists",
-    icon: Package,
-    href: "/packing-list",
-    ready: true,
-  },
-  {
-    title: "Trade Documents",
-    description: "Scan, validate & merge import documents",
-    icon: FileSearch,
-    href: "/documents",
-    ready: true,
-  },
-  {
-    title: "Contract Log",
-    description: "View all submitted contracts",
-    icon: ClipboardList,
-    href: "/contract-log",
-    ready: true,
-  },
+  { title: "Sales Contract", description: "Generate export sales contracts", icon: ScrollText, href: "/sales-contract" },
+  { title: "Commercial Invoice", description: "Create commercial invoices for shipments", icon: Receipt, href: "/commercial-invoice" },
+  { title: "Customs Invoice", description: "Prepare customs declaration invoices", icon: FileText, href: "/customs-invoice" },
+  { title: "Packing List", description: "Generate detailed packing lists", icon: Package, href: "/packing-list" },
+  { title: "Trade Documents", description: "Upload, classify & merge trade documents", icon: FileSearch, href: "/documents" },
+  { title: "Contract Log", description: "View all submitted contracts", icon: ClipboardList, href: "/contract-log" },
 ];
 
 export default function Home() {
   return (
-    <div className="flex flex-1 flex-col items-center bg-zinc-50 font-sans dark:bg-zinc-950">
-      <header className="w-full border-b bg-white dark:bg-zinc-900">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-          <h1 className="text-xl font-bold tracking-tight">TAFAKAH Food</h1>
+    <div className="flex flex-1 flex-col items-center bg-[#FAFAF8] font-sans dark:bg-zinc-950">
+      {/* Header */}
+      <header className="w-full border-b bg-white shadow-sm dark:bg-zinc-900">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1B2A4A] text-sm font-bold text-white">T</div>
+            <span className="text-lg font-bold tracking-tight">TAFAKAH Trade Hub</span>
+          </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-zinc-500">Shanghai</span>
-            <Link href="/settings" className="text-zinc-400 hover:text-zinc-600" title="Settings">
+            <span className="text-base text-zinc-500">Shanghai</span>
+            <Link href="/settings" className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600" title="Settings">
               <Settings className="h-5 w-5" />
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl px-6 py-12">
-        <div className="mb-10">
-          <h2 className="text-3xl font-bold tracking-tight">
+      <main className="mx-auto w-full max-w-6xl px-6 py-10">
+        {/* Hero */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold tracking-tight text-[#1B2A4A] dark:text-white">
             Hello TAFAKAH
-          </h2>
-          <p className="mt-2 text-lg text-zinc-600 dark:text-zinc-400">
+          </h1>
+          <p className="mt-2 text-lg text-zinc-500">
             Export trade document management system
           </p>
         </div>
 
+        {/* Quick actions */}
+        <div className="mb-8 flex flex-wrap gap-3">
+          <Link href="/master">
+            <Button variant="outline" className="gap-2">
+              <PenLine className="h-4 w-4" /> New Contract
+            </Button>
+          </Link>
+          <Link href="/documents">
+            <Button variant="outline" className="gap-2">
+              <Merge className="h-4 w-4" /> Merge Package
+            </Button>
+          </Link>
+          <Link href="/settings">
+            <Button variant="outline" className="gap-2">
+              <Settings className="h-4 w-4" /> Settings
+            </Button>
+          </Link>
+        </div>
+
         {/* Master Data — hero card */}
-        <Link href="/master" className="mb-6 block">
-          <Card className="border-2 border-zinc-300 transition-shadow hover:shadow-lg dark:border-zinc-600">
-            <CardHeader className="flex flex-row items-center gap-4">
-              <Database className="h-10 w-10 text-zinc-700 dark:text-zinc-300" />
-              <div className="flex-1">
-                <CardTitle className="text-lg">Master Data Sheet</CardTitle>
-                <CardDescription>
-                  Single source of truth — fill once, generate all documents
-                </CardDescription>
+        <Link href="/master" className="mb-8 block">
+          <div className="group flex items-center justify-between rounded-xl border-2 border-[#1B2A4A]/20 bg-white p-6 shadow-sm transition-all duration-200 hover:border-[#1B2A4A]/40 hover:shadow-lg dark:bg-zinc-900">
+            <div className="flex items-center gap-5">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#1B2A4A]/10 text-[#1B2A4A] dark:bg-zinc-800 dark:text-zinc-300">
+                <Database className="h-7 w-7" />
               </div>
-              <Button variant="default" size="lg">
-                Open
-              </Button>
-            </CardHeader>
-          </Card>
+              <div>
+                <h2 className="text-xl font-semibold">Master Data Sheet</h2>
+                <p className="mt-1 text-base text-zinc-500">Single source of truth &mdash; fill once, generate all documents</p>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-zinc-400 transition-transform duration-200 group-hover:translate-x-1" />
+          </div>
         </Link>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        {/* Document cards grid */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {documentTypes.map((doc) => (
-            <Card key={doc.title} className="transition-shadow hover:shadow-md">
-              <CardHeader className="flex flex-row items-center gap-4">
-                <doc.icon className="h-8 w-8 text-zinc-700 dark:text-zinc-300" />
-                <div>
-                  <CardTitle>{doc.title}</CardTitle>
-                  <CardDescription>{doc.description}</CardDescription>
+            <Link key={doc.title} href={doc.href}>
+              <div className="group flex h-full flex-col rounded-xl border bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] dark:bg-zinc-900">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 transition-colors group-hover:bg-[#1B2A4A]/10 group-hover:text-[#1B2A4A] dark:bg-zinc-800 dark:text-zinc-400">
+                  <doc.icon className="h-6 w-6" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                {doc.ready ? (
-                  <Link href={doc.href}>
-                    <Button variant="default">Open</Button>
-                  </Link>
-                ) : (
-                  <Button variant="outline" disabled>
-                    Coming Soon
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+                <h3 className="text-lg font-semibold">{doc.title}</h3>
+                <p className="mt-1 flex-1 text-[0.938rem] text-zinc-500">{doc.description}</p>
+                <div className="mt-4 flex items-center text-sm font-medium text-[#1B2A4A] opacity-0 transition-opacity group-hover:opacity-100 dark:text-zinc-400">
+                  Open <ArrowRight className="ml-1 h-4 w-4" />
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
       </main>
 
       <footer className="mt-auto w-full border-t bg-white py-6 dark:bg-zinc-900">
-        <div className="mx-auto max-w-5xl px-6 text-center text-sm text-zinc-500">
+        <div className="mx-auto max-w-6xl px-6 text-center text-base text-zinc-400">
           TAFAKAH Food (Shanghai) &mdash; Export Trade Solutions
         </div>
       </footer>
