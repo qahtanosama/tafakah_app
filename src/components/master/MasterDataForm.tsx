@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import PortCombobox from "@/components/ui/port-combobox";
+import BuyerCombobox from "@/components/ui/buyer-combobox";
 import {
   Plus,
   Trash2,
@@ -62,6 +63,9 @@ import {
   contractNoExists,
   addContractLogEntry,
 } from "@/lib/contract-log";
+import { getBuyers, findBuyerByCompany, addBuyer, createEmptyBuyer } from "@/lib/buyers";
+import { getProductByName, getLastPriceToBuyer } from "@/lib/products";
+import type { Buyer } from "@/types/buyer";
 
 function NumInput({
   value,
@@ -190,6 +194,12 @@ export default function MasterDataForm() {
           const updated = { ...item, [field]: value };
           if (field === "product" && value) {
             updated.hsCode = HS_CODES[value as Product] ?? "";
+            // Auto-fill defaults from product database
+            const profile = getProductByName(value as string);
+            if (profile) {
+              if (updated.nwPerCarton === "" || updated.nwPerCarton === 0) updated.nwPerCarton = profile.defaultNW;
+              if (updated.gwPerCarton === "" || updated.gwPerCarton === 0) updated.gwPerCarton = profile.defaultGW;
+            }
           }
           updated.qtyMTS = calcQtyMTS(updated.nwPerCarton, updated.cartons);
           updated.pricePerCarton = calcPricePerCarton(
@@ -305,6 +315,19 @@ export default function MasterDataForm() {
     });
 
     showToast("success", `\u2713 Contract ${contractNo} submitted and logged`);
+
+    // Auto-save new buyer if not in database
+    if (data.buyer.company.trim() && !findBuyerByCompany(data.buyer.company)) {
+      const newBuyer = createEmptyBuyer();
+      newBuyer.company = data.buyer.company;
+      newBuyer.address = data.buyer.address;
+      newBuyer.additionalNumber = data.buyer.additionalNumber;
+      newBuyer.cityPostal = data.buyer.cityPostal;
+      newBuyer.email = data.buyer.email;
+      newBuyer.ccEmail = data.buyer.ccEmail;
+      addBuyer(newBuyer);
+    }
+
     computeSequence();
   }, [
     canSubmit,
@@ -623,10 +646,30 @@ export default function MasterDataForm() {
 
       {/* ───── C) BUYER ───── */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>C) Buyer / Consignee</CardTitle>
+          <a href="/buyers" target="_blank" rel="noopener noreferrer" className="text-sm text-emerald-600 hover:underline">Manage Buyers</a>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label>Select from saved buyers</Label>
+            <BuyerCombobox
+              buyers={getBuyers()}
+              onSelect={(b) => {
+                setData((prev) => ({
+                  ...prev,
+                  buyer: {
+                    company: b.company,
+                    address: b.address,
+                    additionalNumber: b.additionalNumber,
+                    cityPostal: b.cityPostal,
+                    email: b.email,
+                    ccEmail: b.ccEmail,
+                  },
+                }));
+              }}
+            />
+          </div>
           <div className="sm:col-span-2">
             <Label>Company Name</Label>
             <Input

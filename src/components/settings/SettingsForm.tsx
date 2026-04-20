@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle, XCircle, Download, Upload, Trash2, HardDrive } from "lucide-react";
 import type { AIProvider, AppSettings } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings";
+import { exportBackup, parseBackup, restoreBackup, clearAllData, getStorageStats } from "@/lib/backup";
 
 interface ProviderCardProps {
   provider: AIProvider;
@@ -213,6 +214,118 @@ export default function SettingsForm() {
       <p className="text-xs text-zinc-400">
         Keys are stored locally in your browser. When this app is deployed to the web, keys will be stored securely on the server.
       </p>
+
+      {/* ═══ DATA MANAGEMENT ═══ */}
+      <DataManagementSection showToast={showToast} />
     </div>
+  );
+}
+
+function DataManagementSection({ showToast }: { showToast: (msg: string) => void }) {
+  const [exporting, setExporting] = useState(false);
+  const [confirmClear, setConfirmClear] = useState("");
+  const [storageInfo, setStorageInfo] = useState({ lsUsed: "0 MB", lsTotal: "5 MB", idbDocs: 0 });
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setStorageInfo(getStorageStats());
+  }, []);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const { json, stats } = await exportBackup();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `TAFAKAH_Backup_${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Backup exported: ${stats.contracts} contracts, ${stats.buyers} buyers, ${stats.documents} documents`);
+    } catch (err) {
+      showToast("Export failed: " + (err as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }, [showToast]);
+
+  const handleRestore = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    const text = await file.text();
+    const parsed = parseBackup(text);
+    if (!parsed) { showToast("Invalid backup file"); return; }
+    if (!confirm(`Restore backup?\n\n${parsed.stats.contracts} contracts, ${parsed.stats.buyers} buyers, ${parsed.stats.products} products, ${parsed.stats.documents} documents.\nCreated: ${new Date(parsed.data.createdAt).toLocaleDateString()}\n\nThis will REPLACE all current data.`)) return;
+    await restoreBackup(parsed.data);
+    showToast("Backup restored. Reloading...");
+    setTimeout(() => window.location.reload(), 1000);
+  }, [showToast]);
+
+  const handleClear = useCallback(async () => {
+    if (confirmClear !== "DELETE") return;
+    await clearAllData();
+    showToast("All data cleared. Reloading...");
+    setTimeout(() => window.location.reload(), 1000);
+  }, [confirmClear, showToast]);
+
+  return (
+    <>
+      <div>
+        <h2 className="text-xl font-semibold">Data Management</h2>
+        <p className="mt-1 text-sm text-zinc-500">Export, restore, or clear your data.</p>
+      </div>
+
+      {/* Storage info */}
+      <div className="flex items-center gap-4 rounded-lg border bg-white px-5 py-3 dark:bg-zinc-900">
+        <HardDrive className="h-5 w-5 text-zinc-400" />
+        <div className="text-sm">
+          <span className="text-zinc-500">localStorage:</span> <span className="font-medium">{storageInfo.lsUsed} / {storageInfo.lsTotal}</span>
+          <span className="mx-3 text-zinc-300">|</span>
+          <span className="text-zinc-500">Documents:</span> <span className="font-medium">{storageInfo.idbDocs} files in IndexedDB</span>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
+            <Download className="h-8 w-8 text-emerald-500" />
+            <p className="text-sm font-medium">Export Backup</p>
+            <p className="text-xs text-zinc-400">Download all data as JSON</p>
+            <Button variant="outline" className="gap-2" disabled={exporting} onClick={handleExport}>
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Export
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
+            <Upload className="h-8 w-8 text-blue-500" />
+            <p className="text-sm font-medium">Restore from Backup</p>
+            <p className="text-xs text-zinc-400">Import a .json backup file</p>
+            <Button variant="outline" className="gap-2" onClick={() => restoreInputRef.current?.click()}>
+              <Upload className="h-4 w-4" /> Restore
+            </Button>
+            <input ref={restoreInputRef} type="file" accept=".json" className="hidden" onChange={handleRestore} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
+            <Trash2 className="h-8 w-8 text-red-500" />
+            <p className="text-sm font-medium">Clear All Data</p>
+            <p className="text-xs text-zinc-400">Type DELETE to confirm</p>
+            <Input value={confirmClear} onChange={(e) => setConfirmClear(e.target.value)} placeholder='Type "DELETE"' className="text-center" />
+            <Button variant="destructive" className="gap-2" disabled={confirmClear !== "DELETE"} onClick={handleClear}>
+              <Trash2 className="h-4 w-4" /> Clear Everything
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

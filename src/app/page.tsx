@@ -1,17 +1,34 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
-  ClipboardList, Database, FileSearch, FileText, Package,
+  ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart,
   Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge,
 } from "lucide-react";
 
-const documentTypes = [
-  { title: "Sales Contract", description: "Generate export sales contracts", icon: ScrollText, href: "/sales-contract" },
-  { title: "Commercial Invoice", description: "Create commercial invoices for shipments", icon: Receipt, href: "/commercial-invoice" },
-  { title: "Customs Invoice", description: "Prepare customs declaration invoices", icon: FileText, href: "/customs-invoice" },
-  { title: "Packing List", description: "Generate detailed packing lists", icon: Package, href: "/packing-list" },
-  { title: "Trade Documents", description: "Upload, classify & merge trade documents", icon: FileSearch, href: "/documents" },
-  { title: "Contract Log", description: "View all submitted contracts", icon: ClipboardList, href: "/contract-log" },
+const sections = [
+  {
+    label: "Documents",
+    items: [
+      { title: "Sales Contract", description: "Generate export sales contracts", icon: ScrollText, href: "/sales-contract" },
+      { title: "Commercial Invoice", description: "Create commercial invoices", icon: Receipt, href: "/commercial-invoice" },
+      { title: "Customs Invoice", description: "Customs declaration invoices", icon: FileText, href: "/customs-invoice" },
+      { title: "Packing List", description: "Generate packing lists", icon: Package, href: "/packing-list" },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { title: "Trade Documents", description: "Upload, classify & merge documents", icon: FileSearch, href: "/documents" },
+      { title: "Contract Log", description: "View all submitted contracts", icon: ClipboardList, href: "/contract-log" },
+    ],
+  },
+  {
+    label: "Database",
+    items: [
+      { title: "Buyers", description: "Manage buyer/consignee database", icon: Users, href: "/buyers" },
+      { title: "Products", description: "Product specs & pricing history", icon: ShoppingCart, href: "/products" },
+    ],
+  },
 ];
 
 export default function Home() {
@@ -79,23 +96,28 @@ export default function Home() {
           </div>
         </Link>
 
-        {/* Document cards grid */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {documentTypes.map((doc) => (
-            <Link key={doc.title} href={doc.href}>
-              <div className="group flex h-full flex-col rounded-xl border bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] dark:bg-zinc-900">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 transition-colors group-hover:bg-[#1B2A4A]/10 group-hover:text-[#1B2A4A] dark:bg-zinc-800 dark:text-zinc-400">
-                  <doc.icon className="h-6 w-6" />
-                </div>
-                <h3 className="text-lg font-semibold">{doc.title}</h3>
-                <p className="mt-1 flex-1 text-[0.938rem] text-zinc-500">{doc.description}</p>
-                <div className="mt-4 flex items-center text-sm font-medium text-[#1B2A4A] opacity-0 transition-opacity group-hover:opacity-100 dark:text-zinc-400">
-                  Open <ArrowRight className="ml-1 h-4 w-4" />
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        {/* Grouped card sections */}
+        {sections.map((section) => (
+          <div key={section.label} className="mb-8">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-500">{section.label}</h2>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {section.items.map((doc) => (
+                <Link key={doc.title} href={doc.href}>
+                  <div className="group flex h-full flex-col rounded-xl border bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] dark:bg-zinc-900">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 transition-colors group-hover:bg-[#1B2A4A]/10 group-hover:text-[#1B2A4A] dark:bg-zinc-800 dark:text-zinc-400">
+                      <doc.icon className="h-6 w-6" />
+                    </div>
+                    <h3 className="text-lg font-semibold">{doc.title}</h3>
+                    <p className="mt-1 flex-1 text-[0.938rem] text-zinc-500">{doc.description}</p>
+                    <div className="mt-4 flex items-center text-sm font-medium text-[#1B2A4A] opacity-0 transition-opacity group-hover:opacity-100 dark:text-zinc-400">
+                      Open <ArrowRight className="ml-1 h-4 w-4" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
       </main>
 
       <footer className="mt-auto w-full border-t bg-white py-6 dark:bg-zinc-900">
