@@ -19,6 +19,7 @@ import { getDocuments, saveDocument, removeDocument as removeDoc, getDocumentFil
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
 import { getShipping, getStatusInfo } from "@/lib/shipping";
+import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
 import UploadZone from "./UploadZone";
 
 /* ── Types for merge items ──────────────────────────── */
@@ -134,6 +135,7 @@ export default function DocumentsManager() {
   const [mergeChecks, setMergeChecks] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [providerInfo, setProviderInfo] = useState<{ provider: string; hasKey: boolean }>({ provider: "gemini", hasKey: false });
+  const [quickShareOpen, setQuickShareOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingSlotRef = useRef<DocSlot | null>(null);
 
@@ -425,6 +427,9 @@ export default function DocumentsManager() {
           onChange={switchContract}
         />
         <Button variant="outline" size="sm" onClick={handleSetActive}>Set as Active</Button>
+        {selectedContract && (
+          <QuickShareButton size="sm" label="Quick Share" onClick={() => setQuickShareOpen(true)} />
+        )}
         {selectedContract && (() => {
           const sh = getShipping(selectedContract.contractNo);
           const info = getStatusInfo(sh);
@@ -595,6 +600,14 @@ export default function DocumentsManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedContract && (
+        <QuickShareDialog
+          open={quickShareOpen}
+          onClose={() => setQuickShareOpen(false)}
+          contract={selectedContract}
+        />
       )}
     </div>
   );

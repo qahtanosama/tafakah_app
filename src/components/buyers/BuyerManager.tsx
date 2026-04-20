@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,9 +12,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, X, Save } from "lucide-react";
-import type { Buyer } from "@/types/buyer";
-import { BUYER_COUNTRIES } from "@/types/buyer";
+import { Plus, Pencil, Trash2, Search, X, Save, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import type { Buyer, BuyerLanguage, BuyerDocPreset } from "@/types/buyer";
+import { BUYER_COUNTRIES, isValidE164 } from "@/types/buyer";
 import { getBuyers, addBuyer, updateBuyer, deleteBuyer, createEmptyBuyer } from "@/lib/buyers";
 import { getContractLog } from "@/lib/contract-log";
 
@@ -23,11 +24,25 @@ export default function BuyerManager() {
   const [editing, setEditing] = useState<Buyer | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [msgExpanded, setMsgExpanded] = useState(false);
+  const [msgLang, setMsgLang] = useState<BuyerLanguage>("en");
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    setBuyers(getBuyers());
+    const all = getBuyers();
+    setBuyers(all);
     setLoaded(true);
-  }, []);
+
+    const editId = searchParams?.get("edit");
+    const focus = searchParams?.get("focus");
+    if (editId) {
+      const target = all.find((b) => b.id === editId);
+      if (target) {
+        setEditing({ ...target });
+        if (focus === "whatsapp") setMsgExpanded(true);
+      }
+    }
+  }, [searchParams]);
 
   const contractCounts = useMemo(() => {
     const log = getContractLog();
@@ -149,8 +164,124 @@ export default function BuyerManager() {
               <Label>Notes</Label>
               <Input value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} placeholder="Internal notes..." />
             </div>
+
+            {/* ═══ WhatsApp & Messaging ═══ */}
             <div className="sm:col-span-2 lg:col-span-3">
-              <Button className="gap-2" onClick={handleSave} disabled={!editing.company.trim()}>
+              <button
+                type="button"
+                onClick={() => setMsgExpanded((v) => !v)}
+                className="flex w-full items-center justify-between rounded-lg border bg-zinc-50 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+              >
+                <span className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp &amp; Messaging
+                  {editing.whatsappNumber && <span className="ml-2 text-xs text-zinc-400">({editing.whatsappNumber})</span>}
+                </span>
+                {msgExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {msgExpanded && (
+                <div className="mt-3 grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-2 dark:bg-zinc-900">
+                  <div className="sm:col-span-2">
+                    <Label>WhatsApp Number (E.164 format, no spaces)</Label>
+                    <Input
+                      value={editing.whatsappNumber ?? ""}
+                      onChange={(e) => setEditing({ ...editing, whatsappNumber: e.target.value.trim() })}
+                      placeholder="+966501234567"
+                      className={`font-mono ${
+                        editing.whatsappNumber && !isValidE164(editing.whatsappNumber)
+                          ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                          : ""
+                      }`}
+                    />
+                    <p className="mt-1 text-xs text-zinc-400">
+                      {editing.whatsappNumber && !isValidE164(editing.whatsappNumber)
+                        ? "Must start with + followed by 8-15 digits. No spaces or dashes."
+                        : "Example: +966501234567 (Saudi Arabia)"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Preferred Language</Label>
+                    <div className="mt-2 flex gap-4 text-sm">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`buyerLang-${editing.id}`}
+                          checked={(editing.preferredLanguage ?? "en") === "en"}
+                          onChange={() => setEditing({ ...editing, preferredLanguage: "en" })}
+                          className="h-4 w-4 accent-emerald-600"
+                        />
+                        English
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`buyerLang-${editing.id}`}
+                          checked={editing.preferredLanguage === "ar"}
+                          onChange={() => setEditing({ ...editing, preferredLanguage: "ar" })}
+                          className="h-4 w-4 accent-emerald-600"
+                        />
+                        <span dir="rtl">&#x0627;&#x0644;&#x0639;&#x0631;&#x0628;&#x064A;&#x0629;</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Default Doc Preset</Label>
+                    <Select
+                      value={editing.defaultDocPreset ?? "buyer"}
+                      onValueChange={(v) => v && setEditing({ ...editing, defaultDocPreset: v as BuyerDocPreset })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="buyer">For Buyer (SC + CI + PL)</SelectItem>
+                        <SelectItem value="bank">For Bank (SC + CI)</SelectItem>
+                        <SelectItem value="customs">For Customs (CI-Customs + PL)</SelectItem>
+                        <SelectItem value="all">All 4 documents</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="mb-1 flex items-center gap-3">
+                      <Label className="m-0">Custom Message Template (optional)</Label>
+                      <div className="flex gap-1 rounded-md border bg-zinc-100 p-0.5 text-xs dark:bg-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => setMsgLang("en")}
+                          className={`rounded px-2 py-0.5 ${msgLang === "en" ? "bg-white font-medium shadow-sm dark:bg-zinc-700" : "text-zinc-500"}`}
+                        >EN</button>
+                        <button
+                          type="button"
+                          onClick={() => setMsgLang("ar")}
+                          className={`rounded px-2 py-0.5 ${msgLang === "ar" ? "bg-white font-medium shadow-sm dark:bg-zinc-700" : "text-zinc-500"}`}
+                        >AR</button>
+                      </div>
+                    </div>
+                    <textarea
+                      dir="auto"
+                      rows={6}
+                      value={(editing.customMessageTemplate ?? {})[msgLang] ?? ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          customMessageTemplate: {
+                            ...(editing.customMessageTemplate ?? {}),
+                            [msgLang]: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder={msgLang === "en"
+                        ? "Leave empty to use the default template. Variables: {buyerName}, {contractNo}, {productList}, {totalQty}, {etd}, {docList}"
+                        : "اتركه فارغاً لاستخدام القالب الافتراضي. المتغيرات: {buyerName}, {contractNo}, {productList}, {totalQty}, {etd}, {docList}"}
+                      className="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-300 focus:ring-1 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+                    <p className="mt-1 text-xs text-zinc-400">
+                      Supports: {"{buyerName}"}, {"{contractNo}"}, {"{productList}"}, {"{totalQty}"}, {"{etd}"}, {"{docList}"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-3">
+              <Button className="gap-2" onClick={handleSave} disabled={!editing.company.trim() || (!!editing.whatsappNumber && !isValidE164(editing.whatsappNumber))}>
                 <Save className="h-4 w-4" /> Save Buyer
               </Button>
             </div>

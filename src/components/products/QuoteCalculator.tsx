@@ -11,6 +11,7 @@ import {
 import { Copy, Save, Check, Plus, X, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import type { ProductProfile } from "@/types/product";
 import { getProducts, getPriceHistory } from "@/lib/products";
+import { toArabicNum, toArabicFormatted } from "@/lib/arabic";
 
 /* ── Types ─────────────────────────────────────── */
 type Currency = "USD" | "RMB" | "EUR" | "SAR" | "AED" | "KWD";
@@ -60,23 +61,6 @@ function toUSD(amount: number, cur: Currency, fx: FxRates): number {
   if (cur === "USD") return amount;
   const rate = fx[cur as keyof FxRates];
   return rate > 0 ? amount / rate : 0;
-}
-
-/* ── Arabic helpers ────────────────────────────── */
-const AR_DIGITS = "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669";
-function toArabicNum(n: number, decimals = 0): string {
-  const str = n.toFixed(decimals);
-  return str.replace(/\d/g, (d) => AR_DIGITS[parseInt(d)])
-    .replace(/\./g, "\u066B")
-    .replace(/,/g, "\u066C");
-}
-function toArabicFormatted(n: number, decimals = 0): string {
-  const parts = n.toFixed(decimals).split(".");
-  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const full = parts[1] ? `${intPart}.${parts[1]}` : intPart;
-  return full.replace(/\d/g, (d) => AR_DIGITS[parseInt(d)])
-    .replace(/\./g, "\u066B")
-    .replace(/,/g, "\u066C");
 }
 
 const PRODUCT_AR: Record<string, string> = {

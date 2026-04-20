@@ -37,6 +37,8 @@ import {
   Ship,
 } from "lucide-react";
 import Link from "next/link";
+import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
+import type { ContractLogEntry } from "@/types/sales-contract";
 import type { SalesContractData, LineItem, Product, ContractTotals } from "@/types/sales-contract";
 import {
   getProductNames,
@@ -119,6 +121,7 @@ export default function MasterDataForm() {
     contractNo: string;
     invoiceNo: string;
   } | null>(null);
+  const [quickShareOpen, setQuickShareOpen] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
@@ -954,12 +957,15 @@ export default function MasterDataForm() {
         </Button>
         {lastSubmit && (
           <>
-            <DownloadAllButton
-              data={lastSubmit.data}
-              totals={lastSubmit.totals}
-              contractNo={lastSubmit.contractNo}
-              invoiceNo={lastSubmit.invoiceNo}
-            />
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <DownloadAllButton
+                data={lastSubmit.data}
+                totals={lastSubmit.totals}
+                contractNo={lastSubmit.contractNo}
+                invoiceNo={lastSubmit.invoiceNo}
+              />
+              <QuickShareButton size="lg" onClick={() => setQuickShareOpen(true)} />
+            </div>
             <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border bg-white px-4 py-3 text-sm dark:bg-zinc-900">
               <span className="text-zinc-500">Next steps for {lastSubmit.contractNo}:</span>
               <Link href={`/finance/${encodeURIComponent(lastSubmit.contractNo)}`}>
@@ -973,6 +979,23 @@ export default function MasterDataForm() {
           </>
         )}
       </div>
+
+      {lastSubmit && (
+        <QuickShareDialog
+          open={quickShareOpen}
+          onClose={() => setQuickShareOpen(false)}
+          contract={({
+            id: lastSubmit.contractNo,
+            contractNo: lastSubmit.contractNo,
+            invoiceNo: lastSubmit.invoiceNo,
+            dateSubmitted: new Date().toISOString(),
+            buyer: lastSubmit.data.buyer.company,
+            product: lastSubmit.data.lineItems[0]?.product || "",
+            status: "Active",
+            masterSnapshot: lastSubmit.data,
+          }) as ContractLogEntry}
+        />
+      )}
     </div>
   );
 }

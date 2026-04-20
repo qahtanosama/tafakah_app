@@ -42,5 +42,9 @@ export function createEmptyBuyer(): Buyer {
     cityPostal: "", country: "", email: "", ccEmail: "",
     phone: "", contactPerson: "", notes: "",
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    whatsappNumber: "",
+    preferredLanguage: "en",
+    defaultDocPreset: "buyer",
+    customMessageTemplate: {},
   };
 }
