@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
-  ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet,
+  ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet, Calculator,
   Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge,
 } from "lucide-react";
 
@@ -28,6 +28,7 @@ const sections = [
     items: [
       { title: "Buyers", description: "Manage buyer/consignee database", icon: Users, href: "/buyers" },
       { title: "Products", description: "Product specs & pricing history", icon: ShoppingCart, href: "/products" },
+      { title: "Quote Calculator", description: "Calculate pricing & profit margins", icon: Calculator, href: "/products/calculator" },
     ],
   },
 ];

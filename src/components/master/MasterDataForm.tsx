@@ -36,8 +36,8 @@ import {
 } from "lucide-react";
 import type { SalesContractData, LineItem, Product, ContractTotals } from "@/types/sales-contract";
 import {
-  PRODUCTS,
-  HS_CODES,
+  getProductNames,
+  getHSCode,
   calcQtyMTS,
   calcPricePerCarton,
   calcTotals,
@@ -193,7 +193,7 @@ export default function MasterDataForm() {
           if (item.id !== id) return item;
           const updated = { ...item, [field]: value };
           if (field === "product" && value) {
-            updated.hsCode = HS_CODES[value as Product] ?? "";
+            updated.hsCode = getHSCode(value as string);
             // Auto-fill defaults from product database
             const profile = getProductByName(value as string);
             if (profile) {
@@ -806,7 +806,7 @@ export default function MasterDataForm() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {PRODUCTS.map((p) => (
+                          {getProductNames().map((p) => (
                             <SelectItem key={p} value={p}>
                               {p}
                             </SelectItem>

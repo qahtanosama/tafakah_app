@@ -1,24 +1,54 @@
 import type { LineItem, Product, ContractTotals, SalesContractData } from "@/types/sales-contract";
 
+// Legacy static lists (kept for backward compat with old snapshots)
 export const PRODUCTS: Product[] = ["Fresh Ginger", "Fresh Garlic", "Fresh Kiwi", "Fresh Apple"];
 
-export const HS_CODES: Record<Product, string> = {
+export const HS_CODES: Record<string, string> = {
   "Fresh Ginger": "0910.1100",
   "Fresh Garlic": "070320",
   "Fresh Kiwi": "081050",
   "Fresh Apple": "080810",
 };
 
-export const CONTRACT_PREFIXES: Record<Product, string> = {
+export const CONTRACT_PREFIXES: Record<string, string> = {
   "Fresh Ginger": "GG",
   "Fresh Garlic": "GL",
   "Fresh Kiwi": "KW",
   "Fresh Apple": "APP",
 };
 
-export function getPrefix(firstProduct: Product | ""): string {
+/** Get all product names from the database (dynamic) */
+export function getProductNames(): string[] {
+  try {
+    const raw = localStorage.getItem("products-database");
+    if (raw) return (JSON.parse(raw) as { name: string }[]).map((p) => p.name);
+  } catch { /* ignore */ }
+  return [...PRODUCTS];
+}
+
+/** Get HS code for any product (checks DB first, then static fallback) */
+export function getHSCode(productName: string): string {
+  try {
+    const raw = localStorage.getItem("products-database");
+    if (raw) {
+      const found = (JSON.parse(raw) as { name: string; hsCode: string }[]).find((p) => p.name === productName);
+      if (found) return found.hsCode;
+    }
+  } catch { /* ignore */ }
+  return HS_CODES[productName] ?? "";
+}
+
+/** Get prefix for any product (checks DB first, then static fallback) */
+export function getPrefix(firstProduct: string): string {
   if (!firstProduct) return "";
-  return CONTRACT_PREFIXES[firstProduct];
+  try {
+    const raw = localStorage.getItem("products-database");
+    if (raw) {
+      const found = (JSON.parse(raw) as { name: string; prefix: string }[]).find((p) => p.name === firstProduct);
+      if (found) return found.prefix;
+    }
+  } catch { /* ignore */ }
+  return CONTRACT_PREFIXES[firstProduct] ?? "";
 }
 
 export function generateContractNumber(year: number, sequenceNumber: number, firstProduct: Product | ""): string {

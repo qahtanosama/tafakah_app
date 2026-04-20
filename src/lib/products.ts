@@ -36,6 +36,29 @@ export function updateProduct(product: ProductProfile): void {
   saveProd(products);
 }
 
+export function addProduct(product: ProductProfile): void {
+  const products = getProducts();
+  products.push(product);
+  saveProd(products);
+}
+
+export function deleteProduct(id: string): void {
+  saveProd(getProducts().filter((p) => p.id !== id));
+}
+
+export function isPrefixUsed(prefix: string, excludeId?: string): boolean {
+  return getProducts().some((p) => p.prefix.toUpperCase() === prefix.toUpperCase() && p.id !== excludeId);
+}
+
+export function getProductUsageCount(productName: string): number {
+  const log = getContractLog();
+  return log.filter((c) => c.masterSnapshot.lineItems.some((i) => i.product === productName)).length;
+}
+
+export function getAllProductNames(): string[] {
+  return getProducts().map((p) => p.name);
+}
+
 export function getProductByName(name: string): ProductProfile | undefined {
   return getProducts().find((p) => p.name === name);
 }
