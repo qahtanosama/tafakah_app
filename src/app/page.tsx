@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
-  ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart,
+  ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet,
   Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge,
 } from "lucide-react";
 
@@ -20,6 +20,7 @@ const sections = [
     items: [
       { title: "Trade Documents", description: "Upload, classify & merge documents", icon: FileSearch, href: "/documents" },
       { title: "Contract Log", description: "View all submitted contracts", icon: ClipboardList, href: "/contract-log" },
+      { title: "Finance & Payments", description: "Track costs, payments & profit", icon: Wallet, href: "/finance" },
     ],
   },
   {

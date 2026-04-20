@@ -26,6 +26,9 @@ import {
   updateContractLogEntryStatus,
 } from "@/lib/contract-log";
 import { saveMasterData, saveActiveContract } from "@/lib/master-data";
+import { calcTotals } from "@/lib/sales-contract";
+import { getAllFinance, calcSummary } from "@/lib/finance";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const STATUS_OPTIONS: ContractStatus[] = ["Active", "Completed", "Cancelled"];
@@ -100,6 +103,17 @@ export default function ContractLogTable() {
     [router]
   );
 
+  const financeMap = useMemo(() => {
+    const all = getAllFinance();
+    const map: Record<string, ReturnType<typeof calcSummary>> = {};
+    for (const e of log) {
+      const t = calcTotals(e.masterSnapshot.lineItems);
+      const f = all.find((fi) => fi.contractNo === e.contractNo) ?? null;
+      map[e.contractNo] = calcSummary(t.totalUSD, f);
+    }
+    return map;
+  }, [log]);
+
   if (!loaded) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
@@ -143,6 +157,7 @@ export default function ContractLogTable() {
             <TableHead>Date Submitted</TableHead>
             <TableHead>Buyer</TableHead>
             <TableHead>Product</TableHead>
+            <TableHead>Finance</TableHead>
             <TableHead className="w-[150px]">Status</TableHead>
             <TableHead className="w-[140px]">Actions</TableHead>
           </TableRow>
@@ -156,6 +171,14 @@ export default function ContractLogTable() {
               <TableCell className="text-sm">{formatDate(entry.dateSubmitted)}</TableCell>
               <TableCell className="text-sm">{entry.buyer}</TableCell>
               <TableCell className="text-sm">{entry.product}</TableCell>
+              <TableCell>
+                {(() => {
+                  const s = financeMap[entry.contractNo];
+                  if (!s || s.totalCost === 0) return <Link href={`/finance/${encodeURIComponent(entry.contractNo)}`} className="text-xs text-zinc-400 hover:underline">Add costs</Link>;
+                  const color = s.grossProfit >= 0 ? (s.paymentStatus === "paid" ? "text-emerald-600" : "text-amber-600") : "text-red-600";
+                  return <Link href={`/finance/${encodeURIComponent(entry.contractNo)}`} className={`text-xs font-medium hover:underline ${color}`}>${Math.round(s.grossProfit / 1000)}k {s.paymentStatus === "paid" ? "\u2713" : s.paymentStatus === "partial" ? "\u26a0" : ""}</Link>;
+                })()}
+              </TableCell>
               <TableCell>
                 <Select
                   value={entry.status}
