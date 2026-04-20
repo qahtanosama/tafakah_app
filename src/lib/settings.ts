@@ -4,6 +4,7 @@ export interface AppSettings {
   activeProvider: AIProvider;
   geminiApiKey: string;
   anthropicApiKey: string;
+  shipsgoToken: string;
 }
 
 const STORAGE_KEY = "tafakah-settings";
@@ -12,6 +13,7 @@ const DEFAULTS: AppSettings = {
   activeProvider: "gemini",
   geminiApiKey: "",
   anthropicApiKey: "",
+  shipsgoToken: "",
 };
 
 export function loadSettings(): AppSettings {
@@ -38,4 +40,8 @@ export function getActiveProviderKey(): { provider: AIProvider; apiKey: string }
     provider: s.activeProvider,
     apiKey: s.activeProvider === "gemini" ? s.geminiApiKey : s.anthropicApiKey,
   };
+}
+
+export function getShipsgoToken(): string {
+  return loadSettings().shipsgoToken;
 }

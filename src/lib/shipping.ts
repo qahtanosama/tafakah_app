@@ -39,7 +39,7 @@ export function deleteShipping(contractNo: string): void {
   saveAll(all);
 }
 
-export function createEmptyShipping(contractNo: string, defaults?: { blNumber?: string; containerNumber?: string; sealNumber?: string }): ShippingEntry {
+export function createEmptyShipping(contractNo: string, defaults?: { blNumber?: string; containerNumber?: string; sealNumber?: string; portOfLoading?: string; portOfDischarge?: string }): ShippingEntry {
   return {
     contractNo,
     shippingLine: "",
@@ -53,11 +53,26 @@ export function createEmptyShipping(contractNo: string, defaults?: { blNumber?: 
     atd: null,
     eta: "",
     ata: null,
+    portOfLoading: defaults?.portOfLoading ?? "",
+    portOfDischarge: defaults?.portOfDischarge ?? "",
     containerNumber: defaults?.containerNumber ?? "",
     sealNumber: defaults?.sealNumber ?? "",
     statusOverride: "auto",
     notes: "",
     updatedAt: new Date().toISOString(),
+    shipsgoRequestId: null,
+    lastAutoFetchAt: null,
+  };
+}
+
+/** Migrate older entries missing new fields */
+export function ensureShippingFields(entry: ShippingEntry): ShippingEntry {
+  return {
+    ...entry,
+    portOfLoading: entry.portOfLoading ?? "",
+    portOfDischarge: entry.portOfDischarge ?? "",
+    shipsgoRequestId: entry.shipsgoRequestId ?? null,
+    lastAutoFetchAt: entry.lastAutoFetchAt ?? null,
   };
 }
 

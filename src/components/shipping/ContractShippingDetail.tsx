@@ -9,16 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, ExternalLink, Ship, Check } from "lucide-react";
+import { ArrowLeft, ExternalLink, Ship, Check, RefreshCw, Loader2, AlertTriangle } from "lucide-react";
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ShippingEntry, ShippingLine, ShippingStatusOverride } from "@/types/shipping";
 import { SHIPPING_LINES } from "@/types/shipping";
 import { getContractLog } from "@/lib/contract-log";
 import {
-  getShipping, saveShipping, createEmptyShipping,
+  getShipping, saveShipping, createEmptyShipping, ensureShippingFields,
   getStatusInfo, calcTransitProgress, getTrackingLinks, calcAutoStatus,
 } from "@/lib/shipping";
 import { calcTotals } from "@/lib/sales-contract";
+import { getShipsgoToken } from "@/lib/settings";
+import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, formatRelativeTime, isStale } from "@/lib/shipsgo";
+import { useRouter } from "next/navigation";
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "\u2014";
@@ -145,7 +148,24 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   const [entry, setEntry] = useState<ShippingEntry | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<{
+    conflicts: Array<{ field: string; current: string; incoming: string }>;
+    next: ShippingEntry;
+  } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
   const savedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoTriggered = useRef(false);
+  const router = useRouter();
+
+  const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
+    setToast({ type, msg });
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    toastTimeout.current = setTimeout(() => setToast(null), 4000);
+  }, []);
 
   useEffect(() => {
     const log = getContractLog();
@@ -157,9 +177,14 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
         blNumber: c?.masterSnapshot.identifiers.blNumber ?? "",
         containerNumber: c?.masterSnapshot.identifiers.containerNumber ?? "",
         sealNumber: c?.masterSnapshot.identifiers.sealNumber ?? "",
+        portOfLoading: c?.masterSnapshot.shipping.loadingPort ?? "",
+        portOfDischarge: c?.masterSnapshot.shipping.dischargePort ?? "",
       });
+    } else {
+      e = ensureShippingFields(e);
     }
     setEntry(e);
+    setHasToken(!!getShipsgoToken());
     setLoaded(true);
   }, [contractNo]);
 
@@ -182,6 +207,75 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   const commit = useCallback(() => {
     if (entry) persist(entry);
   }, [entry, persist]);
+
+  const runFetch = useCallback(async (target: ShippingEntry, opts: { silent?: boolean } = {}) => {
+    const token = getShipsgoToken();
+    if (!token) {
+      if (!opts.silent) {
+        showToast("info", "Configure Shipsgo API in Settings first");
+        router.push("/settings#shipsgo");
+      }
+      return;
+    }
+    setFetching(true);
+    setFetchError(null);
+    const result = await fetchShipmentFromShipsgo(target, token);
+    setFetching(false);
+    if (!result.success || !result.data) {
+      if (!opts.silent) {
+        setFetchError(result.error ?? "Failed to fetch tracking");
+        showToast("error", result.error ?? "Failed to fetch tracking");
+      }
+      return;
+    }
+    const { next, conflicts } = mergeTrackIntoEntry(target, result.data);
+    if (conflicts.length > 0 && !opts.silent) {
+      setConflict({ conflicts, next });
+    } else {
+      persist(next);
+      if (!opts.silent) showToast("success", "\u2713 Shipping data updated from Shipsgo");
+    }
+  }, [persist, router, showToast]);
+
+  const handleAutoFill = useCallback(() => {
+    if (!entry) return;
+    if (!entry.blNumber && !entry.containerNumber) {
+      showToast("error", "Enter a B/L or container number first");
+      return;
+    }
+    runFetch(entry);
+  }, [entry, runFetch, showToast]);
+
+  const applyConflict = useCallback(() => {
+    if (!conflict) return;
+    persist(conflict.next);
+    setConflict(null);
+    showToast("success", "\u2713 Shipping data updated from Shipsgo");
+  }, [conflict, persist, showToast]);
+
+  const cancelConflict = useCallback(() => {
+    if (!conflict) return;
+    // Still save timestamp + requestId even when user rejects the field changes
+    const refreshed: ShippingEntry = {
+      ...entry!,
+      shipsgoRequestId: conflict.next.shipsgoRequestId ?? entry!.shipsgoRequestId,
+      lastAutoFetchAt: new Date().toISOString(),
+    };
+    persist(refreshed);
+    setConflict(null);
+    showToast("info", "Kept your values. Tracking ID cached for next refresh.");
+  }, [conflict, entry, persist, showToast]);
+
+  // Auto-refresh on page load when data is stale and we have a B/L + token
+  useEffect(() => {
+    if (!loaded || !entry || autoTriggered.current) return;
+    if (!hasToken) return;
+    if (!entry.blNumber && !entry.containerNumber) return;
+    if (!isStale(entry.lastAutoFetchAt)) return;
+    autoTriggered.current = true;
+    runFetch(entry, { silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, hasToken]);
 
   const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems) : null, [contract]);
 
@@ -220,6 +314,39 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
           {savedFlash && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> Saved</span>}
         </div>
       </div>
+
+      {/* Last-updated + force-refresh bar */}
+      {hasToken && (entry.blNumber || entry.containerNumber) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white px-4 py-2 text-xs dark:bg-zinc-900">
+          <span className="flex items-center gap-2 text-zinc-500">
+            <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin text-blue-500" : "text-zinc-400"}`} />
+            {fetching
+              ? "Checking Shipsgo\u2026"
+              : entry.lastAutoFetchAt
+                ? `Updated ${formatRelativeTime(entry.lastAutoFetchAt)} from Shipsgo`
+                : "Not yet synced with Shipsgo"}
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={handleAutoFill} disabled={fetching}>
+              {fetching ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
+              Force refresh
+            </Button>
+          </div>
+        </div>
+      )}
+      {fetchError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>{fetchError}</span>
+        </div>
+      )}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 rounded-lg px-5 py-3 text-sm font-medium shadow-lg ${
+          toast.type === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-800" :
+          toast.type === "error" ? "border border-red-200 bg-red-50 text-red-800" :
+          "border border-zinc-200 bg-white text-zinc-800 dark:bg-zinc-900"
+        }`}>{toast.msg}</div>
+      )}
 
       {/* Contract summary */}
       <div className="grid gap-3 rounded-lg border bg-white p-4 sm:grid-cols-4 dark:bg-zinc-900">
@@ -288,7 +415,20 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
           </div>
           <div className="sm:col-span-2">
             <Label>B/L Number</Label>
-            <Input value={entry.blNumber} onChange={(e) => update("blNumber", e.target.value)} onBlur={commit} placeholder="Bill of Lading number" />
+            <div className="flex gap-2">
+              <Input value={entry.blNumber} onChange={(e) => update("blNumber", e.target.value)} onBlur={commit} placeholder="Bill of Lading number" className="flex-1" />
+              <AutoFillButton
+                disabled={fetching || (!entry.blNumber && !entry.containerNumber)}
+                hasToken={hasToken}
+                loading={fetching}
+                onClick={handleAutoFill}
+              />
+            </div>
+            {!hasToken && (
+              <p className="mt-1 text-xs text-zinc-400">
+                <Link href="/settings#shipsgo" className="underline hover:text-zinc-600">Configure Shipsgo API</Link> to enable auto-fill
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -310,7 +450,19 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
       <Card>
         <CardHeader><CardTitle className="text-base">Container</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div><Label>Container Number</Label><Input value={entry.containerNumber} onChange={(e) => update("containerNumber", e.target.value)} onBlur={commit} /></div>
+          <div>
+            <Label>Container Number</Label>
+            <div className="flex gap-2">
+              <Input value={entry.containerNumber} onChange={(e) => update("containerNumber", e.target.value)} onBlur={commit} className="flex-1" />
+              <AutoFillButton
+                disabled={fetching || (!entry.blNumber && !entry.containerNumber)}
+                hasToken={hasToken}
+                loading={fetching}
+                onClick={handleAutoFill}
+                compact
+              />
+            </div>
+          </div>
           <div><Label>Seal Number</Label><Input value={entry.sealNumber} onChange={(e) => update("sealNumber", e.target.value)} onBlur={commit} /></div>
         </CardContent>
       </Card>
@@ -353,6 +505,55 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
       <div className="flex justify-end">
         <Button onClick={commit} className="gap-1"><Check className="h-4 w-4" /> Save</Button>
       </div>
+
+      {conflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
+            <h3 className="mb-2 text-lg font-bold">Replace your edits?</h3>
+            <p className="mb-4 text-sm text-zinc-500">
+              Shipsgo returned different values for these fields. Your current values are shown on the left.
+            </p>
+            <div className="mb-5 max-h-72 space-y-2 overflow-y-auto">
+              {conflict.conflicts.map((c) => (
+                <div key={c.field} className="rounded border bg-zinc-50 p-2 text-xs dark:bg-zinc-800">
+                  <p className="font-medium">{c.field}</p>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <div><p className="text-zinc-400">Current</p><p className="font-mono">{c.current || "(empty)"}</p></div>
+                    <div><p className="text-emerald-600">Incoming</p><p className="font-mono">{c.incoming || "(empty)"}</p></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={cancelConflict}>Keep mine</Button>
+              <Button onClick={applyConflict}>Update from Shipsgo</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function AutoFillButton({ disabled, hasToken, loading, onClick, compact }: {
+  disabled: boolean;
+  hasToken: boolean;
+  loading: boolean;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size={compact ? "sm" : "default"}
+      onClick={onClick}
+      disabled={disabled}
+      title={hasToken ? "Auto-fill from Shipsgo" : "Configure Shipsgo API in Settings to enable"}
+      className="gap-1 whitespace-nowrap"
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+      {compact ? "Auto-Fill" : "Auto-Fill from B/L"}
+    </Button>
   );
 }

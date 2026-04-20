@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2, CheckCircle, XCircle, Download, Upload, Trash2, HardDrive } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle, XCircle, Download, Upload, Trash2, HardDrive, Ship } from "lucide-react";
 import type { AIProvider, AppSettings } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings";
 import { exportBackup, parseBackup, restoreBackup, clearAllData, getStorageStats } from "@/lib/backup";
+import { getUsage, setUsageLimit } from "@/lib/shipsgo";
 
 interface ProviderCardProps {
   provider: AIProvider;
@@ -148,7 +149,7 @@ function ProviderCard({
 }
 
 export default function SettingsForm() {
-  const [settings, setSettings] = useState<AppSettings>({ activeProvider: "gemini", geminiApiKey: "", anthropicApiKey: "" });
+  const [settings, setSettings] = useState<AppSettings>({ activeProvider: "gemini", geminiApiKey: "", anthropicApiKey: "", shipsgoToken: "" });
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -215,9 +216,148 @@ export default function SettingsForm() {
         Keys are stored locally in your browser. When this app is deployed to the web, keys will be stored securely on the server.
       </p>
 
+      {/* ═══ SHIPSGO API ═══ */}
+      <ShipsgoSection
+        token={settings.shipsgoToken}
+        onTokenChange={(t) => setSettings((s) => ({ ...s, shipsgoToken: t }))}
+        onSave={handleSave}
+        showToast={showToast}
+      />
+
       {/* ═══ DATA MANAGEMENT ═══ */}
       <DataManagementSection showToast={showToast} />
     </div>
+  );
+}
+
+function ShipsgoSection({ token, onTokenChange, onSave, showToast }: {
+  token: string;
+  onTokenChange: (t: string) => void;
+  onSave: () => void;
+  showToast: (msg: string) => void;
+}) {
+  const [showToken, setShowToken] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [usage, setUsageState] = useState<{ month: string; count: number; limit: number } | null>(null);
+  const [limitEdit, setLimitEdit] = useState("");
+
+  useEffect(() => {
+    const u = getUsage();
+    setUsageState(u);
+    setLimitEdit(String(u.limit));
+  }, []);
+
+  const handleTest = useCallback(async () => {
+    if (!token) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/shipping/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (err) {
+      setTestResult({ success: false, message: (err as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  }, [token]);
+
+  const handleSaveLimit = useCallback(() => {
+    const n = parseInt(limitEdit, 10);
+    if (isNaN(n) || n < 1) return;
+    setUsageLimit(n);
+    setUsageState(getUsage());
+    showToast(`Monthly limit set to ${n}`);
+  }, [limitEdit, showToast]);
+
+  const percent = usage ? Math.round((usage.count / usage.limit) * 100) : 0;
+  const barColor = percent >= 100 ? "bg-red-500" : percent >= 80 ? "bg-amber-500" : "bg-emerald-500";
+
+  return (
+    <Card id="shipsgo" className="border">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Ship className="h-4 w-4" /> Shipping Tracking API
+        </CardTitle>
+        <p className="text-xs text-zinc-400">Provider: Shipsgo &mdash; covers 150+ carriers with one token</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label>API Token</Label>
+          <div className="mt-1 flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showToken ? "text" : "password"}
+                value={token}
+                onChange={(e) => { onTokenChange(e.target.value); setTestResult(null); }}
+                placeholder="Paste your Shipsgo user token..."
+                className="pr-10 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken(!showToken)}
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              >
+                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          {!token && <p className="mt-1 text-xs text-zinc-400">Not configured</p>}
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={!token || testing} onClick={handleTest}>
+            {testing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+            Test Connection
+          </Button>
+          <Button size="sm" disabled={!token} onClick={onSave}>Save</Button>
+        </div>
+
+        {testResult && (
+          <div className={`flex items-start gap-2 rounded px-3 py-2 text-xs ${testResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+            {testResult.success ? <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" /> : <XCircle className="mt-0.5 h-3 w-3 shrink-0" />}
+            <span>{testResult.message}</span>
+          </div>
+        )}
+
+        {/* Usage tracker */}
+        {usage && (
+          <div className="space-y-2 rounded-lg border bg-zinc-50 p-3 dark:bg-zinc-800">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium">API Usage ({usage.month})</span>
+              <span className={percent >= 100 ? "text-red-600 font-semibold" : percent >= 80 ? "text-amber-600 font-medium" : "text-zinc-500"}>
+                {usage.count} / {usage.limit}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+              <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.min(100, percent)}%` }} />
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-zinc-500">Monthly limit:</span>
+              <Input
+                type="number"
+                value={limitEdit}
+                onChange={(e) => setLimitEdit(e.target.value)}
+                className="h-7 w-20 text-xs"
+              />
+              <Button size="sm" variant="outline" onClick={handleSaveLimit}>Update</Button>
+              <span className="text-zinc-400">(free tier default is 50)</span>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-zinc-400">
+          Get a token at{" "}
+          <a href="https://shipsgo.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-600">shipsgo.com</a>.
+          Token is stored in your browser only. When deployed to the web, we&rsquo;ll move it to secure server storage.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

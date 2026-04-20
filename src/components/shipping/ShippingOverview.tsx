@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -9,11 +10,13 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, Ship, Calendar, Anchor, AlertTriangle } from "lucide-react";
+import { Search, Ship, Calendar, Anchor, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ShippingEntry, ShippingStatus } from "@/types/shipping";
 import { getContractLog } from "@/lib/contract-log";
-import { getAllShipping, getStatusInfo, resolveStatus } from "@/lib/shipping";
+import { getAllShipping, getStatusInfo, resolveStatus, saveShipping, ensureShippingFields } from "@/lib/shipping";
+import { getShipsgoToken } from "@/lib/settings";
+import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, getUsage, usageRemaining } from "@/lib/shipsgo";
 
 type SortKey = "eta" | "etd" | "contract";
 type StatusFilter = "all" | ShippingStatus;
@@ -39,10 +42,15 @@ export default function ShippingOverview() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("eta");
+  const [hasToken, setHasToken] = useState(false);
+  const [bulkState, setBulkState] = useState<{ running: boolean; index: number; total: number; current: string } | null>(null);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const cancelBulkRef = useRef(false);
 
   useEffect(() => {
     setContracts(getContractLog());
     setEntries(getAllShipping());
+    setHasToken(!!getShipsgoToken());
     setLoaded(true);
   }, []);
 
@@ -122,6 +130,69 @@ export default function ShippingOverview() {
     return { atSeaCount: atSea.length, nextDep, nextArr, delayedCount: delayed.length, mostOverdue };
   }, [rows]);
 
+  const trackableEntries = useMemo(
+    () => entries.filter((e) => (e.blNumber || e.containerNumber)),
+    [entries]
+  );
+
+  const handleBulkRefresh = useCallback(async () => {
+    const token = getShipsgoToken();
+    if (!token) {
+      alert("Configure Shipsgo API in Settings first.");
+      return;
+    }
+    if (trackableEntries.length === 0) {
+      alert("No shipments with a B/L or container number to refresh.");
+      return;
+    }
+    const u = getUsage();
+    const remaining = usageRemaining();
+    if (remaining < trackableEntries.length) {
+      const ok = confirm(
+        `This will use ${trackableEntries.length} requests. You have ${remaining} remaining this month (${u.count}/${u.limit}). Continue anyway?`
+      );
+      if (!ok) return;
+    } else if (trackableEntries.length >= 5) {
+      const ok = confirm(
+        `This will use ${trackableEntries.length} requests. You have ${remaining} remaining this month. Continue?`
+      );
+      if (!ok) return;
+    }
+
+    cancelBulkRef.current = false;
+    setBulkResult(null);
+    let ok = 0, fail = 0;
+    for (let i = 0; i < trackableEntries.length; i++) {
+      if (cancelBulkRef.current) break;
+      const target = ensureShippingFields(trackableEntries[i]);
+      setBulkState({ running: true, index: i + 1, total: trackableEntries.length, current: target.contractNo });
+
+      const result = await fetchShipmentFromShipsgo(target, token);
+      if (result.success && result.data) {
+        const { next } = mergeTrackIntoEntry(target, result.data);
+        saveShipping(next);
+        setEntries((prev) => prev.map((e) => (e.contractNo === next.contractNo ? next : e)));
+        ok++;
+      } else {
+        fail++;
+        if (result.errorCode === "quota" || result.errorCode === "auth") {
+          setBulkResult(`Stopped: ${result.error}`);
+          break;
+        }
+      }
+      if (i < trackableEntries.length - 1 && !cancelBulkRef.current) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+    setBulkState(null);
+    setBulkResult((prev) => prev ?? `Refreshed ${ok} \u00b7 failed ${fail}`);
+    setTimeout(() => setBulkResult(null), 5000);
+  }, [trackableEntries]);
+
+  const cancelBulk = useCallback(() => {
+    cancelBulkRef.current = true;
+  }, []);
+
   if (!loaded) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
 
   if (contracts.length === 0) {
@@ -179,6 +250,18 @@ export default function ShippingOverview() {
           <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by contract, vessel, or buyer..." className="pl-9" />
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!!bulkState || trackableEntries.length === 0}
+          onClick={handleBulkRefresh}
+          title={!hasToken ? "Configure Shipsgo API in Settings" : `Refresh ${trackableEntries.length} shipment${trackableEntries.length === 1 ? "" : "s"}`}
+          className="gap-1"
+        >
+          {bulkState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Refresh All
+          {hasToken && trackableEntries.length > 0 && <span className="text-xs text-zinc-400">({trackableEntries.length})</span>}
+        </Button>
         <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v as StatusFilter)}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -205,6 +288,22 @@ export default function ShippingOverview() {
       <p className="text-xs text-zinc-500">
         {counts.at_sea} at sea &middot; {counts.pending} pending &middot; {counts.delivered} delivered &middot; {counts.delayed} delayed &middot; {counts.not_scheduled} not scheduled
       </p>
+
+      {/* Bulk progress */}
+      {bulkState && (
+        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+          <span className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Updating {bulkState.index} of {bulkState.total} &mdash; <span className="font-mono">{bulkState.current}</span>
+          </span>
+          <Button variant="ghost" size="sm" onClick={cancelBulk}>Cancel</Button>
+        </div>
+      )}
+      {bulkResult && !bulkState && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          {bulkResult}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">

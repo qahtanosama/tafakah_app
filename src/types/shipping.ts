@@ -53,11 +53,15 @@ export interface ShippingEntry {
   atd: string | null;
   eta: string;
   ata: string | null;
+  portOfLoading: string;
+  portOfDischarge: string;
   containerNumber: string;
   sealNumber: string;
   statusOverride: ShippingStatusOverride;
   notes: string;
   updatedAt: string;
+  shipsgoRequestId: string | null;
+  lastAutoFetchAt: string | null;
 }
 
 export interface ShippingStatusInfo {
