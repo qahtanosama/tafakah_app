@@ -244,7 +244,7 @@ function DataManagementSection({ showToast }: { showToast: (msg: string) => void
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast(`Backup exported: ${stats.contracts} contracts, ${stats.buyers} buyers, ${stats.documents} documents`);
+      showToast(`Backup exported: ${stats.contracts} contracts, ${stats.buyers} buyers, ${stats.shipments} shipments, ${stats.documents} documents`);
     } catch (err) {
       showToast("Export failed: " + (err as Error).message);
     } finally {
@@ -259,7 +259,7 @@ function DataManagementSection({ showToast }: { showToast: (msg: string) => void
     const text = await file.text();
     const parsed = parseBackup(text);
     if (!parsed) { showToast("Invalid backup file"); return; }
-    if (!confirm(`Restore backup?\n\n${parsed.stats.contracts} contracts, ${parsed.stats.buyers} buyers, ${parsed.stats.products} products, ${parsed.stats.documents} documents.\nCreated: ${new Date(parsed.data.createdAt).toLocaleDateString()}\n\nThis will REPLACE all current data.`)) return;
+    if (!confirm(`Restore backup?\n\n${parsed.stats.contracts} contracts, ${parsed.stats.buyers} buyers, ${parsed.stats.products} products, ${parsed.stats.shipments} shipments, ${parsed.stats.documents} documents.\nCreated: ${new Date(parsed.data.createdAt).toLocaleDateString()}\n\nThis will REPLACE all current data.`)) return;
     await restoreBackup(parsed.data);
     showToast("Backup restored. Reloading...");
     setTimeout(() => window.location.reload(), 1000);

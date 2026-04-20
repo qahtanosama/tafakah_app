@@ -18,6 +18,7 @@ import { getContractLog } from "@/lib/contract-log";
 import { getDocuments, saveDocument, removeDocument as removeDoc, getDocumentFile, compressImage, migrateOldData } from "@/lib/documents";
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
+import { getShipping, getStatusInfo } from "@/lib/shipping";
 import UploadZone from "./UploadZone";
 
 /* ── Types for merge items ──────────────────────────── */
@@ -424,6 +425,20 @@ export default function DocumentsManager() {
           onChange={switchContract}
         />
         <Button variant="outline" size="sm" onClick={handleSetActive}>Set as Active</Button>
+        {selectedContract && (() => {
+          const sh = getShipping(selectedContract.contractNo);
+          const info = getStatusInfo(sh);
+          return (
+            <Link
+              href={`/shipping/${encodeURIComponent(selectedContract.contractNo)}`}
+              className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium hover:opacity-80 ${info.badgeColor}`}
+              title="Shipping details"
+            >
+              {info.icon} {info.label}
+              {info.daysLabel !== "\u2014" && <span className="text-[11px] font-normal opacity-80">&middot; {info.daysLabel}</span>}
+            </Link>
+          );
+        })()}
       </div>
 
       {!contractData ? (

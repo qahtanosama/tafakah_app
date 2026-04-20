@@ -33,7 +33,10 @@ import {
   AlertTriangle,
   Upload,
   X,
+  Wallet,
+  Ship,
 } from "lucide-react";
+import Link from "next/link";
 import type { SalesContractData, LineItem, Product, ContractTotals } from "@/types/sales-contract";
 import {
   getProductNames,
@@ -950,12 +953,24 @@ export default function MasterDataForm() {
           Submit Contract
         </Button>
         {lastSubmit && (
-          <DownloadAllButton
-            data={lastSubmit.data}
-            totals={lastSubmit.totals}
-            contractNo={lastSubmit.contractNo}
-            invoiceNo={lastSubmit.invoiceNo}
-          />
+          <>
+            <DownloadAllButton
+              data={lastSubmit.data}
+              totals={lastSubmit.totals}
+              contractNo={lastSubmit.contractNo}
+              invoiceNo={lastSubmit.invoiceNo}
+            />
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border bg-white px-4 py-3 text-sm dark:bg-zinc-900">
+              <span className="text-zinc-500">Next steps for {lastSubmit.contractNo}:</span>
+              <Link href={`/finance/${encodeURIComponent(lastSubmit.contractNo)}`}>
+                <Button variant="outline" size="sm" className="gap-1"><Wallet className="h-4 w-4" /> Add costs</Button>
+              </Link>
+              <Link href={`/shipping/${encodeURIComponent(lastSubmit.contractNo)}`}>
+                <Button variant="outline" size="sm" className="gap-1"><Ship className="h-4 w-4" /> Add shipping details</Button>
+              </Link>
+              <span className="text-xs text-zinc-400">(or come back later)</span>
+            </div>
+          </>
         )}
       </div>
     </div>

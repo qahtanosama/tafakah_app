@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet, Calculator,
-  Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge,
+  Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge, Ship,
 } from "lucide-react";
+import ShippingCardSummary from "@/components/shipping/ShippingCardSummary";
 
 const sections = [
   {
@@ -21,6 +22,7 @@ const sections = [
       { title: "Trade Documents", description: "Upload, classify & merge documents", icon: FileSearch, href: "/documents" },
       { title: "Contract Log", description: "View all submitted contracts", icon: ClipboardList, href: "/contract-log" },
       { title: "Finance & Payments", description: "Track costs, payments & profit", icon: Wallet, href: "/finance" },
+      { title: "Shipping Tracker", description: "Track ETD, ETA, and vessel status", icon: Ship, href: "/shipping", summary: "shipping" as const },
     ],
   },
   {
@@ -111,6 +113,7 @@ export default function Home() {
                     </div>
                     <h3 className="text-lg font-semibold">{doc.title}</h3>
                     <p className="mt-1 flex-1 text-[0.938rem] text-zinc-500">{doc.description}</p>
+                    {"summary" in doc && doc.summary === "shipping" && <ShippingCardSummary />}
                     <div className="mt-4 flex items-center text-sm font-medium text-[#1B2A4A] opacity-0 transition-opacity group-hover:opacity-100 dark:text-zinc-400">
                       Open <ArrowRight className="ml-1 h-4 w-4" />
                     </div>

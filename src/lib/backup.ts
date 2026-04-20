@@ -10,7 +10,7 @@ interface BackupData {
   indexedDBFiles: Record<string, string>;
 }
 
-export async function exportBackup(): Promise<{ json: string; stats: { contracts: number; buyers: number; products: number; documents: number } }> {
+export async function exportBackup(): Promise<{ json: string; stats: { contracts: number; buyers: number; products: number; documents: number; shipments: number } }> {
   // Collect localStorage
   const lsData: Record<string, string> = {};
   for (let i = 0; i < localStorage.length; i++) {
@@ -37,27 +37,29 @@ export async function exportBackup(): Promise<{ json: string; stats: { contracts
   };
 
   // Stats
-  let contracts = 0, buyers = 0, products = 0, documents = 0;
+  let contracts = 0, buyers = 0, products = 0, documents = 0, shipments = 0;
   try { contracts = JSON.parse(lsData["contract-log"] ?? "[]").length; } catch {}
   try { buyers = JSON.parse(lsData["buyers-database"] ?? "[]").length; } catch {}
   try { products = JSON.parse(lsData["products-database"] ?? "[]").length; } catch {}
+  try { shipments = JSON.parse(lsData["shipping-tracker"] ?? "[]").length; } catch {}
   documents = Object.keys(idbData).length;
 
-  return { json: JSON.stringify(backup), stats: { contracts, buyers, products, documents } };
+  return { json: JSON.stringify(backup), stats: { contracts, buyers, products, documents, shipments } };
 }
 
-export function parseBackup(json: string): { data: BackupData; stats: { contracts: number; buyers: number; products: number; documents: number } } | null {
+export function parseBackup(json: string): { data: BackupData; stats: { contracts: number; buyers: number; products: number; documents: number; shipments: number } } | null {
   try {
     const data = JSON.parse(json) as BackupData;
     if (!data.version || !data.localStorage) return null;
 
-    let contracts = 0, buyers = 0, products = 0, documents = 0;
+    let contracts = 0, buyers = 0, products = 0, documents = 0, shipments = 0;
     try { contracts = JSON.parse(data.localStorage["contract-log"] ?? "[]").length; } catch {}
     try { buyers = JSON.parse(data.localStorage["buyers-database"] ?? "[]").length; } catch {}
     try { products = JSON.parse(data.localStorage["products-database"] ?? "[]").length; } catch {}
+    try { shipments = JSON.parse(data.localStorage["shipping-tracker"] ?? "[]").length; } catch {}
     documents = Object.keys(data.indexedDBFiles ?? {}).length;
 
-    return { data, stats: { contracts, buyers, products, documents } };
+    return { data, stats: { contracts, buyers, products, documents, shipments } };
   } catch {
     return null;
   }

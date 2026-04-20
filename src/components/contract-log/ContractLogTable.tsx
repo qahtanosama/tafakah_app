@@ -28,6 +28,8 @@ import {
 import { saveMasterData, saveActiveContract } from "@/lib/master-data";
 import { calcTotals } from "@/lib/sales-contract";
 import { getAllFinance, calcSummary } from "@/lib/finance";
+import { getAllShipping, getStatusInfo } from "@/lib/shipping";
+import type { ShippingEntry } from "@/types/shipping";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -114,6 +116,15 @@ export default function ContractLogTable() {
     return map;
   }, [log]);
 
+  const shippingMap = useMemo(() => {
+    const all = getAllShipping();
+    const map: Record<string, ShippingEntry | null> = {};
+    for (const e of log) {
+      map[e.contractNo] = all.find((s) => s.contractNo === e.contractNo) ?? null;
+    }
+    return map;
+  }, [log]);
+
   if (!loaded) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
@@ -158,6 +169,7 @@ export default function ContractLogTable() {
             <TableHead>Buyer</TableHead>
             <TableHead>Product</TableHead>
             <TableHead>Finance</TableHead>
+            <TableHead>Shipping</TableHead>
             <TableHead className="w-[150px]">Status</TableHead>
             <TableHead className="w-[140px]">Actions</TableHead>
           </TableRow>
@@ -177,6 +189,21 @@ export default function ContractLogTable() {
                   if (!s || s.totalCost === 0) return <Link href={`/finance/${encodeURIComponent(entry.contractNo)}`} className="text-xs text-zinc-400 hover:underline">Add costs</Link>;
                   const color = s.grossProfit >= 0 ? (s.paymentStatus === "paid" ? "text-emerald-600" : "text-amber-600") : "text-red-600";
                   return <Link href={`/finance/${encodeURIComponent(entry.contractNo)}`} className={`text-xs font-medium hover:underline ${color}`}>${Math.round(s.grossProfit / 1000)}k {s.paymentStatus === "paid" ? "\u2713" : s.paymentStatus === "partial" ? "\u26a0" : ""}</Link>;
+                })()}
+              </TableCell>
+              <TableCell>
+                {(() => {
+                  const sh = shippingMap[entry.contractNo];
+                  const info = getStatusInfo(sh);
+                  return (
+                    <Link
+                      href={`/shipping/${encodeURIComponent(entry.contractNo)}`}
+                      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap hover:opacity-80 ${info.badgeColor}`}
+                      title={info.daysLabel}
+                    >
+                      {info.icon} {info.label}
+                    </Link>
+                  );
                 })()}
               </TableCell>
               <TableCell>
