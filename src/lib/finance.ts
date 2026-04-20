@@ -1,4 +1,5 @@
 import type { ContractFinance, CostItem, PaymentItem, FinanceSummary, PaymentStatus } from "@/types/finance";
+import { PREDEFINED_COSTS } from "@/types/finance";
 
 const STORAGE_KEY = "contract-finance";
 
@@ -30,7 +31,29 @@ export function saveFinance(finance: ContractFinance): void {
 }
 
 export function createEmptyFinance(contractNo: string): ContractFinance {
-  return { contractNo, costs: [], payments: [], updatedAt: new Date().toISOString() };
+  const costs: CostItem[] = PREDEFINED_COSTS.map((p) => ({
+    id: p.id,
+    category: p.category,
+    isPredefined: true,
+    description: "",
+    amount: 0,
+    date: "",
+    notes: "",
+  }));
+  return { contractNo, costs, payments: [], updatedAt: new Date().toISOString() };
+}
+
+/** Ensure a finance entry has all predefined rows (migration for old data) */
+export function ensurePredefinedRows(finance: ContractFinance): ContractFinance {
+  for (const p of PREDEFINED_COSTS) {
+    if (!finance.costs.some((c) => c.id === p.id)) {
+      finance.costs.splice(PREDEFINED_COSTS.indexOf(p), 0, {
+        id: p.id, category: p.category, isPredefined: true,
+        description: "", amount: 0, date: "", notes: "",
+      });
+    }
+  }
+  return finance;
 }
 
 export function addCost(contractNo: string, cost: CostItem): void {

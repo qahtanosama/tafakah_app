@@ -1,27 +1,23 @@
 export interface CostItem {
   id: string;
-  category: CostCategory;
+  category: string;
+  isPredefined: boolean;
   description: string;
   amount: number;
   date: string;
   notes: string;
 }
 
-export type CostCategory =
-  | "EXW"
-  | "EXP"
-  | "Packing Materials"
-  | "Customs & Port"
-  | "Sea Freight"
-  | "Insurance"
-  | "Inspection / Phyto / CO"
-  | "Trucking / Inland"
-  | "Bank Charges"
-  | "Other";
-
-export const COST_CATEGORIES: CostCategory[] = [
-  "EXW", "EXP", "Packing Materials", "Customs & Port", "Sea Freight",
-  "Insurance", "Inspection / Phyto / CO", "Trucking / Inland", "Bank Charges", "Other",
+export const PREDEFINED_COSTS: { id: string; category: string }[] = [
+  { id: "exw", category: "EXW" },
+  { id: "exp", category: "Export Fee (EXP)" },
+  { id: "packing", category: "Packing Materials" },
+  { id: "customs", category: "Customs & Port Expenses" },
+  { id: "freight", category: "Sea Freight" },
+  { id: "insurance", category: "Insurance" },
+  { id: "inspection", category: "Inspection / Phyto / CO" },
+  { id: "trucking", category: "Trucking / Inland Transport" },
+  { id: "bank", category: "Bank Charges" },
 ];
 
 export interface PaymentItem {
