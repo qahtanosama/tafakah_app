@@ -208,7 +208,24 @@ export default function ContractLogTable() {
           {filtered.map((entry, i) => (
             <TableRow key={entry.id}>
               <TableCell className="font-medium">{i + 1}</TableCell>
-              <TableCell className="font-mono font-medium">{entry.contractNo}</TableCell>
+              <TableCell className="font-mono font-medium">
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveActiveContract({
+                      data: entry.masterSnapshot,
+                      contractNo: entry.contractNo,
+                      invoiceNo: entry.invoiceNo,
+                      dateSubmitted: entry.dateSubmitted,
+                    });
+                    router.push("/documents");
+                  }}
+                  className="text-emerald-600 hover:underline"
+                  title="Open this contract in Trade Documents"
+                >
+                  {entry.contractNo}
+                </button>
+              </TableCell>
               <TableCell className="font-mono text-sm">{entry.invoiceNo}</TableCell>
               <TableCell className="text-sm">{formatDate(entry.dateSubmitted)}</TableCell>
               <TableCell className="text-sm">{entry.buyer}</TableCell>
