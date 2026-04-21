@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import AppHeader from "@/components/ui/app-header";
 import ContractLogTable from "@/components/contract-log/ContractLogTable";
 
@@ -13,7 +14,9 @@ export default function ContractLogPage() {
       <AppHeader title="Contract Log" />
 
       <div className="mx-auto w-full max-w-5xl px-6 py-8">
-        <ContractLogTable />
+        <Suspense fallback={<div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>}>
+          <ContractLogTable />
+        </Suspense>
       </div>
     </div>
   );

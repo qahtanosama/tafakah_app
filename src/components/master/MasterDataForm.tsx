@@ -75,6 +75,8 @@ import type { Buyer } from "@/types/buyer";
 import type { Seller } from "@/types/seller";
 import { getSellers, getSellersByProduct, createEmptySeller, saveSeller } from "@/lib/sellers";
 import SellerEditForm from "@/components/sellers/SellerEditForm";
+import { initializeWorkflowOnSubmit } from "@/lib/workflow";
+import StageStrip from "@/components/workflow/StageStrip";
 
 function NumInput({
   value,
@@ -120,10 +122,12 @@ export default function MasterDataForm() {
     message: string;
   } | null>(null);
   const [lastSubmit, setLastSubmit] = useState<{
+    id: string;
     data: SalesContractData;
     totals: ContractTotals;
     contractNo: string;
     invoiceNo: string;
+    dateSubmitted: string;
   } | null>(null);
   const [quickShareOpen, setQuickShareOpen] = useState(false);
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -302,8 +306,13 @@ export default function MasterDataForm() {
     const snapshot = structuredClone(data);
     const dateSubmitted = new Date().toISOString();
 
+    // Initialize workflow — starts at "docs-generated"; backfills "costed" if finance has cost lines
+    const workflow = initializeWorkflowOnSubmit(contractNo, dateSubmitted);
+    snapshot.workflow = workflow;
+
+    const generatedId = crypto.randomUUID();
     addContractLogEntry({
-      id: crypto.randomUUID(),
+      id: generatedId,
       contractNo,
       invoiceNo,
       dateSubmitted,
@@ -312,6 +321,7 @@ export default function MasterDataForm() {
       status: "Active",
       masterSnapshot: snapshot,
       sellerId: snapshot.sellerId,
+      workflow,
     });
 
     saveActiveContract({
@@ -322,10 +332,12 @@ export default function MasterDataForm() {
     });
 
     setLastSubmit({
+      id: generatedId,
       data: snapshot,
       totals: calcTotals(snapshot.lineItems),
       contractNo,
       invoiceNo,
+      dateSubmitted,
     });
 
     showToast("success", `\u2713 Contract ${contractNo} submitted and logged`);
@@ -1069,6 +1081,25 @@ export default function MasterDataForm() {
               </Link>
               <span className="text-xs text-zinc-400">(or come back later)</span>
             </div>
+
+            {/* Workflow stage tracker */}
+            <div className="w-full max-w-5xl rounded-lg border bg-white p-4 dark:bg-zinc-900">
+              <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
+              <StageStrip
+                contract={{
+                  id: lastSubmit.id,
+                  contractNo: lastSubmit.contractNo,
+                  invoiceNo: lastSubmit.invoiceNo,
+                  dateSubmitted: lastSubmit.dateSubmitted,
+                  buyer: lastSubmit.data.buyer.company,
+                  product: lastSubmit.data.lineItems[0]?.product || "",
+                  status: "Active",
+                  masterSnapshot: lastSubmit.data,
+                  sellerId: lastSubmit.data.sellerId,
+                  workflow: lastSubmit.data.workflow,
+                }}
+              />
+            </div>
           </>
         )}
       </div>
@@ -1078,15 +1109,16 @@ export default function MasterDataForm() {
           open={quickShareOpen}
           onClose={() => setQuickShareOpen(false)}
           contract={({
-            id: lastSubmit.contractNo,
+            id: lastSubmit.id,
             contractNo: lastSubmit.contractNo,
             invoiceNo: lastSubmit.invoiceNo,
-            dateSubmitted: new Date().toISOString(),
+            dateSubmitted: lastSubmit.dateSubmitted,
             buyer: lastSubmit.data.buyer.company,
             product: lastSubmit.data.lineItems[0]?.product || "",
             status: "Active",
             masterSnapshot: lastSubmit.data,
             sellerId: lastSubmit.data.sellerId,
+            workflow: lastSubmit.data.workflow,
           }) as ContractLogEntry}
         />
       )}

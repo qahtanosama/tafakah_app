@@ -39,6 +39,15 @@ export function updateContractLogEntryStatus(id: string, status: ContractStatus)
   saveContractLog(log);
 }
 
+export function updateContractLogEntry(id: string, updates: Partial<ContractLogEntry>): ContractLogEntry | null {
+  const log = getContractLog();
+  const idx = log.findIndex((e) => e.id === id);
+  if (idx < 0) return null;
+  log[idx] = { ...log[idx], ...updates };
+  saveContractLog(log);
+  return log[idx];
+}
+
 export function contractNoExists(contractNo: string): boolean {
   return getContractLog().some((e) => e.contractNo === contractNo);
 }

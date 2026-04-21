@@ -22,6 +22,8 @@ import { calcTotals } from "@/lib/sales-contract";
 import { getShipsgoToken } from "@/lib/settings";
 import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, formatRelativeTime, isStale } from "@/lib/shipsgo";
 import { useRouter } from "next/navigation";
+import { findContractByNo, getWorkflow, advanceStage } from "@/lib/workflow";
+import StageStrip from "@/components/workflow/StageStrip";
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "\u2014";
@@ -208,6 +210,64 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
     if (entry) persist(entry);
   }, [entry, persist]);
 
+  /** Save ATD + apply workflow auto-advance per spec. */
+  const commitAtd = useCallback(() => {
+    if (!entry) return;
+    const newAtd = entry.atd;
+    // Persist whatever value we have
+    persist(entry);
+
+    if (!newAtd) return; // cleared — no workflow action
+
+    const c = findContractByNo(contractNo);
+    if (!c) return;
+    const wf = getWorkflow(c);
+    if (wf.currentStage === "sc-sent-to-buyer") {
+      try {
+        advanceStage(c.id, "shipped", { by: "auto", triggeredBy: "ATD" });
+        showToast("success", "\u2713 ATD saved. Stage advanced to Shipped.");
+      } catch (e) {
+        showToast("error", (e as Error).message);
+      }
+      return;
+    }
+    const earlyStages = ["costed", "docs-generated", "sent-to-factory"] as const;
+    if (earlyStages.includes(wf.currentStage as (typeof earlyStages)[number])) {
+      const proceed = confirm(
+        "This contract hasn't reached 'SC Sent to Buyer' yet. Advance ATD anyway?\n\n" +
+        "ATD will be saved but the workflow stage will NOT auto-advance. You'll need to catch up the workflow manually."
+      );
+      if (!proceed) {
+        // Revert: clear the ATD and re-persist
+        const reverted = { ...entry, atd: null };
+        persist(reverted);
+        showToast("info", "ATD reverted.");
+      }
+    }
+    // Else (shipped/certs-ready/delivered): already past ATD, just saved — no further action
+  }, [entry, contractNo, persist, showToast]);
+
+  /** Save ATA + apply workflow auto-advance per spec. */
+  const commitAta = useCallback(() => {
+    if (!entry) return;
+    persist(entry);
+    if (!entry.ata) return;
+
+    const c = findContractByNo(contractNo);
+    if (!c) return;
+    const wf = getWorkflow(c);
+    if (wf.currentStage === "certs-ready") {
+      try {
+        advanceStage(c.id, "delivered", { by: "auto", triggeredBy: "ATA" });
+        showToast("success", "\u2713 ATA saved. Stage advanced to Delivered.");
+      } catch (e) {
+        showToast("error", (e as Error).message);
+      }
+    } else if (wf.currentStage === "shipped") {
+      showToast("info", "ATA saved. Complete 'Certs Ready' stage to finalize delivery.");
+    }
+  }, [entry, contractNo, persist, showToast]);
+
   const runFetch = useCallback(async (target: ShippingEntry, opts: { silent?: boolean } = {}) => {
     const token = getShipsgoToken();
     if (!token) {
@@ -348,6 +408,14 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
         }`}>{toast.msg}</div>
       )}
 
+      {/* Workflow stage tracker */}
+      {contract && (
+        <div className="rounded-lg border bg-white p-4 dark:bg-zinc-900">
+          <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
+          <StageStrip contract={contract} />
+        </div>
+      )}
+
       {/* Contract summary */}
       <div className="grid gap-3 rounded-lg border bg-white p-4 sm:grid-cols-4 dark:bg-zinc-900">
         <div><p className="text-xs text-zinc-400">Buyer</p><p className="text-sm font-medium">{snap.buyer.company}</p></div>
@@ -440,9 +508,9 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
           <div><Label>Cut-off Date</Label><Input type="date" value={entry.cutoffDate} onChange={(e) => update("cutoffDate", e.target.value)} onBlur={commit} /></div>
           <div><Label>Loading Date</Label><Input type="date" value={entry.loadingDate} onChange={(e) => update("loadingDate", e.target.value)} onBlur={commit} /></div>
           <div><Label>ETD (Estimated)</Label><Input type="date" value={entry.etd} onChange={(e) => update("etd", e.target.value)} onBlur={commit} /></div>
-          <div><Label>ATD (Actual)</Label><Input type="date" value={entry.atd ?? ""} onChange={(e) => update("atd", e.target.value || null)} onBlur={commit} /></div>
+          <div><Label>ATD (Actual)</Label><Input type="date" value={entry.atd ?? ""} onChange={(e) => update("atd", e.target.value || null)} onBlur={commitAtd} /></div>
           <div><Label>ETA (Estimated)</Label><Input type="date" value={entry.eta} onChange={(e) => update("eta", e.target.value)} onBlur={commit} /></div>
-          <div><Label>ATA (Actual)</Label><Input type="date" value={entry.ata ?? ""} onChange={(e) => update("ata", e.target.value || null)} onBlur={commit} /></div>
+          <div><Label>ATA (Actual)</Label><Input type="date" value={entry.ata ?? ""} onChange={(e) => update("ata", e.target.value || null)} onBlur={commitAta} /></div>
         </CardContent>
       </Card>
 

@@ -21,7 +21,30 @@ import { mergeDocuments } from "@/lib/pdf-merge";
 import { getShipping, getStatusInfo } from "@/lib/shipping";
 import { supportsSaveFilePicker, saveBlobWithPicker, saveBlobWithDownload } from "@/lib/quick-share/save-file";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
+import { setCertRef, clearCertRef } from "@/lib/workflow";
+import type { RequiredCert } from "@/types/workflow";
+import StageStrip from "@/components/workflow/StageStrip";
 import UploadZone from "./UploadZone";
+
+/* ── Cert slot mapping ──────────────────────────────── */
+const CERT_SLOT_MAP: Partial<Record<DocSlot, RequiredCert>> = {
+  certificate_of_origin: "co",
+  health_certificate: "health",
+  phytosanitary_certificate: "phyto",
+};
+
+function certTypeForSlot(slot: DocSlot): RequiredCert | null {
+  return CERT_SLOT_MAP[slot] ?? null;
+}
+
+function estimateFileSize(doc: TradeDocument): number {
+  if (!doc.base64Data) return 0;
+  // Rough base64 → bytes estimate: (len * 3/4) minus padding
+  const commaIdx = doc.base64Data.indexOf(",");
+  const body = commaIdx >= 0 ? doc.base64Data.slice(commaIdx + 1) : doc.base64Data;
+  const padding = body.endsWith("==") ? 2 : body.endsWith("=") ? 1 : 0;
+  return Math.floor((body.length * 3) / 4) - padding;
+}
 
 /* ── Types for merge items ──────────────────────────── */
 type MergeItemKey = "sc" | "ci" | "customs" | "pl" | DocSlot | string;
@@ -246,11 +269,21 @@ export default function DocumentsManager() {
         return updated.map((d) => (d.id === doc.id ? { ...doc } : d));
       });
       await saveDocument(contractNo, doc);
+      // Mirror cert reference onto the contract workflow if this was a recognized cert slot
+      const certType = certTypeForSlot(doc.slot);
+      if (certType && selectedContract) {
+        setCertRef(selectedContract.id, certType, {
+          docId: doc.id,
+          uploadedAt: doc.addedAt,
+          fileName: doc.fileName,
+          fileSize: estimateFileSize(doc),
+        });
+      }
     } catch (err) {
       doc.status = "error"; doc.error = (err as Error).message || "Processing failed";
       setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...doc } : d)));
     }
-  }, [contractData, contractNo, showToastMsg]);
+  }, [contractData, contractNo, selectedContract, showToastMsg]);
 
   const handleGeneralDrop = useCallback((files: File[]) => { for (const file of files) processFile(file); }, [processFile]);
   const handleSlotUpload = useCallback((slot: DocSlot) => { pendingSlotRef.current = slot; fileInputRef.current?.click(); }, []);
@@ -260,9 +293,15 @@ export default function DocumentsManager() {
   }, [processFile]);
   const handleRemove = useCallback((id: string) => {
     if (!contractNo) return;
+    // Determine if this doc was a recognized cert before we drop it
+    const removed = docs.find((d) => d.id === id);
     setDocs((prev) => prev.filter((d) => d.id !== id));
     removeDoc(contractNo, id);
-  }, [contractNo]);
+    if (removed && selectedContract) {
+      const certType = certTypeForSlot(removed.slot);
+      if (certType) clearCertRef(selectedContract.id, certType);
+    }
+  }, [contractNo, docs, selectedContract]);
 
   // ── Merge items ──
   const slotMap = useMemo(() => {
@@ -462,6 +501,14 @@ export default function DocumentsManager() {
         <p className="py-10 text-center text-zinc-400">Select a contract above.</p>
       ) : (
         <>
+          {/* Workflow stage tracker */}
+          {selectedContract && (
+            <div className="rounded-lg border bg-white p-4 dark:bg-zinc-900">
+              <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
+              <StageStrip contract={selectedContract} />
+            </div>
+          )}
+
           <Timeline />
 
           {/* Progress bar */}

@@ -5,6 +5,7 @@ import {
   Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge, Ship, Factory,
 } from "lucide-react";
 import ShippingCardSummary from "@/components/shipping/ShippingCardSummary";
+import HomeStageWidget from "@/components/workflow/HomeStageWidget";
 
 const sections = [
   {
@@ -84,6 +85,8 @@ export default function Home() {
             </Button>
           </Link>
         </div>
+
+        <HomeStageWidget />
 
         {/* Master Data — hero card */}
         <Link href="/master" className="mb-8 block">

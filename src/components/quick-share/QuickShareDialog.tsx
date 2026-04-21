@@ -4,39 +4,56 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { X, MessageCircle, Download, Copy, RotateCcw, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
+import { X, MessageCircle, Download, Copy, RotateCcw, AlertTriangle, Loader2, ExternalLink, Factory } from "lucide-react";
 import type { ContractLogEntry } from "@/types/sales-contract";
-import type { Buyer, BuyerLanguage, BuyerDocPreset } from "@/types/buyer";
+import type { Buyer, BuyerDocPreset } from "@/types/buyer";
 import { readBuyerMessaging } from "@/types/buyer";
+import type { Seller, SellerLanguage } from "@/types/seller";
+import { readSellerMessaging } from "@/types/seller";
 import { findBuyerByCompany } from "@/lib/buyers";
+import { getSellerById } from "@/lib/sellers";
 import { calcTotals } from "@/lib/sales-contract";
 import { getShipping } from "@/lib/shipping";
 import { DOC_LABELS, DOC_ORDER, PRESET_DOCS, downloadContractPdfs, type QuickShareDoc } from "@/lib/quick-share/download";
-import { renderTemplate, resolveTemplate } from "@/lib/quick-share/templates";
+import {
+  renderTemplate,
+  resolveTemplate,
+  resolveSellerTemplate,
+  type TemplateLanguage,
+} from "@/lib/quick-share/templates";
+
+export type QuickShareRecipientType = "buyer" | "factory";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   contract: ContractLogEntry;
+  /** Defaults to "buyer" for backwards compatibility. */
+  recipientType?: QuickShareRecipientType;
+  /** If provided, overrides the recipient's default preset when the dialog opens. */
+  initialDocs?: QuickShareDoc[];
+  /** Fired only on clean send completion (all selected docs saved AND WhatsApp opened,
+   *  OR partial with user confirmation in the "Download + Open" flow).
+   *  Not fired on full-cancel, pure downloads, or errors. Use this to advance workflow stages. */
+  onSent?: (docsSent: QuickShareDoc[]) => void;
 }
 
 const FLAG_BY_COUNTRY: Record<string, string> = {
-  "+966": "\ud83c\uddf8\ud83c\udde6", // SA
-  "+971": "\ud83c\udde6\ud83c\uddea", // AE
-  "+965": "\ud83c\uddf0\ud83c\uddfc", // KW
-  "+974": "\ud83c\uddf6\ud83c\udde6", // QA
-  "+973": "\ud83c\udde7\ud83c\udded", // BH
-  "+968": "\ud83c\uddf4\ud83c\uddf2", // OM
-  "+86": "\ud83c\udde8\ud83c\uddf3", // CN
-  "+254": "\ud83c\uddf0\ud83c\uddea", // KE
-  "+20": "\ud83c\uddea\ud83c\uddec", // EG
-  "+90": "\ud83c\uddf9\ud83c\uddf7", // TR
-  "+91": "\ud83c\uddee\ud83c\uddf3", // IN
+  "+966": "\ud83c\uddf8\ud83c\udde6",
+  "+971": "\ud83c\udde6\ud83c\uddea",
+  "+965": "\ud83c\uddf0\ud83c\uddfc",
+  "+974": "\ud83c\uddf6\ud83c\udde6",
+  "+973": "\ud83c\udde7\ud83c\udded",
+  "+968": "\ud83c\uddf4\ud83c\uddf2",
+  "+86": "\ud83c\udde8\ud83c\uddf3",
+  "+254": "\ud83c\uddf0\ud83c\uddea",
+  "+20": "\ud83c\uddea\ud83c\uddec",
+  "+90": "\ud83c\uddf9\ud83c\uddf7",
+  "+91": "\ud83c\uddee\ud83c\uddf3",
 };
 
 function flagFor(whatsapp: string): string {
   if (!whatsapp.startsWith("+")) return "\ud83c\udf10";
-  // Match longest prefix (e.g. +966 before +9)
   const prefixes = Object.keys(FLAG_BY_COUNTRY).sort((a, b) => b.length - a.length);
   for (const p of prefixes) if (whatsapp.startsWith(p)) return FLAG_BY_COUNTRY[p];
   return "\ud83c\udf10";
@@ -51,10 +68,18 @@ function buildDocList(selected: QuickShareDoc[]): string {
 
 const CHAR_WARN_LIMIT = 1800;
 
-export default function QuickShareDialog({ open, onClose, contract }: Props) {
+const FACTORY_PRESET: Record<"factory" | "all", QuickShareDoc[]> = {
+  factory: ["sc", "ci", "pl"],
+  all: ["sc", "ci", "ci-customs", "pl"],
+};
+
+export default function QuickShareDialog({ open, onClose, contract, recipientType = "buyer", initialDocs, onSent }: Props) {
   const router = useRouter();
+  const isFactory = recipientType === "factory";
+
   const [buyer, setBuyer] = useState<Buyer | null>(null);
-  const [lang, setLang] = useState<BuyerLanguage>("en");
+  const [seller, setSeller] = useState<Seller | null>(null);
+  const [lang, setLang] = useState<TemplateLanguage>("en");
   const [selected, setSelected] = useState<QuickShareDoc[]>(PRESET_DOCS.buyer);
   const [message, setMessage] = useState("");
   const [messageDirty, setMessageDirty] = useState(false);
@@ -68,16 +93,27 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Resolve buyer from the contract when dialog opens
+  // Resolve buyer OR seller when dialog opens
   useEffect(() => {
     if (!open) return;
-    const found = findBuyerByCompany(contract.buyer) ?? findBuyerByCompany(contract.masterSnapshot.buyer.company) ?? null;
-    setBuyer(found);
-    const msgs = readBuyerMessaging(found);
-    setLang(msgs.preferredLanguage);
-    setSelected(PRESET_DOCS[msgs.defaultDocPreset as BuyerDocPreset] ?? PRESET_DOCS.buyer);
+    if (isFactory) {
+      const sellerId = contract.masterSnapshot.sellerId ?? contract.sellerId;
+      const s = sellerId ? getSellerById(sellerId) ?? null : null;
+      setSeller(s);
+      const msgs = readSellerMessaging(s);
+      setLang(msgs.preferredLanguage);
+      const preset = msgs.defaultDocPreset === "all" ? FACTORY_PRESET.all : FACTORY_PRESET.factory;
+      setSelected(initialDocs && initialDocs.length > 0 ? [...initialDocs] : preset);
+    } else {
+      const found = findBuyerByCompany(contract.buyer) ?? findBuyerByCompany(contract.masterSnapshot.buyer.company) ?? null;
+      setBuyer(found);
+      const msgs = readBuyerMessaging(found);
+      setLang(msgs.preferredLanguage);
+      const preset = PRESET_DOCS[msgs.defaultDocPreset as BuyerDocPreset] ?? PRESET_DOCS.buyer;
+      setSelected(initialDocs && initialDocs.length > 0 ? [...initialDocs] : preset);
+    }
     setMessageDirty(false);
-  }, [open, contract]);
+  }, [open, contract, isFactory, initialDocs]);
 
   // Close on Escape
   useEffect(() => {
@@ -91,27 +127,36 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
 
   const templateVars = useMemo(() => {
     const snap = contract.masterSnapshot;
-    const buyerName = buyer?.contactPerson?.trim() || buyer?.shortName?.trim() || contract.buyer;
     const products = Array.from(new Set(snap.lineItems.map((i) => i.product).filter(Boolean) as string[]));
-    // Only query localStorage on the client (dialog may be mounted during SSR)
     const shipping = open && typeof window !== "undefined" ? getShipping(contract.contractNo) : null;
     const etd = shipping?.atd || shipping?.etd || snap.identifiers.contractDate || "";
+
+    const buyerName = buyer?.contactPerson?.trim() || buyer?.shortName?.trim() || contract.buyer;
+    const contactName = seller?.contactName?.trim() || "";
+    const sellerName = seller?.companyName?.trim() || "";
+
     return {
       buyerName,
+      contactName,
+      sellerName,
       contractNo: contract.contractNo,
       productList: products.join(", ") || contract.product || "\u2014",
       totalQty: totals.totalQtyMTS,
       etd,
       docList: buildDocList(selected),
     };
-  }, [buyer, contract, selected, totals, open]);
+  }, [buyer, seller, contract, selected, totals, open]);
 
   const rendered = useMemo(() => {
-    const template = resolveTemplate(lang, buyer?.customMessageTemplate);
-    return renderTemplate(template, templateVars, lang);
-  }, [lang, buyer, templateVars]);
+    if (isFactory) {
+      const template = resolveSellerTemplate(lang, seller?.customMessageTemplate);
+      return renderTemplate(template, templateVars, lang);
+    }
+    // Buyer path — restrict to en/ar at the template layer but zh wouldn't render here anyway
+    const template = resolveTemplate(lang === "zh" ? "en" : lang, buyer?.customMessageTemplate);
+    return renderTemplate(template, templateVars, lang === "zh" ? "en" : lang);
+  }, [isFactory, lang, buyer, seller, templateVars]);
 
-  // Regenerate message when template inputs change, unless user edited it manually
   useEffect(() => {
     if (!open) return;
     if (!messageDirty) setMessage(rendered);
@@ -173,14 +218,16 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
     }
   }, [runDownload, selected.length, onClose, showToast]);
 
+  // Determine recipient's WhatsApp number
+  const recipientWhatsapp = isFactory ? (seller?.whatsappNumber ?? "") : (buyer?.whatsappNumber ?? "");
+  const hasNumber = !!recipientWhatsapp;
+
   const handleDownloadAndOpen = useCallback(async () => {
-    if (!buyer?.whatsappNumber) return;
+    if (!recipientWhatsapp) return;
     if (selected.length === 0) return;
 
-    // Reserve a blank tab inside the click handler so the popup blocker lets us navigate
-    // it later, even after the save-picker flow delays us past the "user activation" window.
     const waWindow = window.open("about:blank", "_blank");
-    const numberNoPlus = buyer.whatsappNumber.replace(/^\+/, "");
+    const numberNoPlus = recipientWhatsapp.replace(/^\+/, "");
     const waUrl = `https://wa.me/${numberNoPlus}?text=${encodeURIComponent(message)}`;
 
     try {
@@ -208,34 +255,44 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
         }
       }
 
-      // Success path: navigate the reserved tab, or fall back to same-tab if blocked.
       if (waWindow) {
         waWindow.location.href = waUrl;
       } else {
-        // Popup was blocked or unavailable — fall back to same-tab navigation.
         window.location.href = waUrl;
       }
       showToast("success", `Saved ${result.saved} of ${total}. Opening WhatsApp\u2026`);
+      // Fire onSent on clean-or-user-confirmed completion
+      onSent?.([...selected]);
       onClose();
     } catch (err) {
       waWindow?.close();
       showToast("error", (err as Error).message || "Download failed");
     }
-  }, [buyer, selected.length, message, runDownload, onClose, showToast]);
+  }, [recipientWhatsapp, selected, message, runDownload, onClose, onSent, showToast]);
 
   const handleAddNumber = useCallback(() => {
-    if (buyer) {
-      router.push(`/buyers?edit=${encodeURIComponent(buyer.id)}&focus=whatsapp`);
+    if (isFactory) {
+      if (seller) router.push(`/sellers?edit=${encodeURIComponent(seller.id)}&focus=whatsapp`);
+      else router.push("/sellers");
     } else {
-      router.push("/buyers");
+      if (buyer) router.push(`/buyers?edit=${encodeURIComponent(buyer.id)}&focus=whatsapp`);
+      else router.push("/buyers");
     }
     onClose();
-  }, [buyer, onClose, router]);
+  }, [isFactory, buyer, seller, onClose, router]);
+
+  const goPickSeller = useCallback(() => {
+    router.push("/sellers");
+    onClose();
+  }, [onClose, router]);
 
   if (!open) return null;
 
-  const messaging = readBuyerMessaging(buyer);
-  const hasNumber = !!messaging.whatsappNumber;
+  const recipientLabel = isFactory ? "Factory / Seller" : "Buyer";
+  const recipientDisplayName = isFactory
+    ? (seller?.companyName ?? "(no factory selected)")
+    : contract.buyer;
+  const recipientContact = isFactory ? seller?.contactName : buyer?.contactPerson;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -243,17 +300,17 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl dark:bg-zinc-900"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4 dark:bg-zinc-900">
           <h2 className="flex items-center gap-2 text-lg font-bold">
-            <MessageCircle className="h-5 w-5 text-[#25D366]" />
-            Send to WhatsApp &mdash; Contract <span className="font-mono">{contract.contractNo}</span>
+            {isFactory
+              ? <Factory className="h-5 w-5 text-emerald-600" />
+              : <MessageCircle className="h-5 w-5 text-[#25D366]" />}
+            Send to {isFactory ? "Factory" : "WhatsApp"} &mdash; Contract <span className="font-mono">{contract.contractNo}</span>
           </h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="space-y-5 px-6 py-5">
-          {/* Mainland China banner */}
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
@@ -262,26 +319,38 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
             </span>
           </div>
 
-          {/* Buyer section */}
+          {/* Recipient section */}
           <div className="rounded-lg border bg-zinc-50 p-4 dark:bg-zinc-800">
-            <Label className="text-xs text-zinc-500">Buyer</Label>
+            <Label className="text-xs text-zinc-500">{recipientLabel}</Label>
             <div className="mt-1 flex flex-wrap items-center gap-3">
-              <div>
-                <p className="text-base font-semibold">{contract.buyer}</p>
-                {buyer?.contactPerson && <p className="text-xs text-zinc-500">Attn: {buyer.contactPerson}</p>}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-semibold">{recipientDisplayName}</p>
+                {recipientContact && <p className="text-xs text-zinc-500">Attn: {recipientContact}</p>}
+                {isFactory && !seller && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    No factory selected on this contract.{" "}
+                    <button onClick={goPickSeller} className="underline hover:text-amber-900">Pick a seller</button>
+                  </p>
+                )}
               </div>
               {hasNumber ? (
-                <div className="ml-auto flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm dark:bg-zinc-900">
-                  <span className="text-base leading-none">{flagFor(messaging.whatsappNumber)}</span>
-                  <span className="font-mono">{messaging.whatsappNumber}</span>
+                <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm dark:bg-zinc-900">
+                  <span className="text-base leading-none">{flagFor(recipientWhatsapp)}</span>
+                  <span className="font-mono">{recipientWhatsapp}</span>
                 </div>
               ) : (
-                <div className="ml-auto flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>No WhatsApp number for {contract.buyer}</span>
-                  <Button size="sm" variant="outline" onClick={handleAddNumber} className="gap-1">
-                    <ExternalLink className="h-3 w-3" /> Add WhatsApp Number
-                  </Button>
+                  <span>
+                    {isFactory
+                      ? (seller ? `No WhatsApp number for ${seller.companyName}` : "Select a factory first")
+                      : `No WhatsApp number for ${contract.buyer}`}
+                  </span>
+                  {(isFactory ? !!seller : true) && (
+                    <Button size="sm" variant="outline" onClick={handleAddNumber} className="gap-1">
+                      <ExternalLink className="h-3 w-3" /> Add WhatsApp
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -313,17 +382,11 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
           <div>
             <Label>Message language</Label>
             <div className="mt-2 flex gap-1 rounded-md border bg-zinc-100 p-0.5 text-sm dark:bg-zinc-800">
-              <button
-                type="button"
-                onClick={() => { setLang("en"); setMessageDirty(false); }}
-                className={`flex-1 rounded px-3 py-1.5 ${lang === "en" ? "bg-white font-medium shadow-sm dark:bg-zinc-700" : "text-zinc-500"}`}
-              >English</button>
-              <button
-                type="button"
-                onClick={() => { setLang("ar"); setMessageDirty(false); }}
-                className={`flex-1 rounded px-3 py-1.5 ${lang === "ar" ? "bg-white font-medium shadow-sm dark:bg-zinc-700" : "text-zinc-500"}`}
-                dir="rtl"
-              >&#x0627;&#x0644;&#x0639;&#x0631;&#x0628;&#x064A;&#x0629;</button>
+              <LangTab current={lang} value="en" onClick={() => { setLang("en"); setMessageDirty(false); }} label="English" />
+              <LangTab current={lang} value="ar" onClick={() => { setLang("ar"); setMessageDirty(false); }} label={<span dir="rtl">&#x0627;&#x0644;&#x0639;&#x0631;&#x0628;&#x064A;&#x0629;</span>} />
+              {isFactory && (
+                <LangTab current={lang} value="zh" onClick={() => { setLang("zh"); setMessageDirty(false); }} label="&#x4E2D;&#x6587;" />
+              )}
             </div>
           </div>
 
@@ -359,7 +422,6 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
             )}
           </div>
 
-          {/* Download progress */}
           {downloadProgress && (
             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -380,7 +442,6 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
           )}
         </div>
 
-        {/* Actions */}
         <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t bg-white px-6 py-4 dark:bg-zinc-900">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
@@ -397,7 +458,7 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
             className="gap-1 text-white hover:opacity-90"
             disabled={downloading || selected.length === 0 || !hasNumber}
             onClick={handleDownloadAndOpen}
-            title={!hasNumber ? "Add a WhatsApp number to the buyer first" : ""}
+            title={!hasNumber ? `Add a WhatsApp number to the ${isFactory ? "factory" : "buyer"} first` : ""}
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {downloading ? "Saving\u2026" : "Download + Open WhatsApp"}
@@ -405,6 +466,24 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function LangTab({ current, value, onClick, label }: {
+  current: TemplateLanguage;
+  value: TemplateLanguage;
+  onClick: () => void;
+  label: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded px-3 py-1.5 ${current === value ? "bg-white font-medium shadow-sm dark:bg-zinc-700" : "text-zinc-500"}`}
+      dir={value === "ar" ? "rtl" : undefined}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -436,3 +515,5 @@ export function QuickShareButton({
   );
 }
 
+/** Re-export for consumers that want the types */
+export type { Seller };

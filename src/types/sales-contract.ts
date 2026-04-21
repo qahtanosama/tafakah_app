@@ -63,6 +63,8 @@ export interface DocumentIdentifiers {
   blNumber: string;
 }
 
+import type { ContractWorkflow } from "./workflow";
+
 export interface SalesContractData {
   identifiers: DocumentIdentifiers;
   seller: SellerInfo;
@@ -73,6 +75,8 @@ export interface SalesContractData {
   terms: TermsInfo;
   /** Optional link to the Seller/Factory database record. Older contracts do not have this. */
   sellerId?: string;
+  /** Stage tracker. Older contracts default to "docs-generated" on read via defaultWorkflow(). */
+  workflow?: ContractWorkflow;
 }
 
 export interface ContractTotals {
@@ -103,4 +107,6 @@ export interface ContractLogEntry {
   masterSnapshot: SalesContractData;
   /** Optional link to the Seller/Factory database record. Older contracts do not have this. */
   sellerId?: string;
+  /** Stage tracker. Mirrors masterSnapshot.workflow for easy filtering without parsing the snapshot. */
+  workflow?: ContractWorkflow;
 }

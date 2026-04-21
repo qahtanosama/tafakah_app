@@ -30,8 +30,10 @@ import { calcTotals } from "@/lib/sales-contract";
 import { getAllFinance, calcSummary } from "@/lib/finance";
 import { getAllShipping, getStatusInfo } from "@/lib/shipping";
 import type { ShippingEntry } from "@/types/shipping";
+import { getWorkflow } from "@/lib/workflow";
+import { STAGE_ORDER, STAGE_LABELS, type WorkflowStage } from "@/types/workflow";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const STATUS_OPTIONS: ContractStatus[] = ["Active", "Completed", "Cancelled"];
 
@@ -55,24 +57,40 @@ export default function ContractLogTable() {
   const [log, setLog] = useState<ContractLogEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState("");
+  const [stageFilter, setStageFilter] = useState<"all" | WorkflowStage>("all");
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setLog(getContractLog());
     setLoaded(true);
-  }, []);
+    const stageParam = searchParams?.get("stage");
+    if (stageParam && (STAGE_ORDER as string[]).includes(stageParam)) {
+      setStageFilter(stageParam as WorkflowStage);
+    }
+    const refresh = () => setLog(getContractLog());
+    if (typeof window !== "undefined") {
+      window.addEventListener("workflow-updated", refresh as EventListener);
+      return () => window.removeEventListener("workflow-updated", refresh as EventListener);
+    }
+  }, [searchParams]);
 
   const filtered = useMemo(() => {
-    if (!search) return log;
+    let list = log;
+    if (stageFilter !== "all") {
+      list = list.filter((e) => getWorkflow(e).currentStage === stageFilter);
+    }
+    if (!search) return list;
     const q = search.toLowerCase();
-    return log.filter(
+    return list.filter(
       (e) =>
         e.contractNo.toLowerCase().includes(q) ||
         e.invoiceNo.toLowerCase().includes(q) ||
         e.buyer.toLowerCase().includes(q) ||
-        e.product.toLowerCase().includes(q)
+        e.product.toLowerCase().includes(q) ||
+        STAGE_LABELS[getWorkflow(e).currentStage].toLowerCase().includes(q)
     );
-  }, [log, search]);
+  }, [log, search, stageFilter]);
 
   const handleDelete = useCallback((id: string) => {
     deleteContractLogEntry(id);
@@ -146,14 +164,25 @@ export default function ContractLogTable() {
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by contract no, invoice no, buyer, or product..."
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by contract no, invoice no, buyer, product, or stage..."
+            className="pl-9"
+          />
+        </div>
+        <Select value={stageFilter} onValueChange={(v) => v && setStageFilter(v as "all" | WorkflowStage)}>
+          <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All stages</SelectItem>
+            {STAGE_ORDER.map((s) => (
+              <SelectItem key={s} value={s}>Stage: {STAGE_LABELS[s]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {filtered.length === 0 && search && (
         <p className="py-8 text-center text-sm text-zinc-400">No contracts match &ldquo;{search}&rdquo;</p>
@@ -170,6 +199,7 @@ export default function ContractLogTable() {
             <TableHead>Product</TableHead>
             <TableHead>Finance</TableHead>
             <TableHead>Shipping</TableHead>
+            <TableHead>Stage</TableHead>
             <TableHead className="w-[150px]">Status</TableHead>
             <TableHead className="w-[140px]">Actions</TableHead>
           </TableRow>
@@ -203,6 +233,26 @@ export default function ContractLogTable() {
                     >
                       {info.icon} {info.label}
                     </Link>
+                  );
+                })()}
+              </TableCell>
+              <TableCell>
+                {(() => {
+                  const wf = getWorkflow(entry);
+                  const stageLabel = STAGE_LABELS[wf.currentStage];
+                  const idx = STAGE_ORDER.indexOf(wf.currentStage);
+                  const isFinal = wf.currentStage === "delivered";
+                  const color = isFinal
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : idx >= 4
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : idx >= 2
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-zinc-100 text-zinc-600 border-zinc-200";
+                  return (
+                    <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${color}`}>
+                      {idx + 1}. {stageLabel}
+                    </span>
                   );
                 })()}
               </TableCell>
