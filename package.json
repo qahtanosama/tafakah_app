@@ -6,13 +6,16 @@
     "dev": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "types:supabase": "supabase gen types typescript --project-id YOUR_PROJECT_ID --schema public > src/types/database.types.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
     "@base-ui/react": "^1.4.0",
     "@google/generative-ai": "^0.24.1",
     "@react-pdf/renderer": "^4.5.1",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.104.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "idb": "^8.0.3",
