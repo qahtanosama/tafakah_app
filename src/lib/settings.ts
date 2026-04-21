@@ -5,6 +5,8 @@ export interface AppSettings {
   geminiApiKey: string;
   anthropicApiKey: string;
   shipsgoToken: string;
+  /** When true, the WeChat handoff action is shown on factory Quick Share. Defaults to false. */
+  wechatHandoffEnabled: boolean;
 }
 
 const STORAGE_KEY = "tafakah-settings";
@@ -14,6 +16,7 @@ const DEFAULTS: AppSettings = {
   geminiApiKey: "",
   anthropicApiKey: "",
   shipsgoToken: "",
+  wechatHandoffEnabled: false,
 };
 
 export function loadSettings(): AppSettings {
@@ -44,4 +47,8 @@ export function getActiveProviderKey(): { provider: AIProvider; apiKey: string }
 
 export function getShipsgoToken(): string {
   return loadSettings().shipsgoToken;
+}
+
+export function isWechatHandoffEnabled(): boolean {
+  return loadSettings().wechatHandoffEnabled === true;
 }

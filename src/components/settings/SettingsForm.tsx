@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2, CheckCircle, XCircle, Download, Upload, Trash2, HardDrive, Ship } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle, XCircle, Download, Upload, Trash2, HardDrive, Ship, MessageSquare } from "lucide-react";
 import type { AIProvider, AppSettings } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings";
 import { exportBackup, parseBackup, restoreBackup, clearAllData, getStorageStats } from "@/lib/backup";
@@ -150,7 +150,7 @@ function ProviderCard({
 }
 
 export default function SettingsForm() {
-  const [settings, setSettings] = useState<AppSettings>({ activeProvider: "gemini", geminiApiKey: "", anthropicApiKey: "", shipsgoToken: "" });
+  const [settings, setSettings] = useState<AppSettings>({ activeProvider: "gemini", geminiApiKey: "", anthropicApiKey: "", shipsgoToken: "", wechatHandoffEnabled: false });
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -224,6 +224,37 @@ export default function SettingsForm() {
         onSave={handleSave}
         showToast={showToast}
       />
+
+      {/* ═══ QUICK SHARE ═══ */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageSquare className="h-4 w-4" style={{ color: "#07C160" }} /> Quick Share
+          </CardTitle>
+          <p className="text-xs text-zinc-400">Optional recipient channels for factory Quick Share.</p>
+        </CardHeader>
+        <CardContent>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-emerald-600"
+              checked={settings.wechatHandoffEnabled}
+              onChange={(e) => {
+                const next = { ...settings, wechatHandoffEnabled: e.target.checked };
+                setSettings(next);
+                saveSettings(next);
+                showToast(e.target.checked ? "WeChat handoff enabled" : "WeChat handoff disabled");
+              }}
+            />
+            <div>
+              <p className="text-sm font-medium">Show &ldquo;Send via WeChat&rdquo; on factory Quick Share</p>
+              <p className="text-xs text-zinc-500">
+                When on, factories with a WeChat ID / group name get a WeChat button in Quick Share that copies the message and shows paste-into-group instructions. When off, only WhatsApp shows.
+              </p>
+            </div>
+          </label>
+        </CardContent>
+      </Card>
 
       {/* ═══ DATA MANAGEMENT ═══ */}
       <DataManagementSection showToast={showToast} />

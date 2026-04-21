@@ -12,6 +12,7 @@ import type { Seller, SellerLanguage } from "@/types/seller";
 import { readSellerMessaging } from "@/types/seller";
 import { findBuyerByCompany } from "@/lib/buyers";
 import { getSellerById } from "@/lib/sellers";
+import { isWechatHandoffEnabled } from "@/lib/settings";
 import { calcTotals } from "@/lib/sales-contract";
 import { getShipping } from "@/lib/shipping";
 import { DOC_LABELS, DOC_ORDER, PRESET_DOCS, downloadContractPdfs, type QuickShareDoc } from "@/lib/quick-share/download";
@@ -88,6 +89,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
   const [copyFlash, setCopyFlash] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
   const [wechatHandoff, setWechatHandoff] = useState<{ savedCount: number; totalCount: number } | null>(null);
+  const [wechatEnabled, setWechatEnabled] = useState(false);
 
   const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
     setToast({ type, msg });
@@ -115,6 +117,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
     }
     setMessageDirty(false);
     setWechatHandoff(null);
+    setWechatEnabled(isWechatHandoffEnabled());
   }, [open, contract, isFactory, initialDocs]);
 
   // Close on Escape
@@ -494,7 +497,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {downloading ? "Saving\u2026" : "Download + Open WhatsApp"}
           </Button>
-          {isFactory && (
+          {isFactory && wechatEnabled && (
             <Button
               style={{ backgroundColor: "#07C160" }}
               className="gap-1 text-white hover:opacity-90"
