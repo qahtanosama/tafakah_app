@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { X, MessageCircle, Download, Copy, RotateCcw, AlertTriangle, Loader2, ExternalLink, Factory } from "lucide-react";
+import { X, MessageCircle, Download, Copy, RotateCcw, AlertTriangle, Loader2, ExternalLink, Factory, MessageSquare, Check, ClipboardCheck } from "lucide-react";
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { Buyer, BuyerDocPreset } from "@/types/buyer";
 import { readBuyerMessaging } from "@/types/buyer";
@@ -87,6 +87,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
   const [downloadProgress, setDownloadProgress] = useState<{ index: number; total: number; label: string } | null>(null);
   const [copyFlash, setCopyFlash] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
+  const [wechatHandoff, setWechatHandoff] = useState<{ savedCount: number; totalCount: number } | null>(null);
 
   const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
     setToast({ type, msg });
@@ -113,6 +114,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
       setSelected(initialDocs && initialDocs.length > 0 ? [...initialDocs] : preset);
     }
     setMessageDirty(false);
+    setWechatHandoff(null);
   }, [open, contract, isFactory, initialDocs]);
 
   // Close on Escape
@@ -269,6 +271,35 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
       showToast("error", (err as Error).message || "Download failed");
     }
   }, [recipientWhatsapp, selected, message, runDownload, onClose, onSent, showToast]);
+
+  const handleDownloadAndWechat = useCallback(async () => {
+    if (!seller?.wechatId) return;
+    if (selected.length === 0) return;
+    try {
+      const result = await runDownload();
+      if (!result) return;
+      const total = selected.length;
+      if (result.cancelled && result.saved === 0) {
+        showToast("info", "Download cancelled.");
+        return;
+      }
+      // Copy message to clipboard so user can paste into WeChat
+      try {
+        await navigator.clipboard.writeText(message);
+      } catch {
+        // Clipboard may be blocked; we still show the handoff so user can copy manually
+      }
+      setWechatHandoff({ savedCount: result.saved, totalCount: total });
+    } catch (err) {
+      showToast("error", (err as Error).message || "Download failed");
+    }
+  }, [seller, selected.length, message, runDownload, showToast]);
+
+  const confirmWechatSent = useCallback(() => {
+    setWechatHandoff(null);
+    onSent?.([...selected]);
+    onClose();
+  }, [selected, onSent, onClose]);
 
   const handleAddNumber = useCallback(() => {
     if (isFactory) {
@@ -463,8 +494,31 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {downloading ? "Saving\u2026" : "Download + Open WhatsApp"}
           </Button>
+          {isFactory && (
+            <Button
+              style={{ backgroundColor: "#07C160" }}
+              className="gap-1 text-white hover:opacity-90"
+              disabled={downloading || selected.length === 0 || !seller?.wechatId}
+              onClick={handleDownloadAndWechat}
+              title={!seller?.wechatId ? "Add a WeChat ID / group name to the factory first" : ""}
+            >
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+              {downloading ? "Saving\u2026" : "Download + Send via WeChat"}
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* WeChat handoff panel */}
+      {wechatHandoff && seller && (
+        <WechatHandoff
+          seller={seller}
+          saved={wechatHandoff.savedCount}
+          total={wechatHandoff.totalCount}
+          onMarkSent={confirmWechatSent}
+          onBack={() => setWechatHandoff(null)}
+        />
+      )}
     </div>
   );
 }
@@ -512,6 +566,78 @@ export function QuickShareButton({
       <MessageCircle className="h-4 w-4" />
       {label}
     </Button>
+  );
+}
+
+/* ──────────────────────────────────────────────────────── */
+/*                   WeChat handoff modal                  */
+/* ──────────────────────────────────────────────────────── */
+function WechatHandoff({ seller, saved, total, onMarkSent, onBack }: {
+  seller: Seller;
+  saved: number;
+  total: number;
+  onMarkSent: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+      onClick={onBack}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h3 className="flex items-center gap-2 text-lg font-bold">
+            <MessageSquare className="h-5 w-5" style={{ color: "#07C160" }} />
+            Send via WeChat
+          </h3>
+          <button onClick={onBack} className="text-zinc-400 hover:text-zinc-600"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-4 px-6 py-5 text-sm">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+            <p className="flex items-center gap-1 font-medium">
+              <ClipboardCheck className="h-3.5 w-3.5" /> Message copied to clipboard
+            </p>
+            <p className="mt-0.5">Saved {saved} of {total} document{total === 1 ? "" : "s"} to your chosen location.</p>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Target</p>
+            <div className="rounded-lg border bg-zinc-50 px-4 py-3 font-medium dark:bg-zinc-800">
+              {seller.wechatId}
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">Factory: {seller.companyName}</p>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Steps</p>
+            <ol className="list-inside list-decimal space-y-1 text-xs text-zinc-700 dark:text-zinc-300">
+              <li>Open WeChat on your phone or desktop.</li>
+              <li>Find the chat / group: <span className="font-mono">{seller.wechatId}</span>.</li>
+              <li>Paste the message (already in your clipboard).</li>
+              <li>Attach the PDFs you just saved.</li>
+              <li>Send.</li>
+            </ol>
+          </div>
+
+          <p className="text-xs text-zinc-400">
+            WeChat can&rsquo;t be auto-opened from the browser. Once you&rsquo;ve sent the message, click below to advance the workflow.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 border-t px-6 py-4">
+          <Button variant="outline" onClick={onBack}>Back</Button>
+          <Button
+            onClick={onMarkSent}
+            style={{ backgroundColor: "#07C160" }}
+            className="gap-1 text-white hover:opacity-90"
+          >
+            <Check className="h-4 w-4" /> Mark as Sent
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

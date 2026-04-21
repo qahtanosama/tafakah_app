@@ -223,6 +223,17 @@ export default function SellerEditForm({ open, initial, existingIds, onSave, onC
                   : <p className="mt-1 text-xs text-zinc-400">Example: +8613800138000 (China)</p>}
               </div>
               <div className="sm:col-span-2">
+                <Label>WeChat ID / Group Name</Label>
+                <Input
+                  value={draft.wechatId ?? ""}
+                  onChange={(e) => setField("wechatId", e.target.value)}
+                  placeholder="e.g. TAFAKAH \u00d7 Shandong Ginger Group"
+                />
+                <p className="mt-1 text-xs text-zinc-400">
+                  Text label only. WeChat can&rsquo;t be auto-opened from the browser; this is shown during handoff so you know which group to paste into.
+                </p>
+              </div>
+              <div className="sm:col-span-2">
                 <Label>Preferred Language</Label>
                 <div className="mt-2 flex flex-wrap gap-4 text-sm">
                   <LangRadio

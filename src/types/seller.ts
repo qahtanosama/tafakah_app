@@ -21,6 +21,8 @@ export interface Seller {
   contactName: string;
   contactTitle?: string;
   whatsappNumber?: string;
+  /** WeChat ID or group name — text only, for reference (WeChat has no reliable deep-link to groups). */
+  wechatId?: string;
   phoneNumber?: string;
   email?: string;
   preferredLanguage?: SellerLanguage;

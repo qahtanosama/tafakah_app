@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, MessageCircle, Factory, MapPin } from "lucide-react";
+import { Plus, Search, MessageCircle, Factory, MapPin, MessageSquare } from "lucide-react";
 import type { Seller } from "@/types/seller";
 import type { ProductProfile } from "@/types/product";
 import { getSellers, saveSeller, deleteSeller, createEmptySeller } from "@/lib/sellers";
@@ -191,13 +191,18 @@ export default function SellerManager() {
                 )}
                 {s.products.length > 6 && <span className="text-xs text-zinc-400">+{s.products.length - 6} more</span>}
               </div>
-              <div className="mt-auto flex items-center justify-between text-xs text-zinc-400">
+              <div className="mt-auto flex flex-wrap items-center gap-3 text-xs text-zinc-400">
                 {s.whatsappNumber ? (
                   <span className="flex items-center gap-1 text-[#25D366]">
                     <MessageCircle className="h-3 w-3" /> {s.whatsappNumber}
                   </span>
                 ) : (
                   <span>No WhatsApp</span>
+                )}
+                {s.wechatId && (
+                  <span className="flex items-center gap-1 truncate" style={{ color: "#07C160" }} title={s.wechatId}>
+                    <MessageSquare className="h-3 w-3" /> {s.wechatId}
+                  </span>
                 )}
               </div>
             </button>

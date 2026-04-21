@@ -62,6 +62,7 @@ export function createEmptySeller(): Seller {
     contactName: "",
     contactTitle: "",
     whatsappNumber: "",
+    wechatId: "",
     phoneNumber: "",
     email: "",
     preferredLanguage: "en",
