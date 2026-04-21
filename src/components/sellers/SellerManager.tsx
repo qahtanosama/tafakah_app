@@ -12,19 +12,19 @@ import { getProducts } from "@/lib/products";
 import SellerEditForm from "./SellerEditForm";
 
 const COUNTRY_FLAGS: Record<string, string> = {
-  China: "\ud83c\udde8\ud83c\uddf3",
-  Kenya: "\ud83c\uddf0\ud83c\uddea",
-  Vietnam: "\ud83c\uddfb\ud83c\uddf3",
-  Thailand: "\ud83c\uddf9\ud83c\udded",
-  India: "\ud83c\uddee\ud83c\uddf3",
-  Pakistan: "\ud83c\uddf5\ud83c\uddf0",
-  Turkey: "\ud83c\uddf9\ud83c\uddf7",
-  Egypt: "\ud83c\uddea\ud83c\uddec",
-  Peru: "\ud83c\uddf5\ud83c\uddea",
-  Chile: "\ud83c\udde8\ud83c\uddf1",
-  "South Africa": "\ud83c\uddff\ud83c\udde6",
-  Indonesia: "\ud83c\uddee\ud83c\udde9",
-  Philippines: "\ud83c\uddf5\ud83c\udded",
+  China: "🇨🇳",
+  Kenya: "🇰🇪",
+  Vietnam: "🇻🇳",
+  Thailand: "🇹🇭",
+  India: "🇮🇳",
+  Pakistan: "🇵🇰",
+  Turkey: "🇹🇷",
+  Egypt: "🇪🇬",
+  Peru: "🇵🇪",
+  Chile: "🇨🇱",
+  "South Africa": "🇿🇦",
+  Indonesia: "🇮🇩",
+  Philippines: "🇵🇭",
 };
 
 type CountryFilter = "all" | "China" | "Kenya" | "Other";
@@ -103,37 +103,40 @@ export default function SellerManager() {
     showToast("Seller deleted");
   }, [showToast]);
 
-  if (!loaded) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
+  if (!loaded) return <div className="flex items-center justify-center py-20 text-slate-500 font-medium">Loading database...</div>;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-6 py-8">
+    <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-8">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800 shadow-lg">
+        <div className="fixed top-20 right-8 z-50 rounded-xl border border-emerald-200 bg-emerald-50/90 backdrop-blur-md px-6 py-4 text-sm font-semibold text-emerald-800 shadow-xl shadow-emerald-500/10 transition-all animate-in fade-in slide-in-from-top-4">
           {toast}
         </div>
       )}
 
       {/* Header row */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Sellers / Factories</h1>
-        <Button className="gap-2" onClick={() => setEditing(createEmptySeller())}>
-          <Plus className="h-4 w-4" /> Add Seller
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Sellers / Factories</h2>
+          <p className="text-slate-500 mt-1 text-sm font-medium">Manage your suppliers, their locations, and offered products.</p>
+        </div>
+        <Button className="gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-6" onClick={() => setEditing(createEmptySeller())}>
+          <Plus className="h-4 w-4" /> Add Factory
         </Button>
       </div>
 
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by company, contact, or country..." className="pl-9" />
+        <div className="relative flex-1 sm:max-w-md">
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by company, contact, or country..." className="pl-9 h-11 bg-white/50 dark:bg-zinc-900/50 border-slate-200 dark:border-zinc-800 focus:ring-indigo-500/20 shadow-sm transition-all" />
         </div>
-        <div className="flex gap-1 rounded-md border bg-zinc-100 p-0.5 text-xs dark:bg-zinc-800">
+        <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-sm font-semibold dark:border-white/10 dark:bg-zinc-900 shadow-sm">
           {(["all", "China", "Kenya", "Other"] as CountryFilter[]).map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCountryFilter(c)}
-              className={`rounded px-3 py-1 ${countryFilter === c ? "bg-white font-medium shadow-sm dark:bg-zinc-700" : "text-zinc-500"}`}
+              className={`rounded-md px-4 py-1.5 transition-all ${countryFilter === c ? "bg-slate-100 text-indigo-700 shadow-sm dark:bg-zinc-800 dark:text-indigo-400" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
             >
               {c === "all" ? "All" : c}
             </button>
@@ -143,65 +146,73 @@ export default function SellerManager() {
 
       {/* Grid or empty state */}
       {sellers.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <Factory className="h-10 w-10 text-zinc-300" />
-          <p className="text-lg font-medium text-zinc-500">No sellers yet.</p>
-          <p className="text-sm text-zinc-400">Add your first factory.</p>
-          <Button className="gap-2" onClick={() => setEditing(createEmptySeller())}>
-            <Plus className="h-4 w-4" /> Add Seller
+        <div className="flex flex-col items-center justify-center py-24 text-center rounded-2xl border border-dashed border-slate-300 dark:border-zinc-800 bg-white/30 dark:bg-zinc-900/30">
+          <div className="h-16 w-16 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-500 mb-6 shadow-sm"><Factory className="h-8 w-8" /></div>
+          <p className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">No factories yet.</p>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-8 max-w-sm">Build your supplier database to keep track of sourcing locations and product offerings.</p>
+          <Button className="gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-8" onClick={() => setEditing(createEmptySeller())}>
+            <Plus className="h-4 w-4" /> Add Factory
           </Button>
         </div>
       ) : filtered.length === 0 ? (
-        <p className="py-16 text-center text-sm text-zinc-400">No sellers match the current filter.</p>
+        <p className="py-16 text-center text-sm font-semibold text-slate-500">No sellers match the current filter.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => setEditing({ ...s })}
-              className="group flex flex-col gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-300 hover:shadow-md dark:bg-zinc-900"
+              className="group flex flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/80 p-5 text-left shadow-sm transition-all hover:border-indigo-300 hover:shadow-md dark:border-white/10 dark:bg-zinc-900/80 dark:hover:border-indigo-700"
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{s.companyName || "(unnamed)"}</p>
-                  {s.companyNameCn && <p className="truncate text-xs text-zinc-400" dir="auto">{s.companyNameCn}</p>}
+                  <p className="truncate text-lg font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{s.companyName || "(unnamed)"}</p>
+                  {s.companyNameCn && <p className="truncate text-sm font-medium text-slate-400 dark:text-slate-500 mt-0.5" dir="auto">{s.companyNameCn}</p>}
                 </div>
-                <span className="text-lg leading-none">{COUNTRY_FLAGS[s.country] ?? "\ud83c\udf10"}</span>
+                <span className="text-2xl leading-none opacity-80">{COUNTRY_FLAGS[s.country] ?? "🌍"}</span>
               </div>
-              <div className="flex items-center gap-1 text-xs text-zinc-500">
-                <MapPin className="h-3 w-3" /> {s.country}{s.city ? ` \u00b7 ${s.city}` : ""}
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                  <MapPin className="h-4 w-4 text-slate-400" /> {s.country}{s.city ? ` · ${s.city}` : ""}
+                </div>
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800 text-xs font-bold text-slate-500">
+                    {s.contactName ? s.contactName.charAt(0).toUpperCase() : "?"}
+                  </span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{s.contactName || "(no contact)"}</span>
+                  {s.contactTitle && <span className="text-slate-400">· {s.contactTitle}</span>}
+                </div>
               </div>
-              <div className="text-sm">
-                <span className="font-medium">{s.contactName || "(no contact)"}</span>
-                {s.contactTitle && <span className="text-zinc-400"> \u00b7 {s.contactTitle}</span>}
-              </div>
-              <div className="flex flex-wrap gap-1">
+
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {s.products.length === 0 ? (
-                  <span className="text-xs text-zinc-300">No products assigned</span>
+                  <span className="text-xs font-medium text-slate-400 bg-slate-50 dark:bg-zinc-800 px-2 py-1 rounded-md border border-slate-100 dark:border-white/5">No products assigned</span>
                 ) : (
-                  s.products.slice(0, 6).map((pid) => {
+                  s.products.slice(0, 5).map((pid) => {
                     const p = productMap[pid];
                     return (
-                      <span key={pid} className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                      <span key={pid} className="rounded-md bg-indigo-50 border border-indigo-100/50 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800/50 dark:text-indigo-300">
                         {p?.name ?? pid}
                       </span>
                     );
                   })
                 )}
-                {s.products.length > 6 && <span className="text-xs text-zinc-400">+{s.products.length - 6} more</span>}
+                {s.products.length > 5 && <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded-md">+{s.products.length - 5} more</span>}
               </div>
-              <div className="mt-auto flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+
+              <div className="mt-auto pt-4 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {s.whatsappNumber ? (
-                  <span className="flex items-center gap-1 text-[#25D366]">
-                    <MessageCircle className="h-3 w-3" /> {s.whatsappNumber}
+                  <span className="flex items-center gap-1.5 text-[#25D366]">
+                    <MessageCircle className="h-4 w-4" /> {s.whatsappNumber}
                   </span>
                 ) : (
-                  <span>No WhatsApp</span>
+                  <span className="flex items-center gap-1.5"><MessageCircle className="h-4 w-4 opacity-40" /> No WhatsApp</span>
                 )}
                 {s.wechatId && (
-                  <span className="flex items-center gap-1 truncate" style={{ color: "#07C160" }} title={s.wechatId}>
-                    <MessageSquare className="h-3 w-3" /> {s.wechatId}
+                  <span className="flex items-center gap-1.5 truncate text-[#07C160]" title={s.wechatId}>
+                    <MessageSquare className="h-4 w-4" /> {s.wechatId}
                   </span>
                 )}
               </div>

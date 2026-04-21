@@ -20,7 +20,14 @@
       "Bash(ls \"C:/Users/Sam/Documents/tafakah-app/.env\"*)",
       "Bash(ls \"C:/Users/Sam/Documents/tafakah-app/.env.local\"*)",
       "Bash(ls \"C:/Users/Sam/Documents/tafakah-app/.env.example\"*)",
-      "Bash(node -e \"const p = require\\('pdfjs-dist/package.json'\\); console.log\\(p.version\\)\")"
+      "Bash(node -e \"const p = require\\('pdfjs-dist/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(mkdir -p /tmp/phase15-stash/api)",
+      "Bash(mv src/lib/shipsgo.ts /tmp/phase15-stash/)",
+      "Bash(mv src/app/api/shipping /tmp/phase15-stash/api/)",
+      "Read(//tmp/**)",
+      "Read(//tmp/phase15-stash/**)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

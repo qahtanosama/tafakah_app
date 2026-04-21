@@ -64,19 +64,19 @@ function toUSD(amount: number, cur: Currency, fx: FxRates): number {
 }
 
 const PRODUCT_AR: Record<string, string> = {
-  "Fresh Garlic": "\u062B\u0648\u0645 \u0637\u0627\u0632\u062C",
-  "Fresh Ginger": "\u0632\u0646\u062C\u0628\u064A\u0644 \u0637\u0627\u0632\u062C",
-  "Fresh Kiwi": "\u0643\u064A\u0648\u064A \u0637\u0627\u0632\u062C",
-  "Fresh Apple": "\u062A\u0641\u0627\u062D \u0637\u0627\u0632\u062C",
-  "Fresh Onion": "\u0628\u0635\u0644 \u0637\u0627\u0632\u062C",
+  "Fresh Garlic": "ثوم طازج",
+  "Fresh Ginger": "زنجبيل طازج",
+  "Fresh Kiwi": "كيوي طازج",
+  "Fresh Apple": "تفاح طازج",
+  "Fresh Onion": "بصل طازج",
 };
 
 const CONTAINER_AR: Record<string, string> = {
-  "1\u00d740'RH": "\u0661\u00d7\u0664\u0660 \u0642\u062F\u0645 \u0645\u0628\u0631\u062F",
-  "1\u00d740'HC": "\u0661\u00d7\u0664\u0660 \u0642\u062F\u0645 \u0639\u0627\u0644\u064A",
-  "1\u00d740'GP": "\u0661\u00d7\u0664\u0660 \u0642\u062F\u0645 \u0639\u0627\u062F\u064A",
-  "1\u00d720'GP": "\u0661\u00d7\u0662\u0660 \u0642\u062F\u0645 \u0639\u0627\u062F\u064A",
-  "1\u00d745'HC": "\u0661\u00d7\u0664\u0665 \u0642\u062F\u0645 \u0639\u0627\u0644\u064A",
+  "1×40'RH": "١×٤٠ قدم مبرد",
+  "1×40'HC": "١×٤٠ قدم عالي",
+  "1×40'GP": "١×٤٠ قدم عادي",
+  "1×20'GP": "١×٢٠ قدم عادي",
+  "1×45'HC": "١×٤٥ قدم عالي",
 };
 
 /* ── Cost Row Component ────────────────────────── */
@@ -85,35 +85,35 @@ function CostRowInput({ line, unitOptions, onChange, onDelete, usdEquiv }: {
   onChange: (u: CostLine) => void; onDelete?: () => void; usdEquiv: number;
 }) {
   return (
-    <tr className="border-b border-zinc-100 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
-      <td className="py-2 pr-2 text-sm">
+    <tr className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+      <td className="py-3 pr-4 pl-4 text-sm">
         {line.isPredefined ? (
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">{line.label}</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-300">{line.label}</span>
         ) : (
-          <input value={line.label} onChange={(e) => onChange({ ...line, label: e.target.value })} className="w-full bg-transparent text-sm font-medium outline-none" placeholder="Category name" />
+          <input value={line.label} onChange={(e) => onChange({ ...line, label: e.target.value })} className="w-full bg-white/50 dark:bg-zinc-800/50 rounded-md px-2 py-1 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/30" placeholder="Category name" />
         )}
       </td>
-      <td className="w-[100px] px-1 py-1.5">
+      <td className="w-[120px] px-2 py-2">
         <input type="number" step="0.01" value={line.amount || ""} onChange={(e) => onChange({ ...line, amount: parseFloat(e.target.value) || 0 })}
-          className="h-9 w-full rounded border border-zinc-200 bg-transparent px-2 text-right font-mono text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200" placeholder="0" />
+          className="h-9 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-zinc-800/50 px-3 text-right font-mono text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all" placeholder="0" />
       </td>
-      <td className="w-[80px] px-1 py-1.5">
+      <td className="w-[90px] px-2 py-2">
         <select value={line.currency} onChange={(e) => onChange({ ...line, currency: e.target.value as Currency })}
-          className="h-9 w-full rounded border border-zinc-200 bg-transparent px-1 text-sm outline-none focus:border-blue-300">
+          className="h-9 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-zinc-800/50 px-2 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
           {CURRENCIES.map((c) => <option key={c} value={c}>{CUR_LABELS[c]}</option>)}
         </select>
       </td>
-      <td className="w-[115px] px-1 py-1.5">
+      <td className="w-[130px] px-2 py-2">
         <select value={line.unit} onChange={(e) => onChange({ ...line, unit: e.target.value as CostUnit })}
-          className="h-9 w-full rounded border border-zinc-200 bg-transparent px-1 text-sm outline-none focus:border-blue-300">
+          className="h-9 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-zinc-800/50 px-2 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
           {unitOptions.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
         </select>
       </td>
-      <td className="w-[110px] px-2 py-1.5 text-right font-mono text-sm text-zinc-500">
-        {line.amount > 0 ? fmtUSD(usdEquiv) : "\u2014"}
+      <td className="w-[120px] px-4 py-2 text-right font-mono text-sm font-medium text-slate-500 dark:text-slate-400">
+        {line.amount > 0 ? fmtUSD(usdEquiv) : "—"}
       </td>
-      <td className="w-[32px] px-1 py-1.5">
-        {onDelete && <button onClick={onDelete} className="text-zinc-300 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>}
+      <td className="w-[40px] px-2 py-2 text-center">
+        {onDelete && <button onClick={onDelete} className="text-slate-400 hover:text-red-500 transition-colors rounded-md p-1 hover:bg-red-50 dark:hover:bg-red-500/10"><X className="h-4 w-4" /></button>}
       </td>
     </tr>
   );
@@ -126,7 +126,7 @@ export default function QuoteCalculator() {
   const [products, setProducts] = useState<ProductProfile[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [cartons, setCartons] = useState(9700);
-  const [containerType, setContainerType] = useState("1\u00d740'RH");
+  const [containerType, setContainerType] = useState("1×40'RH");
   const [mainCosts, setMainCosts] = useState<CostLine[]>(defaultMainCosts());
   const [addOns, setAddOns] = useState<CostLine[]>(defaultAddOns());
   const [customItems, setCustomItems] = useState<CostLine[]>([]);
@@ -219,9 +219,9 @@ export default function QuoteCalculator() {
     if (lang === "ar") {
       const pName = PRODUCT_AR[product.name] ?? product.name;
       const cType = CONTAINER_AR[containerType] ?? containerType;
-      return `\uD83D\uDCE6 \u0639\u0631\u0636 \u0633\u0639\u0631 \u2014 \u0634\u0631\u0643\u0629 \u062A\u0641\u0643\u0647 \u0644\u0644\u0623\u063A\u0630\u064A\u0629 (\u0634\u0646\u063A\u0647\u0627\u064A)\n\n\u0627\u0644\u0645\u0646\u062A\u062C: ${pName}\n\u0627\u0644\u062D\u062C\u0645: ${toArabicNum(nw, 1)} \u0643\u062C\u0645 / \u0643\u0631\u062A\u0648\u0646\n\u0627\u0644\u062D\u0627\u0648\u064A\u0629: ${cType} (${toArabicFormatted(cartons)} \u0643\u0631\u062A\u0648\u0646)\n\u0627\u0644\u0643\u0645\u064A\u0629: ${toArabicNum(qtyMTS, 2)} \u0637\u0646 \u0645\u062A\u0631\u064A\n\n\u0627\u0644\u0633\u0639\u0631 \u0644\u0643\u0644 \u0637\u0646: ${toArabicFormatted(Math.round(sellPerMT))} \u062F\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064A\u0643\u064A\n\u0627\u0644\u0633\u0639\u0631 \u0644\u0643\u0644 \u0643\u0631\u062A\u0648\u0646: ${toArabicNum(sellPerCarton, 2)} \u062F\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064A\u0643\u064A\n\u0627\u0644\u0642\u064A\u0645\u0629 \u0627\u0644\u0625\u062C\u0645\u0627\u0644\u064A\u0629: ${toArabicFormatted(Math.round(sellTotal))} \u062F\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064A\u0643\u064A\n\n\u0627\u0644\u0634\u0631\u0648\u0637: CIF (\u0642\u0627\u0628\u0644 \u0644\u0644\u062A\u0641\u0627\u0648\u0636)\n\u0635\u0644\u0627\u062D\u064A\u0629 \u0627\u0644\u0639\u0631\u0636: ${toArabicNum(7)} \u0623\u064A\u0627\u0645 \u0645\u0646 \u062A\u0627\u0631\u064A\u062E\u0647\n\n\u2014 \u0634\u0631\u0643\u0629 \u062A\u0641\u0643\u0647 \u0644\u0644\u0623\u063A\u0630\u064A\u0629 (\u0634\u0646\u063A\u0647\u0627\u064A) \u0627\u0644\u0645\u062D\u062F\u0648\u062F\u0629\n\uD83D\uDCE7 info@taifukai.com\n\uD83D\uDCF1 +86 187 2116 0270`;
+      return `📦 عرض سعر — شركة تفكه للأغذية (شنغهاي)\n\nالمنتج: ${pName}\nالحجم: ${toArabicNum(nw, 1)} كجم / كرتون\nالحاوية: ${cType} (${toArabicFormatted(cartons)} كرتون)\nالكمية: ${toArabicNum(qtyMTS, 2)} طن متري\n\nالسعر لكل طن: ${toArabicFormatted(Math.round(sellPerMT))} دولار أمريكي\nالسعر لكل كرتون: ${toArabicNum(sellPerCarton, 2)} دولار أمريكي\nالقيمة الإجمالية: ${toArabicFormatted(Math.round(sellTotal))} دولار أمريكي\n\nالشروط: CIF (قابل للتفاوض)\nصلاحية العرض: ${toArabicNum(7)} أيام من تاريخه\n\n— شركة تفكه للأغذية (شنغهاي) المحدودة\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
     }
-    return `\uD83D\uDCE6 Quote \u2014 TAFAKAH Food (Shanghai) Co., Ltd.\n\nProduct: ${product.name}\nSize: ${nw} KG / Carton\nContainer: ${containerType} (${cartons.toLocaleString()} cartons)\nQuantity: ${qtyMTS.toFixed(2)} MTS\n\nPrice per MT: ${fmtUSD0(sellPerMT)} USD\nPrice per Carton: ${fmtUSD(sellPerCarton)} USD\nTotal Value: ${fmtUSD0(sellTotal)} USD\n\nTerms: CIF (negotiable)\nValid: 7 days from today\n\n\u2014 TAFAKAH Food (Shanghai) Co., Ltd.\n\uD83D\uDCE7 info@taifukai.com\n\uD83D\uDCF1 +86 187 2116 0270`;
+    return `📦 Quote — TAFAKAH Food (Shanghai) Co., Ltd.\n\nProduct: ${product.name}\nSize: ${nw} KG / Carton\nContainer: ${containerType} (${cartons.toLocaleString()} cartons)\nQuantity: ${qtyMTS.toFixed(2)} MTS\n\nPrice per MT: ${fmtUSD0(sellPerMT)} USD\nPrice per Carton: ${fmtUSD(sellPerCarton)} USD\nTotal Value: ${fmtUSD0(sellTotal)} USD\n\nTerms: CIF (negotiable)\nValid: 7 days from today\n\n— TAFAKAH Food (Shanghai) Co., Ltd.\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
   }, [product, nw, containerType, cartons, qtyMTS, sellPerMT, sellPerCarton, sellTotal]);
 
   const handleCopy = useCallback(() => {
@@ -247,49 +247,58 @@ export default function QuoteCalculator() {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-8">
-      {toast && <div className="fixed top-4 right-4 z-50 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800 shadow-lg">{toast}</div>}
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8 font-sans">
+      {toast && <div className="fixed top-20 right-8 z-50 rounded-xl border border-emerald-200 bg-emerald-50/90 backdrop-blur-md px-6 py-4 text-sm font-semibold text-emerald-800 shadow-xl shadow-emerald-500/10 transition-all animate-in fade-in slide-in-from-top-4">{toast}</div>}
 
       {/* ═══ TOP ROW: Product + Container + FX ═══ */}
-      <div className="mb-8 grid gap-6 lg:grid-cols-[1fr_auto]">
-        <Card>
-          <CardHeader><CardTitle>Product & Container</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-4">
-            <div>
-              <Label>Product</Label>
+      <div className="mb-10 grid gap-6 lg:grid-cols-[1fr_auto]">
+        <Card className="bg-white dark:bg-zinc-900 border-slate-200/60 dark:border-white/10 shadow-sm overflow-hidden">
+          <CardHeader className="bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5 pb-4">
+            <CardTitle className="text-xl text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-indigo-500"></span> Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 grid gap-6 sm:grid-cols-4 items-end">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Product</Label>
               <Select value={selectedId} onValueChange={(v) => v && setSelectedId(v)}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 text-slate-800 font-medium focus:ring-indigo-500/20"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id} className="font-medium">{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Container</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Container</Label>
               <Select value={containerType} onValueChange={(v) => v && setContainerType(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["1\u00d720'GP", "1\u00d740'GP", "1\u00d740'HC", "1\u00d740'RH", "1\u00d745'HC"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 text-slate-800 font-medium focus:ring-indigo-500/20"><SelectValue /></SelectTrigger>
+                <SelectContent>{["1×20'GP", "1×40'GP", "1×40'HC", "1×40'RH", "1×45'HC"].map((t) => <SelectItem key={t} value={t} className="font-medium">{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Cartons</Label><Input type="number" value={cartons} onChange={(e) => setCartons(parseInt(e.target.value) || 0)} /></div>
-            <div className="flex flex-col justify-end gap-1 text-sm text-zinc-500">
-              <span>N.W.: {totalNW.toLocaleString()} KG</span>
-              <span>Qty: {qtyMTS.toFixed(2)} MTS</span>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Cartons</Label>
+              <Input type="number" value={cartons} onChange={(e) => setCartons(parseInt(e.target.value) || 0)} className="h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 font-mono text-base focus:border-indigo-400 focus:ring-indigo-500/20" />
+            </div>
+            <div className="flex flex-col justify-end gap-1.5 p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/5 text-sm font-medium text-indigo-900 dark:text-indigo-200 border border-indigo-100/50 dark:border-indigo-500/10">
+              <div className="flex justify-between"><span>Net Weight:</span> <span className="font-mono font-bold">{totalNW.toLocaleString()} KG</span></div>
+              <div className="flex justify-between"><span>Total Qty:</span> <span className="font-mono font-bold">{qtyMTS.toFixed(2)} MTS</span></div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="w-full rounded-xl border bg-white shadow-sm lg:w-[280px] dark:bg-zinc-900">
-          <button onClick={() => setShowFx(!showFx)} className="flex w-full items-center justify-between px-5 py-4 text-sm font-semibold text-zinc-600">
-            <span>Exchange Rates</span>
-            {showFx ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        <div className="w-full rounded-xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm lg:w-[320px] overflow-hidden">
+          <button onClick={() => setShowFx(!showFx)} className="flex w-full items-center justify-between px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+            <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-cyan-500"></span> Exchange Rates</span>
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800">
+              {showFx ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
           </button>
           {showFx && (
-            <div className="space-y-2 border-t px-5 py-4">
+            <div className="space-y-3 border-t border-slate-100 dark:border-white/5 px-6 py-5 bg-slate-50/30 dark:bg-black/10">
               {(Object.keys(fx) as (keyof FxRates)[]).map((k) => (
-                <div key={k} className="flex items-center gap-2 text-sm">
-                  <span className="w-16 text-zinc-400">1 USD =</span>
+                <div key={k} className="flex items-center gap-3 text-sm">
+                  <span className="w-16 font-medium text-slate-500">1 USD =</span>
                   <input type="number" step="0.01" value={fx[k]} onChange={(e) => setFx((p) => ({ ...p, [k]: parseFloat(e.target.value) || 0 }))}
-                    className="h-8 w-20 rounded border border-zinc-200 bg-transparent px-2 text-right font-mono text-sm outline-none focus:border-blue-300" />
-                  <span className="text-zinc-500">{k}</span>
+                    className="h-9 flex-1 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-800 px-3 text-right font-mono text-sm font-medium text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all" />
+                  <span className="font-bold text-slate-600 dark:text-slate-300 w-8">{k}</span>
                 </div>
               ))}
             </div>
@@ -302,20 +311,26 @@ export default function QuoteCalculator() {
         {/* LEFT: INPUTS */}
         <div className="space-y-8">
           {/* Main Costs */}
-          <Card className="border-l-4 border-l-[#1B2A4A] bg-[#FAFAF8] dark:bg-zinc-900">
-            <CardHeader><CardTitle className="text-xl text-[#1B2A4A] dark:text-zinc-200">Main Costs</CardTitle></CardHeader>
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200/60 dark:border-white/10 shadow-sm overflow-hidden border-l-4 border-l-indigo-500">
+            <CardHeader className="pb-2 pt-6 px-6">
+              <CardTitle className="text-xl font-bold text-slate-800 dark:text-white">Main Costs</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b bg-zinc-100/60 text-xs font-semibold text-zinc-400 dark:bg-zinc-800/50"><th className="px-4 py-2 text-left">Category</th><th className="px-1 py-2 text-right">Amount</th><th className="px-1 py-2">Currency</th><th className="px-1 py-2">Unit</th><th className="px-2 py-2 text-right">USD Equiv.</th><th className="w-[32px]"></th></tr></thead>
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/80 dark:bg-white/5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <th className="px-4 py-3 text-left">Category</th><th className="px-2 py-3 text-right">Amount</th><th className="px-2 py-3 text-left">Currency</th><th className="px-2 py-3 text-left">Unit</th><th className="px-4 py-3 text-right">USD Equiv.</th><th className="w-[40px]"></th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {mainCosts.map((line, i) => (
                       <CostRowInput key={line.id} line={line} unitOptions={MAIN_UNITS[line.id] ?? FLAT_UNITS}
                         onChange={(u) => setMainCosts((p) => p.map((l) => l.id === u.id ? u : l))} usdEquiv={mainCostsUSD[i]} />
                     ))}
-                    <tr className="bg-zinc-100/60 font-bold dark:bg-zinc-800/50">
-                      <td colSpan={4} className="px-4 py-3">MAIN COSTS TOTAL</td>
-                      <td className="px-2 py-3 text-right font-mono">{fmtUSD(totalMainUSD)}</td><td></td>
+                    <tr className="bg-indigo-50/50 dark:bg-indigo-500/5 font-bold">
+                      <td colSpan={4} className="px-4 py-4 text-indigo-900 dark:text-indigo-200">MAIN COSTS TOTAL</td>
+                      <td className="px-4 py-4 text-right font-mono text-base text-indigo-700 dark:text-indigo-300">{fmtUSD(totalMainUSD)}</td><td></td>
                     </tr>
                   </tbody>
                 </table>
@@ -324,12 +339,18 @@ export default function QuoteCalculator() {
           </Card>
 
           {/* Add-on Costs */}
-          <Card>
-            <CardHeader><CardTitle>Add-on Costs</CardTitle></CardHeader>
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200/60 dark:border-white/10 shadow-sm overflow-hidden">
+            <CardHeader className="pb-2 pt-6 px-6">
+              <CardTitle className="text-xl font-bold text-slate-800 dark:text-white">Add-on Costs</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b bg-zinc-50 text-xs text-zinc-400 dark:bg-zinc-800/50"><th className="px-4 py-2 text-left">Category</th><th className="px-1 py-2 text-right">Amount</th><th className="px-1 py-2">Currency</th><th className="px-1 py-2">Unit</th><th className="px-2 py-2 text-right">USD Equiv.</th><th className="w-[32px]"></th></tr></thead>
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/80 dark:bg-white/5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <th className="px-4 py-3 text-left">Category</th><th className="px-2 py-3 text-right">Amount</th><th className="px-2 py-3 text-left">Currency</th><th className="px-2 py-3 text-left">Unit</th><th className="px-4 py-3 text-right">USD Equiv.</th><th className="w-[40px]"></th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {addOns.map((line, i) => (
                       <CostRowInput key={line.id} line={line} unitOptions={FLAT_UNITS}
@@ -340,85 +361,113 @@ export default function QuoteCalculator() {
                         onChange={(u) => setCustomItems((p) => p.map((l) => l.id === u.id ? u : l))}
                         onDelete={() => setCustomItems((p) => p.filter((l) => l.id !== line.id))} usdEquiv={customUSD[i]} />
                     ))}
-                    <tr className="border-b border-zinc-100"><td colSpan={6} className="px-4 py-2">
-                      <button onClick={addCustomItem} className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"><Plus className="h-3.5 w-3.5" /> Add Custom</button>
-                    </td></tr>
-                    <tr className="bg-zinc-50 font-bold dark:bg-zinc-800/50">
-                      <td colSpan={4} className="px-4 py-3">ADD-ON TOTAL</td>
-                      <td className="px-2 py-3 text-right font-mono">{fmtUSD(totalAddOnUSD)}</td><td></td>
+                    <tr className="border-b border-slate-100 dark:border-white/5">
+                      <td colSpan={6} className="px-4 py-3">
+                        <button onClick={addCustomItem} className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 transition-colors bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-3 py-1.5 rounded-md w-max">
+                          <Plus className="h-4 w-4" /> Add Custom Field
+                        </button>
+                      </td>
+                    </tr>
+                    <tr className="bg-slate-50/80 dark:bg-white/5 font-bold">
+                      <td colSpan={4} className="px-4 py-4 text-slate-700 dark:text-slate-300">ADD-ON TOTAL</td>
+                      <td className="px-4 py-4 text-right font-mono text-base text-slate-800 dark:text-white">{fmtUSD(totalAddOnUSD)}</td><td></td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </CardContent>
           </Card>
-
-          {/* Target Margin */}
-          <Card>
-            <CardHeader><CardTitle>Target Margin</CardTitle></CardHeader>
-            <CardContent className="flex items-center gap-4">
-              <input type="range" min={5} max={50} value={margin} onChange={(e) => setMargin(parseInt(e.target.value))} className="flex-1 accent-emerald-600" />
-              <Input type="number" value={margin} onChange={(e) => setMargin(parseInt(e.target.value) || 0)} className="w-20 text-center" />
-              <span className="text-sm text-zinc-400">%</span>
-            </CardContent>
-          </Card>
         </div>
 
         {/* RIGHT: RESULTS (sticky) */}
-        <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-          <Card className="border-2 border-emerald-200">
-            <CardHeader><CardTitle>Cost Breakdown</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <p className="text-xs font-semibold text-zinc-400">MAIN COSTS</p>
-              {mainCosts.map((l, i) => mainCostsUSD[i] > 0 && <div key={l.id} className="flex justify-between pl-2"><span className="text-zinc-500">{l.label}:</span><span className="font-mono">{fmtUSD(mainCostsUSD[i])}</span></div>)}
+        <div className="space-y-8 lg:sticky lg:top-24 lg:self-start">
+          
+          {/* Target Margin Slider */}
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200/60 dark:border-white/10 shadow-sm overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-emerald-500/10 to-transparent pb-4">
+              <CardTitle className="text-lg font-bold text-slate-800 dark:text-white">Target Profit Margin</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 flex items-center gap-6">
+              <input type="range" min={5} max={50} value={margin} onChange={(e) => setMargin(parseInt(e.target.value))} className="flex-1 h-2 bg-slate-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+              <div className="relative">
+                <Input type="number" value={margin} onChange={(e) => setMargin(parseInt(e.target.value) || 0)} className="w-24 text-center font-bold text-lg h-12 bg-white dark:bg-zinc-800 border-emerald-200 dark:border-emerald-900 focus:ring-emerald-500/30 pr-8" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-emerald-600 dark:text-emerald-400">%</span>
+              </div>
+            </CardContent>
+          </Card>
 
-              <p className="mt-3 text-xs font-semibold text-zinc-400">ADD-ON COSTS</p>
-              {addOns.map((l, i) => addOnsUSD[i] > 0 && <div key={l.id} className="flex justify-between pl-2"><span className="text-zinc-500">{l.label}:</span><span className="font-mono">{fmtUSD(addOnsUSD[i])}</span></div>)}
-              {customItems.map((l, i) => customUSD[i] > 0 && <div key={l.id} className="flex justify-between pl-2"><span className="text-zinc-500">{l.label || "Custom"}:</span><span className="font-mono">{fmtUSD(customUSD[i])}</span></div>)}
-
-              <div className="border-t pt-3">
-                <div className="flex justify-between text-base font-bold"><span>TOTAL LANDED COST:</span><span className="font-mono">{fmtUSD(landedCost)}</span></div>
-                <div className="mt-1.5 flex justify-between text-zinc-500"><span>Cost per MT:</span><span className="font-mono">{fmtUSD(costPerMT)}</span></div>
-                <div className="flex justify-between text-zinc-500"><span>Cost per Carton:</span><span className="font-mono">{fmtUSD(costPerCarton)}</span></div>
+          <Card className="bg-white dark:bg-zinc-900 border-2 border-emerald-200/60 dark:border-emerald-500/20 shadow-xl shadow-emerald-500/5">
+            <CardHeader className="pb-2 pt-6">
+              <CardTitle className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                Cost & Quote Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5 px-6 pb-6 text-sm">
+              <div>
+                <p className="text-xs font-bold tracking-wider text-slate-400 dark:text-slate-500 mb-2">MAIN COSTS</p>
+                <div className="space-y-1">
+                  {mainCosts.map((l, i) => mainCostsUSD[i] > 0 && <div key={l.id} className="flex justify-between pl-2"><span className="text-slate-600 dark:text-slate-400 font-medium">{l.label}:</span><span className="font-mono font-medium text-slate-800 dark:text-slate-200">{fmtUSD(mainCostsUSD[i])}</span></div>)}
+                </div>
               </div>
 
-              <div className="border-t pt-3">
-                <p className="mb-2 text-xs font-semibold text-zinc-400">TARGET QUOTE ({margin}% margin)</p>
-                <div className="flex justify-between font-bold text-emerald-700"><span>Selling Price/MT:</span><span className="font-mono text-lg">{fmtUSD(sellPerMT)}</span></div>
-                <div className="flex justify-between"><span>Per Carton:</span><span className="font-mono">{fmtUSD(sellPerCarton)}</span></div>
-                <div className="mt-1.5 flex justify-between text-base font-bold"><span>Total Contract:</span><span className="font-mono">{fmtUSD(sellTotal)}</span></div>
-                <div className="mt-1 flex justify-between text-emerald-600"><span>Profit:</span><span className="font-mono font-bold">{fmtUSD(profit)}</span></div>
+              <div>
+                <p className="text-xs font-bold tracking-wider text-slate-400 dark:text-slate-500 mb-2">ADD-ON COSTS</p>
+                <div className="space-y-1">
+                  {addOns.map((l, i) => addOnsUSD[i] > 0 && <div key={l.id} className="flex justify-between pl-2"><span className="text-slate-600 dark:text-slate-400 font-medium">{l.label}:</span><span className="font-mono font-medium text-slate-800 dark:text-slate-200">{fmtUSD(addOnsUSD[i])}</span></div>)}
+                  {customItems.map((l, i) => customUSD[i] > 0 && <div key={l.id} className="flex justify-between pl-2"><span className="text-slate-600 dark:text-slate-400 font-medium">{l.label || "Custom"}:</span><span className="font-mono font-medium text-slate-800 dark:text-slate-200">{fmtUSD(customUSD[i])}</span></div>)}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-white/10 pt-4 pb-2 bg-slate-50/50 dark:bg-white/5 -mx-6 px-6">
+                <div className="flex justify-between text-[15px] font-bold text-slate-800 dark:text-slate-200"><span>TOTAL LANDED COST:</span><span className="font-mono">{fmtUSD(landedCost)}</span></div>
+                <div className="mt-2 flex justify-between text-slate-500 dark:text-slate-400 font-medium"><span>Cost per MT:</span><span className="font-mono">{fmtUSD(costPerMT)}</span></div>
+                <div className="mt-1 flex justify-between text-slate-500 dark:text-slate-400 font-medium"><span>Cost per Carton:</span><span className="font-mono">{fmtUSD(costPerCarton)}</span></div>
+              </div>
+
+              <div className="border-t-2 border-emerald-100 dark:border-emerald-900/50 pt-5 mt-2">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded">TARGET QUOTE ({margin}% MARGIN)</p>
+                </div>
+                <div className="flex justify-between font-extrabold text-emerald-700 dark:text-emerald-400 items-end">
+                  <span className="text-base pb-1">Selling Price/MT:</span>
+                  <span className="font-mono text-3xl tracking-tight">{fmtUSD(sellPerMT)}</span>
+                </div>
+                <div className="flex justify-between mt-2 font-medium text-slate-600 dark:text-slate-300"><span>Price Per Carton:</span><span className="font-mono">{fmtUSD(sellPerCarton)}</span></div>
+                <div className="mt-3 flex justify-between text-[15px] font-bold text-slate-800 dark:text-white"><span>Total Contract Value:</span><span className="font-mono">{fmtUSD(sellTotal)}</span></div>
+                <div className="mt-2 flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-500/10 p-2 rounded-lg"><span>Estimated Profit:</span><span className="font-mono text-lg">{fmtUSD(profit)}</span></div>
               </div>
 
               {/* Language toggle + actions */}
-              <div className="border-t pt-3">
-                <div className="mb-3 flex items-center gap-2">
-                  <button onClick={() => setQuoteLang("en")} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${quoteLang === "en" ? "bg-[#1B2A4A] text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"}`}>EN</button>
-                  <button onClick={() => setQuoteLang("ar")} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${quoteLang === "ar" ? "bg-[#1B2A4A] text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"}`}>AR</button>
+              <div className="border-t border-slate-200 dark:border-white/10 pt-5 mt-2">
+                <div className="mb-4 flex items-center gap-2 p-1 bg-slate-100 dark:bg-zinc-800 rounded-lg w-max">
+                  <button onClick={() => setQuoteLang("en")} className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${quoteLang === "en" ? "bg-white dark:bg-zinc-600 text-slate-800 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>EN</button>
+                  <button onClick={() => setQuoteLang("ar")} className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${quoteLang === "ar" ? "bg-white dark:bg-zinc-600 text-slate-800 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>AR</button>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={handlePreview}><Eye className="h-4 w-4" /> Preview</Button>
-                  <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={handleCopy}>
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1 gap-2 h-11 border-slate-200 dark:border-white/10 bg-white/50 dark:bg-zinc-800/50 hover:bg-slate-50 hover:text-indigo-600 transition-all font-semibold" onClick={handlePreview}><Eye className="h-4 w-4" /> Preview</Button>
+                  <Button variant="outline" className="flex-1 gap-2 h-11 border-slate-200 dark:border-white/10 bg-white/50 dark:bg-zinc-800/50 hover:bg-slate-50 hover:text-emerald-600 transition-all font-semibold" onClick={handleCopy}>
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied!" : "Copy"}
                   </Button>
-                  <Button size="sm" className="flex-1 gap-1.5" onClick={handleSaveDraft}><Save className="h-4 w-4" /> Draft</Button>
+                  <Button className="flex-1 gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold" onClick={handleSaveDraft}><Save className="h-4 w-4" /> Draft</Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Scenarios */}
-          <Card>
-            <CardHeader><CardTitle>Price Scenarios</CardTitle></CardHeader>
-            <CardContent>
+          <Card className="bg-white dark:bg-zinc-900 border-slate-200/60 dark:border-white/10 shadow-sm overflow-hidden">
+            <CardHeader className="pb-2 pt-6">
+              <CardTitle className="text-lg font-bold text-slate-800 dark:text-white">Price Scenarios</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
               <table className="w-full text-sm">
-                <thead><tr className="border-b text-left text-xs text-zinc-400"><th className="pb-2">Margin</th><th className="pb-2 text-right">Price/MT</th><th className="pb-2 text-right">$/Carton</th><th className="pb-2 text-right">Total</th></tr></thead>
+                <thead><tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 text-left text-xs font-bold tracking-wider text-slate-400"><th className="py-3 pl-6">Margin</th><th className="py-3 text-right">Price/MT</th><th className="py-3 text-right">$/Carton</th><th className="py-3 pr-6 text-right">Total</th></tr></thead>
                 <tbody>{scenarios.map((s) => (
-                  <tr key={s.margin} className={`border-b ${s.margin === margin ? "bg-emerald-50 font-bold dark:bg-emerald-950" : ""}`}>
-                    <td className="py-2">{s.margin}%{s.margin === margin ? " \u2190" : ""}</td>
-                    <td className="py-2 text-right font-mono">{fmtUSD0(s.priceMT)}</td>
-                    <td className="py-2 text-right font-mono">{fmtUSD(s.priceCarton)}</td>
-                    <td className="py-2 text-right font-mono">{fmtUSD0(s.total)}</td>
+                  <tr key={s.margin} className={`border-b border-slate-50 dark:border-white/5 transition-colors ${s.margin === margin ? "bg-emerald-50 dark:bg-emerald-500/10 font-bold text-emerald-900 dark:text-emerald-100" : "hover:bg-slate-50/50 dark:hover:bg-white/5 font-medium text-slate-600 dark:text-slate-300"}`}>
+                    <td className="py-3 pl-6 flex items-center gap-2">{s.margin}% {s.margin === margin && <span className="h-2 w-2 rounded-full bg-emerald-500"></span>}</td>
+                    <td className="py-3 text-right font-mono">{fmtUSD0(s.priceMT)}</td>
+                    <td className="py-3 text-right font-mono">{fmtUSD(s.priceCarton)}</td>
+                    <td className="py-3 pr-6 text-right font-mono">{fmtUSD0(s.total)}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -426,14 +475,21 @@ export default function QuoteCalculator() {
           </Card>
 
           {priceComparisons.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle>Last Quoted Prices</CardTitle></CardHeader>
-              <CardContent><div className="space-y-2">{priceComparisons.map((c, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span>{c.buyer}: <span className="font-mono font-medium">{fmtUSD0(c.priceMT)}/MT</span></span>
-                  <span className={c.diff > 0 ? "text-amber-600" : "text-emerald-600"}>{c.diff > 0 ? "+" : ""}{c.diff.toFixed(0)}%</span>
-                </div>
-              ))}</div></CardContent>
+            <Card className="bg-white dark:bg-zinc-900 border-slate-200/60 dark:border-white/10 shadow-sm">
+              <CardHeader className="pb-4 pt-6">
+                <CardTitle className="text-lg font-bold text-slate-800 dark:text-white">Last Quoted Prices</CardTitle>
+              </CardHeader>
+              <CardContent className="px-6 pb-6">
+                <div className="space-y-3">{priceComparisons.map((c, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm p-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{c.buyer}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{fmtUSD0(c.priceMT)}<span className="text-xs text-slate-400">/MT</span></span>
+                      <span className={`font-bold px-2 py-0.5 rounded text-xs ${c.diff > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400"}`}>{c.diff > 0 ? "+" : ""}{c.diff.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                ))}</div>
+              </CardContent>
             </Card>
           )}
         </div>
@@ -441,23 +497,25 @@ export default function QuoteCalculator() {
 
       {/* ═══ PREVIEW MODAL ═══ */}
       {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Quote Preview ({quoteLang === "ar" ? "Arabic" : "English"})</h3>
-              <button onClick={() => setShowPreview(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-5 w-5" /></button>
-            </div>
-            <textarea
-              value={previewText}
-              onChange={(e) => setPreviewText(e.target.value)}
-              className="h-80 w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-relaxed outline-none focus:border-blue-300 dark:bg-zinc-800"
-              dir={quoteLang === "ar" ? "rtl" : "ltr"}
-            />
-            <div className="mt-4 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowPreview(false)}>Close</Button>
-              <Button className="gap-2" onClick={handleCopy}>
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied!" : "Copy to Clipboard"}
-              </Button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-zinc-900 p-1 shadow-2xl overflow-hidden border border-slate-200 dark:border-white/10 scale-in-95 animate-in duration-200">
+            <div className="bg-slate-50 dark:bg-zinc-800/50 p-6 rounded-xl border border-slate-100 dark:border-white/5 m-1">
+              <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white">Quote Preview <span className="text-sm font-medium text-slate-500">({quoteLang === "ar" ? "Arabic" : "English"})</span></h3>
+                <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 hover:bg-slate-100 rounded-full p-1"><X className="h-5 w-5" /></button>
+              </div>
+              <textarea
+                value={previewText}
+                onChange={(e) => setPreviewText(e.target.value)}
+                className="h-[360px] w-full resize-none rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 p-5 font-mono text-sm leading-relaxed text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 shadow-inner transition-all"
+                dir={quoteLang === "ar" ? "rtl" : "ltr"}
+              />
+              <div className="mt-6 flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setShowPreview(false)} className="font-semibold text-slate-500 hover:text-slate-800">Close</Button>
+                <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-6" onClick={handleCopy}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied!" : "Copy to Clipboard"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
