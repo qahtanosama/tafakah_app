@@ -35,6 +35,7 @@ import {
   X,
   Wallet,
   Ship,
+  Factory,
 } from "lucide-react";
 import Link from "next/link";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
@@ -69,8 +70,11 @@ import {
   addContractLogEntry,
 } from "@/lib/contract-log";
 import { getBuyers, findBuyerByCompany, addBuyer, createEmptyBuyer } from "@/lib/buyers";
-import { getProductByName, getLastPriceToBuyer } from "@/lib/products";
+import { getProductByName, getLastPriceToBuyer, getProducts } from "@/lib/products";
 import type { Buyer } from "@/types/buyer";
+import type { Seller } from "@/types/seller";
+import { getSellers, getSellersByProduct, createEmptySeller, saveSeller } from "@/lib/sellers";
+import SellerEditForm from "@/components/sellers/SellerEditForm";
 
 function NumInput({
   value,
@@ -122,6 +126,8 @@ export default function MasterDataForm() {
     invoiceNo: string;
   } | null>(null);
   const [quickShareOpen, setQuickShareOpen] = useState(false);
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [sellerEditing, setSellerEditing] = useState<Seller | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
@@ -152,6 +158,7 @@ export default function MasterDataForm() {
   useEffect(() => {
     const stored = loadMasterData();
     if (stored) setData(stored);
+    setSellers(getSellers());
     setLoaded(true);
   }, []);
 
@@ -178,7 +185,7 @@ export default function MasterDataForm() {
   );
 
   const update = useCallback(
-    <K extends keyof SalesContractData>(
+    <K extends "identifiers" | "seller" | "buyer" | "shipping" | "bank" | "terms">(
       section: K,
       field: keyof SalesContractData[K],
       value: SalesContractData[K][typeof field]
@@ -304,6 +311,7 @@ export default function MasterDataForm() {
       product: firstProduct,
       status: "Active",
       masterSnapshot: snapshot,
+      sellerId: snapshot.sellerId,
     });
 
     saveActiveContract({
@@ -900,6 +908,91 @@ export default function MasterDataForm() {
         </CardContent>
       </Card>
 
+      {/* ───── E2) SELLER / FACTORY ───── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Factory className="h-5 w-5 text-emerald-600" /> Factory supplying this product
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(() => {
+            const lineProductIds = data.lineItems
+              .map((i) => i.product ? getProductByName(i.product)?.id : undefined)
+              .filter((v): v is string => !!v);
+            const uniqueProductIds = Array.from(new Set(lineProductIds));
+            const matching = uniqueProductIds.length === 0
+              ? []
+              : sellers.filter((s) => s.products.some((pid) => uniqueProductIds.includes(pid)));
+            const noneAssignedYet = sellers.length > 0 && matching.length === 0;
+            const selected = data.sellerId ? sellers.find((s) => s.id === data.sellerId) : undefined;
+            // If the stored sellerId doesn't supply any of the current products, still show it
+            const options = (() => {
+              if (matching.length > 0) return matching;
+              // If nothing matches, show all sellers so user isn't blocked
+              return sellers;
+            })();
+
+            return (
+              <>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <div>
+                    <Label>Seller / Factory (optional)</Label>
+                    <Select
+                      value={data.sellerId ?? "__none__"}
+                      onValueChange={(v) => {
+                        if (!v) return;
+                        setData((prev) => ({ ...prev, sellerId: v === "__none__" ? undefined : v }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a factory..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">&mdash; None &mdash;</SelectItem>
+                        {options.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.companyName} ({s.country})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const empty = createEmptySeller();
+                        if (uniqueProductIds.length > 0) empty.products = [...uniqueProductIds];
+                        setSellerEditing(empty);
+                      }}
+                      className="gap-1"
+                    >
+                      <Plus className="h-4 w-4" /> Add Seller
+                    </Button>
+                  </div>
+                </div>
+                {selected && (
+                  <p className="text-xs text-zinc-500">
+                    Contact: <span className="font-medium">{selected.contactName || "\u2014"}</span>
+                    {selected.leadTimeDays != null && <span> &middot; Lead time: {selected.leadTimeDays} days</span>}
+                    {selected.paymentTerms && <span> &middot; Terms: {selected.paymentTerms}</span>}
+                    <span> &middot; </span>
+                    <Link href={`/sellers?edit=${encodeURIComponent(selected.id)}`} className="text-emerald-600 underline">Edit</Link>
+                  </p>
+                )}
+                {noneAssignedYet && !selected && (
+                  <p className="text-xs text-amber-600">
+                    No factory saved for the selected product{uniqueProductIds.length === 1 ? "" : "s"}. Use &ldquo;Add Seller&rdquo; to create one.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
       {/* ───── F) TERMS ───── */}
       <Card>
         <CardHeader>
@@ -993,7 +1086,24 @@ export default function MasterDataForm() {
             product: lastSubmit.data.lineItems[0]?.product || "",
             status: "Active",
             masterSnapshot: lastSubmit.data,
+            sellerId: lastSubmit.data.sellerId,
           }) as ContractLogEntry}
+        />
+      )}
+
+      {sellerEditing && (
+        <SellerEditForm
+          open={!!sellerEditing}
+          initial={sellerEditing}
+          existingIds={sellers.map((s) => s.id)}
+          onSave={(s) => {
+            saveSeller(s);
+            setSellers(getSellers());
+            // Auto-select the new seller on the contract
+            setData((prev) => ({ ...prev, sellerId: s.id }));
+            setSellerEditing(null);
+          }}
+          onCancel={() => setSellerEditing(null)}
         />
       )}
     </div>

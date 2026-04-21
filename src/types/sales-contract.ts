@@ -71,6 +71,8 @@ export interface SalesContractData {
   lineItems: LineItem[];
   bank: BankDetails;
   terms: TermsInfo;
+  /** Optional link to the Seller/Factory database record. Older contracts do not have this. */
+  sellerId?: string;
 }
 
 export interface ContractTotals {
@@ -99,4 +101,6 @@ export interface ContractLogEntry {
   product: string;
   status: ContractStatus;
   masterSnapshot: SalesContractData;
+  /** Optional link to the Seller/Factory database record. Older contracts do not have this. */
+  sellerId?: string;
 }
