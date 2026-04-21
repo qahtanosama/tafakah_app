@@ -19,6 +19,7 @@ import { getDocuments, saveDocument, removeDocument as removeDoc, getDocumentFil
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
 import { getShipping, getStatusInfo } from "@/lib/shipping";
+import { supportsSaveFilePicker, saveBlobWithPicker, saveBlobWithDownload } from "@/lib/quick-share/save-file";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
 import UploadZone from "./UploadZone";
 
@@ -372,11 +373,22 @@ export default function DocumentsManager() {
       setMergeProgress("Merging all documents...");
       const merged = await mergeDocuments(allDocs);
       const blob = new Blob([merged.buffer as ArrayBuffer], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `Shipment_Package_${contractNo}.pdf`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-      setShowMergeModal(false);
-      showToastMsg("success", "Shipment package downloaded!");
+      const filename = `Shipment_Package_${contractNo}.pdf`;
+
+      if (supportsSaveFilePicker()) {
+        setMergeProgress("Choose save location\u2026");
+        const result = await saveBlobWithPicker(blob, filename);
+        if (result === "cancelled") {
+          showToastMsg("success", "Download cancelled.");
+        } else {
+          setShowMergeModal(false);
+          showToastMsg("success", "Shipment package saved!");
+        }
+      } else {
+        await saveBlobWithDownload(blob, filename);
+        setShowMergeModal(false);
+        showToastMsg("success", "Shipment package downloaded!");
+      }
     } catch (err) {
       showToastMsg("error", "Merge failed: " + (err as Error).message);
     } finally {

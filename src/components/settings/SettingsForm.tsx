@@ -10,6 +10,7 @@ import type { AIProvider, AppSettings } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings";
 import { exportBackup, parseBackup, restoreBackup, clearAllData, getStorageStats } from "@/lib/backup";
 import { getUsage, setUsageLimit } from "@/lib/shipsgo";
+import { supportsSaveFilePicker, saveBlobWithPicker, saveBlobWithDownload } from "@/lib/quick-share/save-file";
 
 interface ProviderCardProps {
   provider: AIProvider;
@@ -376,15 +377,19 @@ function DataManagementSection({ showToast }: { showToast: (msg: string) => void
     try {
       const { json, stats } = await exportBackup();
       const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `TAFAKAH_Backup_${new Date().toISOString().split("T")[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast(`Backup exported: ${stats.contracts} contracts, ${stats.buyers} buyers, ${stats.shipments} shipments, ${stats.documents} documents`);
+      const filename = `TAFAKAH_Backup_${new Date().toISOString().split("T")[0]}.json`;
+      const summary = `${stats.contracts} contracts, ${stats.buyers} buyers, ${stats.shipments} shipments, ${stats.documents} documents`;
+      if (supportsSaveFilePicker()) {
+        const result = await saveBlobWithPicker(blob, filename);
+        if (result === "cancelled") {
+          showToast("Export cancelled.");
+        } else {
+          showToast(`Backup saved: ${summary}`);
+        }
+      } else {
+        await saveBlobWithDownload(blob, filename);
+        showToast(`Backup exported: ${summary}`);
+      }
     } catch (err) {
       showToast("Export failed: " + (err as Error).message);
     } finally {

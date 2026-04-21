@@ -12,14 +12,32 @@ export function supportsSaveFilePicker(): boolean {
   return typeof window !== "undefined" && "showSaveFilePicker" in window;
 }
 
+export interface SavePickerType {
+  description: string;
+  accept: Record<string, string[]>;
+}
+
+/** Infer the picker type from the suggested filename extension. Defaults to PDF. */
+function inferPickerType(suggestedName: string): SavePickerType {
+  const lower = suggestedName.toLowerCase();
+  if (lower.endsWith(".json")) return { description: "JSON File", accept: { "application/json": [".json"] } };
+  if (lower.endsWith(".csv")) return { description: "CSV File", accept: { "text/csv": [".csv"] } };
+  if (lower.endsWith(".txt")) return { description: "Text File", accept: { "text/plain": [".txt"] } };
+  return { description: "PDF Document", accept: { "application/pdf": [".pdf"] } };
+}
+
 /**
  * Prompt the user to pick a save location, then write the blob there.
  * Resolves to "saved" on success, "cancelled" if the user aborts the picker.
  * Re-throws non-abort errors (permission denied, quota, disk full, etc.).
+ *
+ * The file type is inferred from the extension of `suggestedName` unless
+ * `fileType` is passed explicitly.
  */
 export async function saveBlobWithPicker(
   blob: Blob,
-  suggestedName: string
+  suggestedName: string,
+  fileType?: SavePickerType
 ): Promise<"saved" | "cancelled"> {
   if (typeof window === "undefined" || !window.showSaveFilePicker) {
     throw new Error("File System Access API not available");
@@ -29,7 +47,7 @@ export async function saveBlobWithPicker(
   try {
     handle = await window.showSaveFilePicker({
       suggestedName,
-      types: [{ description: "PDF Document", accept: { "application/pdf": [".pdf"] } }],
+      types: [fileType ?? inferPickerType(suggestedName)],
     });
   } catch (err) {
     // AbortError fires when the user cancels the native picker.
