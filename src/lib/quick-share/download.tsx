@@ -1,13 +1,22 @@
 /**
  * Sequentially download the selected contract PDFs.
  *
+ * On Chrome/Edge: prompts for a save location per file via File System Access API.
+ * The next file's picker doesn't open until the previous file finishes writing.
+ *
+ * On unsupported browsers: falls back to a[download] with a 250ms stagger.
+ *
  * Reuses the same @react-pdf/renderer components used by Master Data's
- * "Download All 4 PDFs" so we never diverge. Lazy-imports `@react-pdf/renderer`
- * and the PDF components to keep this helper tree-shake-friendly and SSR-safe.
+ * "Download All 4 PDFs" so we never diverge.
  */
 
-import type { ContractLogEntry } from "@/types/sales-contract";
-import { calcTotals } from "@/lib/sales-contract";
+import type { SalesContractData } from "@/types/sales-contract";
+import { calcTotals, generateContractNumber, generateInvoiceNumber } from "@/lib/sales-contract";
+import {
+  supportsSaveFilePicker,
+  saveBlobWithPicker,
+  saveBlobWithDownload,
+} from "./save-file";
 
 export type QuickShareDoc = "sc" | "ci" | "ci-customs" | "pl";
 
@@ -27,6 +36,8 @@ export const PRESET_DOCS: Record<"buyer" | "bank" | "customs" | "all", QuickShar
   all: ["sc", "ci", "ci-customs", "pl"],
 };
 
+const FALLBACK_NOTICE_KEY = "download-fallback-notice-shown";
+
 function fileName(doc: QuickShareDoc, contractNo: string): string {
   if (doc === "sc") return `${contractNo}_SC.pdf`;
   if (doc === "ci") return `${contractNo}_CI.pdf`;
@@ -34,27 +45,51 @@ function fileName(doc: QuickShareDoc, contractNo: string): string {
   return `${contractNo}_PL.pdf`;
 }
 
-function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function maybeShowFallbackNotice(onFallbackNotice?: (msg: string) => void): void {
+  if (typeof localStorage === "undefined") return;
+  if (localStorage.getItem(FALLBACK_NOTICE_KEY)) return;
+  localStorage.setItem(FALLBACK_NOTICE_KEY, "1");
+  const msg = "Your browser doesn't support save-location prompts. Files will save to your default Downloads folder.";
+  if (onFallbackNotice) onFallbackNotice(msg);
+  else if (typeof window !== "undefined") alert(msg);
+}
+
+export interface DownloadResult {
+  saved: number;
+  cancelled: boolean;
+  method: "picker" | "download";
+}
+
+export interface DownloadOptions {
+  onProgress?: (doc: QuickShareDoc, index: number, total: number) => void;
+  /** Shown once (per browser) if the save-picker API is unavailable. Defaults to window.alert. */
+  onFallbackNotice?: (message: string) => void;
 }
 
 /**
- * Download the selected PDFs for the given contract, sequentially with 250ms gaps.
- * Throws if rendering any document fails.
+ * Download the selected PDFs for the given contract, strictly sequentially.
+ *
+ * Flow:
+ * - Detects capability once.
+ * - For each doc: render PDF, then await save (picker OR anchor-download).
+ * - If the user cancels a picker, stops the loop and reports `cancelled: true`
+ *   with the number saved so far.
  */
 export async function downloadContractPdfs(
-  contract: ContractLogEntry,
+  contract: SalesContractData,
   selectedDocs: QuickShareDoc[],
-  options: { onProgress?: (doc: QuickShareDoc, index: number, total: number) => void } = {}
-): Promise<void> {
-  if (selectedDocs.length === 0) return;
+  options: DownloadOptions = {}
+): Promise<DownloadResult> {
+  if (selectedDocs.length === 0) {
+    return { saved: 0, cancelled: false, method: supportsSaveFilePicker() ? "picker" : "download" };
+  }
+
+  const usePicker = supportsSaveFilePicker();
+  const method: DownloadResult["method"] = usePicker ? "picker" : "download";
+
+  if (!usePicker) {
+    maybeShowFallbackNotice(options.onFallbackNotice);
+  }
 
   const { pdf } = await import("@react-pdf/renderer");
   const [
@@ -67,30 +102,52 @@ export async function downloadContractPdfs(
     import("@/components/packing-list/PackingListPDF"),
   ]);
 
-  const data = contract.masterSnapshot;
-  const totals = calcTotals(data.lineItems);
-  const contractNo = contract.contractNo;
-  const invoiceNo = contract.invoiceNo;
+  const totals = calcTotals(contract.lineItems);
+  const firstProduct = contract.lineItems[0]?.product || "";
+  const contractNo = generateContractNumber(
+    contract.identifiers.year,
+    contract.identifiers.sequenceNumber,
+    firstProduct
+  );
+  const invoiceNo = generateInvoiceNumber(
+    contract.identifiers.year,
+    contract.identifiers.sequenceNumber,
+    firstProduct
+  );
 
   const ordered = DOC_ORDER.filter((d) => selectedDocs.includes(d));
 
+  let saved = 0;
   for (let i = 0; i < ordered.length; i++) {
     const doc = ordered[i];
     options.onProgress?.(doc, i + 1, ordered.length);
 
     const element =
       doc === "sc"
-        ? <SalesContractPDF data={data} totals={totals} contractNumber={contractNo} />
+        ? <SalesContractPDF data={contract} totals={totals} contractNumber={contractNo} />
         : doc === "ci"
-        ? <CommercialInvoicePDF data={data} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} />
+        ? <CommercialInvoicePDF data={contract} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} />
         : doc === "ci-customs"
-        ? <CommercialInvoicePDF data={data} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} priceFactor={0.55} />
-        : <PackingListPDF data={data} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} />;
+        ? <CommercialInvoicePDF data={contract} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} priceFactor={0.55} />
+        : <PackingListPDF data={contract} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} />;
 
     const blob = await pdf(element).toBlob();
-    triggerDownload(blob, fileName(doc, contractNo));
-    if (i < ordered.length - 1) {
-      await new Promise((r) => setTimeout(r, 250));
+    const name = fileName(doc, contractNo);
+
+    if (usePicker) {
+      const result = await saveBlobWithPicker(blob, name);
+      if (result === "cancelled") {
+        return { saved, cancelled: true, method };
+      }
+      saved++;
+    } else {
+      await saveBlobWithDownload(blob, name);
+      saved++;
+      if (i < ordered.length - 1) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
     }
   }
+
+  return { saved, cancelled: false, method };
 }

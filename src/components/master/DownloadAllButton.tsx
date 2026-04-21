@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { pdf } from "@react-pdf/renderer";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import SalesContractPDF from "@/components/sales-contract/SalesContractPDF";
-import CommercialInvoicePDF from "@/components/commercial-invoice/CommercialInvoicePDF";
-import PackingListPDF from "@/components/packing-list/PackingListPDF";
 import type { SalesContractData, ContractTotals } from "@/types/sales-contract";
+import { downloadContractPdfs, DOC_LABELS, type QuickShareDoc } from "@/lib/quick-share/download";
 
 interface Props {
   data: SalesContractData;
@@ -16,51 +13,75 @@ interface Props {
   invoiceNo: string;
 }
 
-function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+export default function DownloadAllButton({ data }: Props) {
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState<{ index: number; total: number; label: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-export default function DownloadAllButton({ data, totals, contractNo, invoiceNo }: Props) {
-  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
+    setToast({ type, msg });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
 
   const handleDownloadAll = useCallback(async () => {
-    setLoading(true);
+    const selected: QuickShareDoc[] = ["sc", "ci", "ci-customs", "pl"];
+    setDownloading(true);
+    setProgress(null);
     try {
-      const docs = [
-        { el: <SalesContractPDF data={data} totals={totals} contractNumber={contractNo} />, name: `SC_${contractNo}.pdf` },
-        { el: <CommercialInvoicePDF data={data} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} />, name: `CI_${invoiceNo}.pdf` },
-        { el: <CommercialInvoicePDF data={data} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} priceFactor={0.55} />, name: `CI-Customs_${invoiceNo}.pdf` },
-        { el: <PackingListPDF data={data} totals={totals} contractNumber={contractNo} invoiceNumber={invoiceNo} />, name: `PL_${invoiceNo}.pdf` },
-      ];
-
-      for (const doc of docs) {
-        const blob = await pdf(doc.el).toBlob();
-        triggerDownload(blob, doc.name);
-        // Small delay between downloads so the browser doesn't block them
-        await new Promise((r) => setTimeout(r, 300));
+      const result = await downloadContractPdfs(data, selected, {
+        onProgress: (doc, index, total) => setProgress({ index, total, label: DOC_LABELS[doc] }),
+        onFallbackNotice: (m) => showToast("info", m),
+      });
+      const total = selected.length;
+      if (result.cancelled && result.saved === 0) {
+        showToast("info", "Download cancelled.");
+      } else if (result.cancelled) {
+        showToast("info", `Saved ${result.saved} of ${total}. Cancelled before finishing.`);
+      } else {
+        showToast("success", `Saved ${result.saved} document${result.saved === 1 ? "" : "s"}.`);
       }
+    } catch (err) {
+      showToast("error", (err as Error).message || "Download failed");
     } finally {
-      setLoading(false);
+      setDownloading(false);
+      setProgress(null);
     }
-  }, [data, totals, contractNo, invoiceNo]);
+  }, [data, showToast]);
 
   return (
-    <Button
-      size="lg"
-      variant="outline"
-      className="gap-2"
-      disabled={loading}
-      onClick={handleDownloadAll}
-    >
-      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-      {loading ? "Generating 4 PDFs..." : "Download All Documents"}
-    </Button>
+    <div className="flex flex-col items-center gap-2">
+      <Button
+        size="lg"
+        variant="outline"
+        className="gap-2"
+        disabled={downloading}
+        onClick={handleDownloadAll}
+      >
+        {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+        {downloading ? "Saving\u2026" : "Download All Documents"}
+      </Button>
+      {progress && (
+        <p className="text-xs text-blue-600">
+          Saving {progress.index} of {progress.total}: {progress.label}
+        </p>
+      )}
+      {toast && (
+        <p className={`text-xs ${
+          toast.type === "success" ? "text-emerald-600" :
+          toast.type === "error" ? "text-red-600" :
+          "text-zinc-500"
+        }`}>
+          {toast.msg}
+        </p>
+      )}
+    </div>
   );
 }

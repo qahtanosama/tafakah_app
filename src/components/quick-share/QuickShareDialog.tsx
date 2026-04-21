@@ -61,6 +61,12 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<{ index: number; total: number; label: string } | null>(null);
   const [copyFlash, setCopyFlash] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
+
+  const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   // Resolve buyer from the contract when dialog opens
   useEffect(() => {
@@ -133,33 +139,89 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
     }
   }, [message]);
 
-  const doDownload = useCallback(async () => {
-    if (selected.length === 0) return;
+  /** Runs the sequential PDF save flow and returns the result, or null if nothing selected. */
+  const runDownload = useCallback(async () => {
+    if (selected.length === 0) return null;
     setDownloading(true);
     setDownloadProgress(null);
     try {
-      await downloadContractPdfs(contract, selected, {
+      return await downloadContractPdfs(contract.masterSnapshot, selected, {
         onProgress: (doc, index, total) => setDownloadProgress({ index, total, label: DOC_LABELS[doc] }),
+        onFallbackNotice: (m) => showToast("info", m),
       });
     } finally {
       setDownloading(false);
       setDownloadProgress(null);
     }
-  }, [contract, selected]);
+  }, [contract, selected, showToast]);
 
   const handleDownloadOnly = useCallback(async () => {
-    await doDownload();
-    onClose();
-  }, [doDownload, onClose]);
+    try {
+      const result = await runDownload();
+      if (!result) return;
+      const total = selected.length;
+      if (result.cancelled && result.saved === 0) {
+        showToast("info", "Download cancelled.");
+      } else if (result.cancelled) {
+        showToast("info", `Saved ${result.saved} of ${total}. Cancelled before finishing.`);
+      } else {
+        showToast("success", `Saved ${result.saved} document${result.saved === 1 ? "" : "s"}.`);
+        onClose();
+      }
+    } catch (err) {
+      showToast("error", (err as Error).message || "Download failed");
+    }
+  }, [runDownload, selected.length, onClose, showToast]);
 
   const handleDownloadAndOpen = useCallback(async () => {
     if (!buyer?.whatsappNumber) return;
-    await doDownload();
+    if (selected.length === 0) return;
+
+    // Reserve a blank tab inside the click handler so the popup blocker lets us navigate
+    // it later, even after the save-picker flow delays us past the "user activation" window.
+    const waWindow = window.open("about:blank", "_blank");
     const numberNoPlus = buyer.whatsappNumber.replace(/^\+/, "");
-    const url = `https://wa.me/${numberNoPlus}?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-    onClose();
-  }, [buyer, doDownload, message, onClose]);
+    const waUrl = `https://wa.me/${numberNoPlus}?text=${encodeURIComponent(message)}`;
+
+    try {
+      const result = await runDownload();
+      if (!result) {
+        waWindow?.close();
+        return;
+      }
+      const total = selected.length;
+
+      if (result.cancelled && result.saved === 0) {
+        waWindow?.close();
+        showToast("info", "Download cancelled. WhatsApp not opened.");
+        return;
+      }
+
+      if (result.cancelled && result.saved > 0) {
+        const proceed = confirm(
+          `You saved ${result.saved} of ${total} documents. Open WhatsApp anyway?`
+        );
+        if (!proceed) {
+          waWindow?.close();
+          showToast("info", `Saved ${result.saved} of ${total}. WhatsApp not opened.`);
+          return;
+        }
+      }
+
+      // Success path: navigate the reserved tab, or fall back to same-tab if blocked.
+      if (waWindow) {
+        waWindow.location.href = waUrl;
+      } else {
+        // Popup was blocked or unavailable — fall back to same-tab navigation.
+        window.location.href = waUrl;
+      }
+      showToast("success", `Saved ${result.saved} of ${total}. Opening WhatsApp\u2026`);
+      onClose();
+    } catch (err) {
+      waWindow?.close();
+      showToast("error", (err as Error).message || "Download failed");
+    }
+  }, [buyer, selected.length, message, runDownload, onClose, showToast]);
 
   const handleAddNumber = useCallback(() => {
     if (buyer) {
@@ -301,7 +363,19 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
           {downloadProgress && (
             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Downloading {downloadProgress.index} of {downloadProgress.total}: {downloadProgress.label}
+              {downloading
+                ? `Saving ${downloadProgress.index} of ${downloadProgress.total}: ${downloadProgress.label}`
+                : `Downloading ${downloadProgress.index} of ${downloadProgress.total}: ${downloadProgress.label}`}
+            </div>
+          )}
+
+          {toast && (
+            <div className={`rounded-lg border px-3 py-2 text-sm ${
+              toast.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+              toast.type === "error" ? "border-red-200 bg-red-50 text-red-800" :
+              "border-zinc-200 bg-zinc-50 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+            }`}>
+              {toast.msg}
             </div>
           )}
         </div>
@@ -316,7 +390,7 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
             onClick={handleDownloadOnly}
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download PDFs Only
+            {downloading ? "Saving\u2026" : "Download PDFs Only"}
           </Button>
           <Button
             style={{ backgroundColor: "#25D366" }}
@@ -326,7 +400,7 @@ export default function QuickShareDialog({ open, onClose, contract }: Props) {
             title={!hasNumber ? "Add a WhatsApp number to the buyer first" : ""}
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-            Download + Open WhatsApp
+            {downloading ? "Saving\u2026" : "Download + Open WhatsApp"}
           </Button>
         </div>
       </div>
