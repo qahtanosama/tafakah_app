@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, MessageCircle, Factory, MapPin, MessageSquare } from "lucide-react";
 import type { Seller } from "@/types/seller";
 import type { ProductProfile } from "@/types/product";
-import { getSellers, saveSeller, deleteSeller, createEmptySeller } from "@/lib/sellers";
-import { getProducts } from "@/lib/products";
+import { createEmptySeller } from "@/lib/sellers";
+import { useSellers, useSaveSeller, useDeleteSeller } from "@/lib/data/sellers";
+import { useProducts } from "@/lib/data/products";
 import SellerEditForm from "./SellerEditForm";
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -30,9 +31,13 @@ const COUNTRY_FLAGS: Record<string, string> = {
 type CountryFilter = "all" | "China" | "Kenya" | "Other";
 
 export default function SellerManager() {
-  const [sellers, setSellers] = useState<Seller[]>([]);
-  const [products, setProducts] = useState<ProductProfile[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { data: sellersData, isLoading, isError, error, refetch } = useSellers();
+  const sellers = sellersData ?? [];
+  const saveSellerMut = useSaveSeller();
+  const deleteSellerMut = useDeleteSeller();
+  const { data: productsData } = useProducts();
+  const products = useMemo<ProductProfile[]>(() => productsData ?? [], [productsData]);
+
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState<CountryFilter>("all");
   const [editing, setEditing] = useState<Seller | null>(null);
@@ -40,22 +45,19 @@ export default function SellerManager() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const all = getSellers();
-    setSellers(all);
-    setProducts(getProducts());
-    setLoaded(true);
-
+    if (!sellersData) return;
     const editId = searchParams?.get("edit");
     const newPreselect = searchParams?.get("new");
     if (editId) {
-      const target = all.find((s) => s.id === editId);
+      const target = sellersData.find((s) => s.id === editId);
       if (target) setEditing({ ...target });
     } else if (newPreselect) {
       const empty = createEmptySeller();
-      if (newPreselect) empty.products = [newPreselect];
+      empty.products = [newPreselect];
       setEditing(empty);
     }
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, !!sellersData]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -90,20 +92,26 @@ export default function SellerManager() {
   }, [sellers, search, countryFilter]);
 
   const handleSave = useCallback((seller: Seller) => {
-    saveSeller(seller);
-    setSellers(getSellers());
-    setEditing(null);
-    showToast("Seller saved");
-  }, [showToast]);
+    saveSellerMut.mutate(seller, {
+      onSuccess: () => { setEditing(null); showToast("Seller saved"); },
+      onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
+    });
+  }, [saveSellerMut, showToast]);
 
   const handleDelete = useCallback((id: string) => {
-    deleteSeller(id);
-    setSellers(getSellers());
-    setEditing(null);
-    showToast("Seller deleted");
-  }, [showToast]);
+    deleteSellerMut.mutate(id, {
+      onSuccess: () => { setEditing(null); showToast("Seller deleted"); },
+      onError: (e) => showToast(`Delete failed: ${(e as Error).message}`),
+    });
+  }, [deleteSellerMut, showToast]);
 
-  if (!loaded) return <div className="flex items-center justify-center py-20 text-slate-500 font-medium">Loading database...</div>;
+  if (isLoading) return <div className="flex items-center justify-center py-20 text-slate-500 font-medium">Loading database&hellip;</div>;
+  if (isError) return (
+    <div className="mx-auto max-w-xl py-16 text-center">
+      <p className="mb-3 text-sm text-red-600">Failed to load sellers: {(error as Error).message}</p>
+      <Button onClick={() => refetch()}>Retry</Button>
+    </div>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-8">

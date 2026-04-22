@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Save, X, TrendingUp, Calculator, Package } from "lucide-react";
 import type { ProductProfile, PriceHistoryEntry } from "@/types/product";
-import { getProducts, addProduct, updateProduct, deleteProduct, isPrefixUsed, getProductUsageCount, getPriceHistory } from "@/lib/products";
+import { isPrefixUsed, getProductUsageCount, getPriceHistory } from "@/lib/products";
+import { useProducts, useSaveProduct, useDeleteProduct } from "@/lib/data/products";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
@@ -69,22 +70,23 @@ function ProductCard({ product, history, onEdit, onDelete }: {
 }
 
 export default function ProductManager() {
-  const [products, setProducts] = useState<ProductProfile[]>([]);
+  const { data: productsData, isLoading, isError, error, refetch } = useProducts();
+  const products = productsData ?? [];
+  const saveProductMut = useSaveProduct();
+  const deleteProductMut = useDeleteProduct();
+
   const [histories, setHistories] = useState<Record<string, PriceHistoryEntry[]>>({});
   const [editing, setEditing] = useState<ProductProfile | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [prefixError, setPrefixError] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    const prods = getProducts();
-    setProducts(prods);
+    if (!productsData) return;
     const h: Record<string, PriceHistoryEntry[]> = {};
-    for (const p of prods) h[p.name] = getPriceHistory(p.name);
+    for (const p of productsData) h[p.name] = getPriceHistory(p.name);
     setHistories(h);
-    setLoaded(true);
-  }, []);
+  }, [productsData]);
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
 
@@ -109,10 +111,11 @@ export default function ProductManager() {
       ? `"${p.name}" is used in ${usage} contract(s). It won't affect existing records but will no longer be available for new contracts. Delete?`
       : `Delete "${p.name}"?`;
     if (!confirm(msg)) return;
-    deleteProduct(p.id);
-    setProducts(getProducts());
-    showToast(`${p.name} deleted`);
-  }, [showToast]);
+    deleteProductMut.mutate(p.id, {
+      onSuccess: () => showToast(`${p.name} deleted`),
+      onError: (e) => showToast(`Delete failed: ${(e as Error).message}`),
+    });
+  }, [deleteProductMut, showToast]);
 
   const handleSave = useCallback(() => {
     if (!editing || !editing.name.trim() || !editing.prefix.trim()) return;
@@ -120,17 +123,22 @@ export default function ProductManager() {
       setPrefixError(`Prefix "${editing.prefix}" is already used. Choose another.`);
       return;
     }
-    if (isNew) addProduct(editing);
-    else updateProduct(editing);
-    setProducts(getProducts());
-    const h: Record<string, PriceHistoryEntry[]> = {};
-    for (const p of getProducts()) h[p.name] = getPriceHistory(p.name);
-    setHistories(h);
-    setEditing(null);
-    showToast(isNew ? `${editing.name} added` : `${editing.name} updated`);
-  }, [editing, isNew, showToast]);
+    saveProductMut.mutate({ ...editing }, {
+      onSuccess: () => {
+        setEditing(null);
+        showToast(isNew ? `${editing.name} added` : `${editing.name} updated`);
+      },
+      onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
+    });
+  }, [editing, isNew, saveProductMut, showToast]);
 
-  if (!loaded) return <div className="flex min-h-[400px] items-center justify-center py-20 text-slate-500 font-medium">Loading database...</div>;
+  if (isLoading) return <div className="flex min-h-[400px] items-center justify-center py-20 text-slate-500 font-medium">Loading database&hellip;</div>;
+  if (isError) return (
+    <div className="mx-auto max-w-xl py-16 text-center">
+      <p className="mb-3 text-sm text-red-600">Failed to load products: {(error as Error).message}</p>
+      <Button onClick={() => refetch()}>Retry</Button>
+    </div>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-8">

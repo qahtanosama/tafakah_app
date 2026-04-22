@@ -11,6 +11,7 @@ import { loadSettings, saveSettings } from "@/lib/settings";
 import { exportBackup, parseBackup, restoreBackup, clearAllData, getStorageStats } from "@/lib/backup";
 import { getUsage, setUsageLimit } from "@/lib/shipsgo";
 import { supportsSaveFilePicker, saveBlobWithPicker, saveBlobWithDownload } from "@/lib/quick-share/save-file";
+import DataSourceSection from "./DataSourceSection";
 
 interface ProviderCardProps {
   provider: AIProvider;
@@ -255,6 +256,9 @@ export default function SettingsForm() {
           </label>
         </CardContent>
       </Card>
+
+      {/* ═══ DATA SOURCE + SYNC ISSUES ═══ */}
+      <DataSourceSection />
 
       {/* ═══ DATA MANAGEMENT ═══ */}
       <DataManagementSection showToast={showToast} />

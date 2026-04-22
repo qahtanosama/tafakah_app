@@ -15,35 +15,37 @@ import {
 import { Plus, Pencil, Trash2, Search, X, Save, ChevronDown, ChevronUp, MessageCircle, Users } from "lucide-react";
 import type { Buyer, BuyerLanguage, BuyerDocPreset } from "@/types/buyer";
 import { BUYER_COUNTRIES, isValidE164 } from "@/types/buyer";
-import { getBuyers, addBuyer, updateBuyer, deleteBuyer, createEmptyBuyer } from "@/lib/buyers";
+import { createEmptyBuyer } from "@/lib/buyers";
 import { getContractLog } from "@/lib/contract-log";
 import BuyerPortalAccess from "./BuyerPortalAccess";
+import { useBuyers, useSaveBuyer, useDeleteBuyer } from "@/lib/data/buyers";
 
 export default function BuyerManager() {
-  const [buyers, setBuyers] = useState<Buyer[]>([]);
+  const { data: buyersData, isLoading, isError, error, refetch } = useBuyers();
+  const buyers = buyersData ?? [];
+  const saveBuyerMut = useSaveBuyer();
+  const deleteBuyerMut = useDeleteBuyer();
+
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Buyer | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [msgExpanded, setMsgExpanded] = useState(false);
   const [msgLang, setMsgLang] = useState<BuyerLanguage>("en");
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const all = getBuyers();
-    setBuyers(all);
-    setLoaded(true);
-
+    if (!buyersData) return;
     const editId = searchParams?.get("edit");
     const focus = searchParams?.get("focus");
     if (editId) {
-      const target = all.find((b) => b.id === editId);
+      const target = buyersData.find((b) => b.id === editId);
       if (target) {
         setEditing({ ...target });
         if (focus === "whatsapp") setMsgExpanded(true);
       }
     }
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, !!buyersData]);
 
   const contractCounts = useMemo(() => {
     const log = getContractLog();
@@ -70,25 +72,28 @@ export default function BuyerManager() {
 
   const handleSave = useCallback(() => {
     if (!editing || !editing.company.trim()) return;
-    editing.updatedAt = new Date().toISOString();
-    if (buyers.some((b) => b.id === editing.id)) {
-      updateBuyer(editing);
-    } else {
-      addBuyer(editing);
-    }
-    setBuyers(getBuyers());
-    setEditing(null);
-    showToast("Buyer saved");
-  }, [editing, buyers, showToast]);
+    const next = { ...editing, updatedAt: new Date().toISOString() };
+    saveBuyerMut.mutate(next, {
+      onSuccess: () => { setEditing(null); showToast("Buyer saved"); },
+      onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
+    });
+  }, [editing, saveBuyerMut, showToast]);
 
   const handleDelete = useCallback((id: string) => {
     if (!confirm("Delete this buyer?")) return;
-    deleteBuyer(id);
-    setBuyers(getBuyers());
-    showToast("Buyer deleted");
-  }, [showToast]);
+    deleteBuyerMut.mutate(id, {
+      onSuccess: () => showToast("Buyer deleted"),
+      onError: (e) => showToast(`Delete failed: ${(e as Error).message}`),
+    });
+  }, [deleteBuyerMut, showToast]);
 
-  if (!loaded) return <div className="flex items-center justify-center py-20 text-slate-500 font-medium">Loading database...</div>;
+  if (isLoading) return <div className="flex items-center justify-center py-20 text-slate-500 font-medium">Loading database&hellip;</div>;
+  if (isError) return (
+    <div className="mx-auto max-w-xl py-16 text-center">
+      <p className="mb-3 text-sm text-red-600">Failed to load buyers: {(error as Error).message}</p>
+      <Button onClick={() => refetch()}>Retry</Button>
+    </div>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-8">
