@@ -111,15 +111,17 @@ export function useSaveBuyer() {
 
   return useMutation({
     mutationFn: async (buyer: Buyer) => {
+      // Detect update vs insert against the current cache (same source the UI sees).
+      const current = qc.getQueryData<Buyer[]>([...key]) ?? [];
+      const isUpdate = !!buyer.id && current.some((b) => b.id === buyer.id);
+
       if (!useDb) {
-        const exists = readLocal().some((b) => b.id === buyer.id);
-        if (exists) updateLocal(buyer);
+        if (isUpdate) updateLocal(buyer);
         else addLocal(buyer);
         return buyer;
       }
       const supabase = createClient();
       const row = localToDb(buyer);
-      const isUpdate = !!buyer.id && readLocal().some((b) => b.id === buyer.id);
       const result = await withRetryQueue(async () => {
         if (isUpdate) {
           const { id: _, ...rest } = row;

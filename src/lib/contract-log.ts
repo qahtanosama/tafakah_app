@@ -48,8 +48,10 @@ export function updateContractLogEntry(id: string, updates: Partial<ContractLogE
   return log[idx];
 }
 
-export function contractNoExists(contractNo: string): boolean {
-  return getContractLog().some((e) => e.contractNo === contractNo);
+export function contractNoExists(contractNo: string, excludeContractNo?: string): boolean {
+  return getContractLog().some(
+    (e) => e.contractNo === contractNo && e.contractNo !== excludeContractNo
+  );
 }
 
 export function getNextSequence(year: number, prefix: string): number {

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Save, X, TrendingUp, Calculator, Package } from "lucide-react";
 import type { ProductProfile, PriceHistoryEntry } from "@/types/product";
-import { isPrefixUsed, getProductUsageCount, getPriceHistory } from "@/lib/products";
+import { getProductUsageCount, getPriceHistory } from "@/lib/products";
 import { useProducts, useSaveProduct, useDeleteProduct } from "@/lib/data/products";
 
 function fmtDate(iso: string): string {
@@ -119,7 +119,12 @@ export default function ProductManager() {
 
   const handleSave = useCallback(() => {
     if (!editing || !editing.name.trim() || !editing.prefix.trim()) return;
-    if (isPrefixUsed(editing.prefix, editing.id)) {
+    // Uniqueness against the current source-of-truth list (products already loaded via useProducts,
+    // so this matches whatever `products-db` is set to). Exclude the record being edited.
+    const duplicate = (productsData ?? []).some(
+      (p) => p.prefix.toUpperCase() === editing.prefix.toUpperCase() && p.id !== editing.id
+    );
+    if (duplicate) {
       setPrefixError(`Prefix "${editing.prefix}" is already used. Choose another.`);
       return;
     }
@@ -130,7 +135,7 @@ export default function ProductManager() {
       },
       onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
     });
-  }, [editing, isNew, saveProductMut, showToast]);
+  }, [editing, isNew, productsData, saveProductMut, showToast]);
 
   if (isLoading) return <div className="flex min-h-[400px] items-center justify-center py-20 text-slate-500 font-medium">Loading database&hellip;</div>;
   if (isError) return (

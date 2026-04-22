@@ -88,17 +88,18 @@ export function useSaveProduct() {
 
   return useMutation({
     mutationFn: async (product: ProductProfile) => {
+      // Detect update vs insert against the current cache (same source the UI sees).
+      // Reading localStorage directly here would miss DB-backed rows when the flag is on.
+      const current = qc.getQueryData<ProductProfile[]>([...key]) ?? [];
+      const isUpdate = !!product.id && current.some((p) => p.id === product.id);
+
       if (!useDb) {
-        // Preserve the existing localStorage API (update or insert)
-        const existing = readLocal().some((p) => p.id === product.id);
-        if (existing) updateLocal(product);
+        if (isUpdate) updateLocal(product);
         else addLocal(product);
         return product;
       }
       const supabase = createClient();
       const row = localToDb(product);
-      const existing = readLocal().some((p) => p.id === product.id);
-      const isUpdate = !!product.id && existing;
       const result = await withRetryQueue(async () => {
         if (isUpdate) {
           const { data, error } = await supabase
