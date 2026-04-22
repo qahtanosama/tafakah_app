@@ -17,6 +17,7 @@ import type { Buyer, BuyerLanguage, BuyerDocPreset } from "@/types/buyer";
 import { BUYER_COUNTRIES, isValidE164 } from "@/types/buyer";
 import { getBuyers, addBuyer, updateBuyer, deleteBuyer, createEmptyBuyer } from "@/lib/buyers";
 import { getContractLog } from "@/lib/contract-log";
+import BuyerPortalAccess from "./BuyerPortalAccess";
 
 export default function BuyerManager() {
   const [buyers, setBuyers] = useState<Buyer[]>([]);
@@ -290,6 +291,14 @@ export default function BuyerManager() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-3 mt-2">
+              <BuyerPortalAccess
+                localBuyerId={editing.id}
+                buyerEmail={editing.email}
+                buyerCompanyName={editing.company || "this buyer"}
+              />
             </div>
 
             <div className="sm:col-span-2 lg:col-span-3 mt-4 border-t border-slate-100 dark:border-white/5 pt-6 flex justify-end">

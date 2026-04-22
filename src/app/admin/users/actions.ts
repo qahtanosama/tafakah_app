@@ -173,3 +173,94 @@ export async function toggleUserActive(userId: string, active: boolean): Promise
   revalidatePath("/admin/users");
   return { ok: true };
 }
+
+/* ─── Buyer portal-access helpers (called from the buyer edit form) ─── */
+
+export interface BuyerPortalStatus {
+  buyerExists: boolean;
+  buyerId: string | null;
+  email: string | null;
+  portalEnabled: boolean;
+  clientUserId: string | null;
+  clientActive: boolean;
+}
+
+export async function getBuyerPortalStatus(buyerUuid: string): Promise<{ ok: boolean; error?: string; status?: BuyerPortalStatus }> {
+  const guard = await requireTeamUser();
+  if ("error" in guard) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+
+  const { data: buyer, error } = await admin
+    .from("buyers")
+    .select("id, email, portal_enabled")
+    .eq("id", buyerUuid)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!buyer) {
+    return { ok: true, status: { buyerExists: false, buyerId: null, email: null, portalEnabled: false, clientUserId: null, clientActive: false } };
+  }
+
+  const { data: profile } = await admin
+    .from("users_profile")
+    .select("user_id, is_active")
+    .eq("buyer_id", buyerUuid)
+    .eq("role", "client")
+    .maybeSingle();
+
+  return {
+    ok: true,
+    status: {
+      buyerExists: true,
+      buyerId: (buyer.id as string),
+      email: (buyer.email as string | null) ?? null,
+      portalEnabled: !!buyer.portal_enabled,
+      clientUserId: profile ? (profile.user_id as string) : null,
+      clientActive: profile ? !!profile.is_active : false,
+    },
+  };
+}
+
+export async function disableClientUserForBuyer(buyerUuid: string): Promise<ActionResult> {
+  const guard = await requireTeamUser();
+  if ("error" in guard) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+
+  const { data: profile } = await admin
+    .from("users_profile")
+    .select("user_id")
+    .eq("buyer_id", buyerUuid)
+    .eq("role", "client")
+    .maybeSingle();
+
+  if (profile) {
+    await admin.from("users_profile").update({ is_active: false }).eq("user_id", profile.user_id as string);
+  }
+  await admin.from("buyers").update({ portal_enabled: false }).eq("id", buyerUuid);
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+export async function resetClientPasswordForBuyer(buyerUuid: string): Promise<ActionResult> {
+  const guard = await requireTeamUser();
+  if ("error" in guard) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+
+  const { data: buyer } = await admin.from("buyers").select("email").eq("id", buyerUuid).maybeSingle();
+  if (!buyer?.email) return { ok: false, error: "Buyer has no email." };
+
+  const { data: profile } = await admin
+    .from("users_profile")
+    .select("user_id")
+    .eq("buyer_id", buyerUuid)
+    .eq("role", "client")
+    .maybeSingle();
+  if (!profile) return { ok: false, error: "No client login exists for this buyer." };
+
+  const newPassword = generatePassword();
+  const { error } = await admin.auth.admin.updateUserById(profile.user_id as string, { password: newPassword });
+  if (error) return { ok: false, error: error.message };
+  // Re-enable in case it was disabled
+  await admin.from("users_profile").update({ is_active: true }).eq("user_id", profile.user_id as string);
+  await admin.from("buyers").update({ portal_enabled: true }).eq("id", buyerUuid);
+  return { ok: true, data: { userId: profile.user_id as string, email: buyer.email as string, password: newPassword } };
+}
