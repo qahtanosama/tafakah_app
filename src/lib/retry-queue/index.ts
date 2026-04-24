@@ -89,16 +89,30 @@ export async function clear(): Promise<void> {
   try { window.dispatchEvent(new CustomEvent("retry-queue-changed")); } catch { /* ignore */ }
 }
 
-/** Retry every write whose `nextRetryAt <= now`. Caller supplies the executor that performs the actual Supabase call. */
-export async function retryAll(executor: RetryExecutor): Promise<{ succeeded: number; failed: number; stillQueued: number }> {
+/**
+ * Retry queued writes.
+ *
+ * Default behavior (auto-tick): only items whose `nextRetryAt <= now` and aren't `failed-permanent`.
+ * When `options.force` is true (user-initiated click), retry EVERY item — bypasses backoff and
+ * revives `failed-permanent` rows for one more attempt. Also resets the attempt counter on success.
+ *
+ * When `options.onlyId` is set, retry just that one item regardless of state.
+ */
+export async function retryAll(
+  executor: RetryExecutor,
+  options: { force?: boolean; onlyId?: string } = {}
+): Promise<{ succeeded: number; failed: number; stillQueued: number }> {
   const db = await getDB();
-  const items = (await db.getAll(STORE)) as QueuedWrite[];
+  const all = (await db.getAll(STORE)) as QueuedWrite[];
+  const items = options.onlyId ? all.filter((w) => w.id === options.onlyId) : all;
   const now = Date.now();
   let succeeded = 0, failed = 0, stillQueued = 0;
 
   for (const item of items) {
-    if (item.status === "failed-permanent") { stillQueued++; continue; }
-    if (item.nextRetryAt > now) { stillQueued++; continue; }
+    if (!options.force && !options.onlyId) {
+      if (item.status === "failed-permanent") { stillQueued++; continue; }
+      if (item.nextRetryAt > now) { stillQueued++; continue; }
+    }
 
     try {
       await executor(item);

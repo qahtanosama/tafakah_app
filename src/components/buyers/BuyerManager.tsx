@@ -73,7 +73,7 @@ export default function BuyerManager() {
   const handleSave = useCallback(() => {
     if (!editing || !editing.company.trim()) return;
     const next = { ...editing, updatedAt: new Date().toISOString() };
-    saveBuyerMut.mutate(next, {
+    saveBuyerMut.mutate({ payload: next, isUpdate: buyers.some((b) => b.id === next.id) }, {
       onSuccess: () => { setEditing(null); showToast("Buyer saved"); },
       onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
     });

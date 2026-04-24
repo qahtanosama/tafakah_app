@@ -195,7 +195,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
     setDownloading(true);
     setDownloadProgress(null);
     try {
-      return await downloadContractPdfs(contract.masterSnapshot, selected, {
+      return await downloadContractPdfs(contract.masterSnapshot, contract.contractNo, contract.invoiceNo, selected, {
         onProgress: (doc, index, total) => setDownloadProgress({ index, total, label: DOC_LABELS[doc] }),
         onFallbackNotice: (m) => showToast("info", m),
       });

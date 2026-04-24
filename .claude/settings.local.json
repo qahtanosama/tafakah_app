@@ -27,7 +27,9 @@
       "Read(//tmp/**)",
       "Read(//tmp/phase15-stash/**)",
       "Bash(npx tsc *)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git tag *)",
+      "Bash(xargs grep *)"
     ]
   }
 }

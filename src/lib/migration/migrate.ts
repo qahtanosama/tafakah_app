@@ -316,7 +316,7 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     const pResp = await migrateProducts({ items: pPayload, dryRun: options.dryRun });
     if (!pResp.ok || !pResp.result) throw new Error(pResp.error ?? "products migration failed");
     if (pResp.mappings) idMap.registerMany("products", pResp.mappings);
-    idMap.persist();
+    if (!options.dryRun) idMap.persist();
     record(pResp.result);
 
     // ── buyers ──
@@ -326,7 +326,7 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     const bResp = await migrateBuyers({ items: bPayload, dryRun: options.dryRun });
     if (!bResp.ok || !bResp.result) throw new Error(bResp.error ?? "buyers migration failed");
     if (bResp.mappings) idMap.registerMany("buyers", bResp.mappings);
-    idMap.persist();
+    if (!options.dryRun) idMap.persist();
     record(bResp.result);
 
     // ── sellers ──
@@ -336,7 +336,7 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     const sResp = await migrateSellers({ items: sPayload, dryRun: options.dryRun });
     if (!sResp.ok || !sResp.result) throw new Error(sResp.error ?? "sellers migration failed");
     if (sResp.mappings) idMap.registerMany("sellers", sResp.mappings);
-    idMap.persist();
+    if (!options.dryRun) idMap.persist();
     record(sResp.result);
 
     // ── contracts ──
@@ -346,7 +346,7 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     const cResp = await migrateContracts({ items: cPayload, dryRun: options.dryRun });
     if (!cResp.ok || !cResp.result) throw new Error(cResp.error ?? "contracts migration failed");
     if (cResp.mappings) idMap.registerMany("contracts", cResp.mappings);
-    idMap.persist();
+    if (!options.dryRun) idMap.persist();
     record(cResp.result);
 
     // ── finance ──
@@ -359,10 +359,11 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     }
     const fResp = await migrateFinance({ items: fPayloads, dryRun: options.dryRun });
     if (!fResp.ok || !fResp.result) throw new Error(fResp.error ?? "finance migration failed");
-    // Account for finance entries whose contract FK couldn't be resolved
+    // Account for finance entries whose contract FK couldn't be resolved (orphaned)
     if (financeEntries.length > fPayloads.length) {
-      fResp.result.failedCount += financeEntries.length - fPayloads.length;
-      fResp.result.errors.push({ message: `${financeEntries.length - fPayloads.length} finance entry/entries had no resolvable contract_id` });
+      const orphaned = financeEntries.length - fPayloads.length;
+      fResp.result.skippedExisting += orphaned;
+      fResp.result.errors.push({ message: `Skipped ${orphaned} orphaned finance entry/entries (contract deleted)` });
     }
     fResp.result.localCount = financeEntries.length;
     record(fResp.result);
@@ -378,8 +379,9 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     const shResp = await migrateShipping({ items: shPayloads, dryRun: options.dryRun });
     if (!shResp.ok || !shResp.result) throw new Error(shResp.error ?? "shipping migration failed");
     if (shipping.length > shPayloads.length) {
-      shResp.result.failedCount += shipping.length - shPayloads.length;
-      shResp.result.errors.push({ message: `${shipping.length - shPayloads.length} shipping entry/entries had no resolvable contract_id` });
+      const orphaned = shipping.length - shPayloads.length;
+      shResp.result.skippedExisting += orphaned;
+      shResp.result.errors.push({ message: `Skipped ${orphaned} orphaned shipping entry/entries (contract deleted)` });
     }
     shResp.result.localCount = shipping.length;
     record(shResp.result);
@@ -395,8 +397,9 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     const dResp = await migrateDocuments({ items: dPayloads, dryRun: options.dryRun });
     if (!dResp.ok || !dResp.result) throw new Error(dResp.error ?? "documents migration failed");
     if (docRefs.length > dPayloads.length) {
-      dResp.result.failedCount += docRefs.length - dPayloads.length;
-      dResp.result.errors.push({ message: `${docRefs.length - dPayloads.length} document(s) had no resolvable contract_id` });
+      const orphaned = docRefs.length - dPayloads.length;
+      dResp.result.skippedExisting += orphaned;
+      dResp.result.errors.push({ message: `Skipped ${orphaned} orphaned document(s) (contract deleted)` });
     }
     dResp.result.localCount = docRefs.length;
     record(dResp.result);
@@ -410,7 +413,7 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     run.finishedAt = new Date().toISOString();
 
     if (!options.dryRun) persistLastRun(run);
-    idMap.persist();
+    if (!options.dryRun) idMap.persist();
     return run;
   } catch (err) {
     run.status = "failed";

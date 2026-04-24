@@ -204,6 +204,10 @@ export function getTrackingLinks(entry: ShippingEntry): TrackingLink[] {
     links.push({ name: "Hapag-Lloyd Tracking", url: `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?blno=${encodeURIComponent(bl)}` });
   } else if (line === "ONE" && bl) {
     links.push({ name: "ONE Tracking", url: `https://ecomm.one-line.com/ecom/CUP_HOM_3301.do?sessLocale=en&f_cmd=&l_cd=E&w_no=${encodeURIComponent(bl)}` });
+  } else if (line === "WAN HAI" && bl) {
+    links.push({ name: "WAN HAI Tracking", url: `https://www.wanhai.com/views/cargoTrack/CargoTrack.xhtml?ref_no=${encodeURIComponent(bl)}` });
+  } else if (line === "PIL" && bl) {
+    links.push({ name: "PIL Tracking", url: "https://www.pilship.com/en-our-track-and-trace-pil-pacific-international-lines/120.html" });
   }
 
   return links;

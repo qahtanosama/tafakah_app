@@ -29,6 +29,9 @@ interface DbBuyer {
   custom_message_template: Record<string, unknown> | null;
   portal_enabled: boolean;
   notes: string | null;
+  short_name: string;
+  additional_number: string;
+  cc_email: string;
   created_at: string;
   updated_at: string;
 }
@@ -37,13 +40,13 @@ function dbToLocal(row: DbBuyer): Buyer {
   return {
     id: row.id,
     company: row.company_name,
-    shortName: "",
+    shortName: row.short_name ?? "",
     address: row.address ?? "",
-    additionalNumber: "",
+    additionalNumber: row.additional_number ?? "",
     cityPostal: row.city ?? "",
     country: row.country ?? "",
     email: row.email ?? "",
-    ccEmail: "",
+    ccEmail: row.cc_email ?? "",
     phone: row.phone_number ?? "",
     contactPerson: row.contact_name,
     notes: row.notes ?? "",
@@ -72,6 +75,9 @@ function localToDb(b: Buyer) {
     default_doc_preset: b.defaultDocPreset ?? null,
     custom_message_template: b.customMessageTemplate ?? null,
     notes: b.notes || null,
+    short_name: b.shortName || "",
+    additional_number: b.additionalNumber || "",
+    cc_email: b.ccEmail || "",
   };
 }
 
@@ -110,10 +116,7 @@ export function useSaveBuyer() {
   const key = ["buyers", useDb ? "db" : "local"] as const;
 
   return useMutation({
-    mutationFn: async (buyer: Buyer) => {
-      // Detect update vs insert against the current cache (same source the UI sees).
-      const current = qc.getQueryData<Buyer[]>([...key]) ?? [];
-      const isUpdate = !!buyer.id && current.some((b) => b.id === buyer.id);
+    mutationFn: async ({ payload: buyer, isUpdate }: { payload: Buyer; isUpdate: boolean }) => {
 
       if (!useDb) {
         if (isUpdate) updateLocal(buyer);
@@ -142,7 +145,7 @@ export function useSaveBuyer() {
       });
       return result === "queued" ? buyer : result;
     },
-    onMutate: async (buyer) => {
+    onMutate: async ({ payload: buyer }) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<Buyer[]>([...key]);
       qc.setQueryData<Buyer[]>([...key], (old) => {

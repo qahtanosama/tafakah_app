@@ -51,15 +51,13 @@ export function getPrefix(firstProduct: string): string {
   return CONTRACT_PREFIXES[firstProduct] ?? "";
 }
 
-export function generateContractNumber(year: number, sequenceNumber: number, firstProduct: Product | ""): string {
-  if (!firstProduct || !sequenceNumber) return "";
-  const prefix = CONTRACT_PREFIXES[firstProduct];
+export function generateContractNumber(year: number, sequenceNumber: number, prefix: string): string {
+  if (!prefix || !sequenceNumber) return "";
   return `${year}-${prefix}${sequenceNumber}`;
 }
 
-export function generateInvoiceNumber(year: number, sequenceNumber: number, firstProduct: Product | ""): string {
-  if (!firstProduct || !sequenceNumber) return "";
-  const prefix = CONTRACT_PREFIXES[firstProduct];
+export function generateInvoiceNumber(year: number, sequenceNumber: number, prefix: string): string {
+  if (!prefix || !sequenceNumber) return "";
   return `TAFA${year}${prefix}${sequenceNumber}`;
 }
 
@@ -156,7 +154,7 @@ export function getDefaultContractData(): SalesContractData {
       brand: "NO MARK",
       damageAllowance: "5%",
       contractValidTo: "",
-      containerType: "1×40'RH",
+      containerType: "40'RH",
     },
   };
 }

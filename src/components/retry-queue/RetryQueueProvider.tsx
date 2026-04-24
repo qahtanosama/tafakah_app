@@ -12,7 +12,10 @@ interface Ctx {
   pendingCount: number;
   syncing: boolean;
   isOnline: boolean;
+  /** User-initiated retry: bypasses backoff, also revives failed-permanent rows for one more attempt. */
   retry: () => Promise<void>;
+  /** Retry a single write regardless of its state. */
+  retryOne: (id: string) => Promise<void>;
   removeOne: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
 }
@@ -67,7 +70,8 @@ export function RetryQueueProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
-  const retry = useCallback(async () => {
+  // Background auto-retry: honors backoff timing and skips failed-permanent rows.
+  const retryDue = useCallback(async () => {
     if (syncing) return;
     setSyncing(true);
     try {
@@ -78,6 +82,39 @@ export function RetryQueueProvider({ children }: { children: React.ReactNode }) 
           window.dispatchEvent(new CustomEvent("retry-queue-toast", { detail: { type: "success", msg } }));
         } catch { /* ignore */ }
       }
+    } finally {
+      setSyncing(false);
+      refresh();
+    }
+  }, [refresh, syncing]);
+
+  // User-initiated retry: bypasses backoff, revives failed-permanent.
+  const retry = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const result = await retryAll(executeQueued, { force: true });
+      const msg = result.succeeded > 0
+        ? `Synced ${result.succeeded} item${result.succeeded === 1 ? "" : "s"}${result.stillQueued > 0 ? `, ${result.stillQueued} still queued` : ""}`
+        : result.stillQueued > 0
+          ? `Still failing (${result.stillQueued} item${result.stillQueued === 1 ? "" : "s"}). Check the error below.`
+          : "Nothing to retry.";
+      try { window.dispatchEvent(new CustomEvent("retry-queue-toast", { detail: { type: result.succeeded > 0 ? "success" : "info", msg } })); } catch { /* ignore */ }
+    } finally {
+      setSyncing(false);
+      refresh();
+    }
+  }, [refresh, syncing]);
+
+  const retryOne = useCallback(async (id: string) => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const result = await retryAll(executeQueued, { onlyId: id });
+      const msg = result.succeeded > 0
+        ? "Synced."
+        : "Still failing \u2014 check the error.";
+      try { window.dispatchEvent(new CustomEvent("retry-queue-toast", { detail: { type: result.succeeded > 0 ? "success" : "info", msg } })); } catch { /* ignore */ }
     } finally {
       setSyncing(false);
       refresh();

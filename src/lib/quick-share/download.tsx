@@ -11,7 +11,7 @@
  */
 
 import type { SalesContractData } from "@/types/sales-contract";
-import { calcTotals, generateContractNumber, generateInvoiceNumber } from "@/lib/sales-contract";
+import { calcTotals } from "@/lib/sales-contract";
 import {
   supportsSaveFilePicker,
   saveBlobWithPicker,
@@ -77,6 +77,8 @@ export interface DownloadOptions {
  */
 export async function downloadContractPdfs(
   contract: SalesContractData,
+  contractNo: string,
+  invoiceNo: string,
   selectedDocs: QuickShareDoc[],
   options: DownloadOptions = {}
 ): Promise<DownloadResult> {
@@ -103,17 +105,6 @@ export async function downloadContractPdfs(
   ]);
 
   const totals = calcTotals(contract.lineItems);
-  const firstProduct = contract.lineItems[0]?.product || "";
-  const contractNo = generateContractNumber(
-    contract.identifiers.year,
-    contract.identifiers.sequenceNumber,
-    firstProduct
-  );
-  const invoiceNo = generateInvoiceNumber(
-    contract.identifiers.year,
-    contract.identifiers.sequenceNumber,
-    firstProduct
-  );
 
   const ordered = DOC_ORDER.filter((d) => selectedDocs.includes(d));
 

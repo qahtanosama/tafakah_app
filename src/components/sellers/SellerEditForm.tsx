@@ -11,7 +11,6 @@ import { X, Save, ChevronDown, ChevronUp, Factory } from "lucide-react";
 import type { Seller, SellerLanguage, SellerDocPreset } from "@/types/seller";
 import { SELLER_COUNTRIES, isValidSellerE164 } from "@/types/seller";
 import type { ProductProfile } from "@/types/product";
-import { getProducts } from "@/lib/products";
 
 function isValidEmail(email: string): boolean {
   if (!email) return true; // empty allowed
@@ -21,15 +20,15 @@ function isValidEmail(email: string): boolean {
 interface Props {
   open: boolean;
   initial: Seller;
+  products: ProductProfile[];
   existingIds: string[];
   onSave: (seller: Seller) => void;
   onCancel: () => void;
   onDelete?: (id: string) => void;
 }
 
-export default function SellerEditForm({ open, initial, existingIds, onSave, onCancel, onDelete }: Props) {
+export default function SellerEditForm({ open, initial, products, existingIds, onSave, onCancel, onDelete }: Props) {
   const [draft, setDraft] = useState<Seller>(initial);
-  const [products, setProducts] = useState<ProductProfile[]>([]);
   const [terms, setTerms] = useState(false);
   const [msgOpen, setMsgOpen] = useState(false);
   const [msgLang, setMsgLang] = useState<SellerLanguage>("en");
@@ -39,7 +38,6 @@ export default function SellerEditForm({ open, initial, existingIds, onSave, onC
   useEffect(() => {
     if (!open) return;
     setDraft(initial);
-    setProducts(getProducts());
     setTerms(false);
     setMsgOpen(false);
     setMsgLang(initial.preferredLanguage ?? "en");

@@ -92,7 +92,7 @@ export default function SellerManager() {
   }, [sellers, search, countryFilter]);
 
   const handleSave = useCallback((seller: Seller) => {
-    saveSellerMut.mutate(seller, {
+    saveSellerMut.mutate({ payload: seller, isUpdate: sellers.some((s) => s.id === seller.id) }, {
       onSuccess: () => { setEditing(null); showToast("Seller saved"); },
       onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
     });
@@ -233,6 +233,7 @@ export default function SellerManager() {
         <SellerEditForm
           open={!!editing}
           initial={editing}
+          products={products}
           existingIds={sellers.map((s) => s.id)}
           onSave={handleSave}
           onCancel={() => setEditing(null)}

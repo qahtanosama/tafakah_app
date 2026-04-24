@@ -33,6 +33,7 @@ interface DbSeller {
   custom_message_template: Record<string, unknown> | null;
   default_doc_preset: string | null;
   notes: string | null;
+  wechat_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +46,7 @@ function dbToLocal(row: DbSeller): Seller {
     contactName: row.contact_name,
     contactTitle: row.contact_title ?? "",
     whatsappNumber: row.whatsapp_number ?? "",
+    wechatId: row.wechat_id ?? "",
     phoneNumber: row.phone_number ?? "",
     email: row.email ?? "",
     preferredLanguage: (row.preferred_language as SellerLanguage | null) ?? "en",
@@ -84,6 +86,7 @@ function localToDb(s: Seller) {
     custom_message_template: (s.customMessageTemplate as unknown as Record<string, unknown>) ?? null,
     default_doc_preset: s.defaultDocPreset ?? null,
     notes: s.notes || null,
+    wechat_id: s.wechatId || null,
   };
 }
 
@@ -122,10 +125,7 @@ export function useSaveSeller() {
   const key = ["sellers", useDb ? "db" : "local"] as const;
 
   return useMutation({
-    mutationFn: async (seller: Seller) => {
-      // Detect update vs insert against the current cache (same source the UI sees).
-      const current = qc.getQueryData<Seller[]>([...key]) ?? [];
-      const isUpdate = !!seller.id && current.some((s) => s.id === seller.id);
+    mutationFn: async ({ payload: seller, isUpdate }: { payload: Seller; isUpdate: boolean }) => {
 
       if (!useDb) { saveLocal(seller); return seller; }
       const supabase = createClient();
@@ -150,7 +150,7 @@ export function useSaveSeller() {
       });
       return result === "queued" ? seller : result;
     },
-    onMutate: async (seller) => {
+    onMutate: async ({ payload: seller }) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<Seller[]>([...key]);
       qc.setQueryData<Seller[]>([...key], (old) => {

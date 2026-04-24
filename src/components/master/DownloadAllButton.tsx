@@ -13,7 +13,7 @@ interface Props {
   invoiceNo: string;
 }
 
-export default function DownloadAllButton({ data }: Props) {
+export default function DownloadAllButton({ data, contractNo, invoiceNo }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState<{ index: number; total: number; label: string } | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
@@ -36,7 +36,7 @@ export default function DownloadAllButton({ data }: Props) {
     setDownloading(true);
     setProgress(null);
     try {
-      const result = await downloadContractPdfs(data, selected, {
+      const result = await downloadContractPdfs(data, contractNo, invoiceNo, selected, {
         onProgress: (doc, index, total) => setProgress({ index, total, label: DOC_LABELS[doc] }),
         onFallbackNotice: (m) => showToast("info", m),
       });
@@ -54,7 +54,7 @@ export default function DownloadAllButton({ data }: Props) {
       setDownloading(false);
       setProgress(null);
     }
-  }, [data, showToast]);
+  }, [data, contractNo, invoiceNo, showToast]);
 
   return (
     <div className="flex flex-col items-center gap-2">

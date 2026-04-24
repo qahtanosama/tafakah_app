@@ -3,16 +3,32 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Cloud, Database, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Cloud, Database, Loader2, RefreshCw, Trash2, Wrench } from "lucide-react";
 import {
   FLAG_METADATA, FLAG_GROUPS, useAllFlags, setFlag, type FeatureFlag,
 } from "@/lib/feature-flags";
 import { useRetryQueue } from "@/components/retry-queue/RetryQueueProvider";
 
+type MigrationResult = { name: string; status: "ok" | "error"; error?: string };
+type MigrationState = { running: boolean; done: boolean; results: MigrationResult[]; error?: string };
+
 export default function DataSourceSection() {
   const flags = useAllFlags();
   const { pending, syncing, retry, removeOne, clearAll, isOnline } = useRetryQueue();
   const [confirming, setConfirming] = useState<"clear" | null>(null);
+  const [migration, setMigration] = useState<MigrationState>({ running: false, done: false, results: [] });
+
+  async function runMigration() {
+    setMigration({ running: true, done: false, results: [] });
+    try {
+      const res = await fetch("/api/admin/migrate-schema", { method: "POST" });
+      const json = await res.json();
+      setMigration({ running: false, done: true, results: json.results ?? [], error: json.error });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setMigration({ running: false, done: true, results: [], error: msg });
+    }
+  }
 
   const groups = useMemo(() => {
     const map: Record<string, FeatureFlag[]> = {};
@@ -77,6 +93,56 @@ export default function DataSourceSection() {
         </Card>
       ))}
 
+      {/* ═══ SCHEMA MIGRATION ═══ */}
+      <Card id="schema-migration">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Wrench className="h-4 w-4" /> Database Schema
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={runMigration}
+            disabled={migration.running}
+            className="gap-1.5 font-semibold"
+          >
+            {migration.running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wrench className="h-3 w-3" />}
+            {migration.running ? "Running..." : "Run Schema Migration"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-500 mb-4">
+            Adds any missing columns to your Supabase tables. Safe to run multiple times — uses <code className="text-xs bg-slate-100 dark:bg-zinc-800 px-1 rounded">IF NOT EXISTS</code> so existing data is never touched.
+          </p>
+          {!migration.done && !migration.running && (
+            <p className="text-xs text-slate-400">Click the button above to check and fix your database schema.</p>
+          )}
+          {migration.done && (
+            <div className="space-y-2">
+              {migration.error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:border-red-800/30 dark:text-red-300">
+                  <strong>API Error:</strong> {migration.error}
+                </div>
+              )}
+              {migration.results.map((r, i) => (
+                <div key={i} className={`flex items-start gap-3 rounded-lg border p-3 text-xs ${
+                  r.status === "ok"
+                    ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/30 dark:bg-emerald-900/20"
+                    : "border-red-200 bg-red-50 dark:border-red-800/30 dark:bg-red-900/20"
+                }`}>
+                  {r.status === "ok"
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    : <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />}
+                  <div className="min-w-0">
+                    <p className={`font-semibold ${r.status === "ok" ? "text-emerald-800 dark:text-emerald-300" : "text-red-800 dark:text-red-300"}`}>{r.name}</p>
+                    {r.error && <p className="mt-0.5 font-mono text-red-600 break-all">{r.error}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
       {/* ═══ SYNC ISSUES ═══ */}
       <Card id="sync-issues">
         <CardHeader className="flex flex-row items-center justify-between">

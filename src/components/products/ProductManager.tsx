@@ -93,7 +93,7 @@ export default function ProductManager() {
   const handleNew = useCallback(() => {
     setEditing({
       id: crypto.randomUUID(), name: "", hsCode: "", prefix: "",
-      defaultNW: 0, defaultGW: 0, defaultPriceMT: 0, containerType: "1×40'RH", notes: "",
+      defaultNW: 0, defaultGW: 0, defaultPriceMT: 0, containerType: "40'RH", notes: "",
     });
     setIsNew(true);
     setPrefixError("");
@@ -128,7 +128,7 @@ export default function ProductManager() {
       setPrefixError(`Prefix "${editing.prefix}" is already used. Choose another.`);
       return;
     }
-    saveProductMut.mutate({ ...editing }, {
+    saveProductMut.mutate({ payload: { ...editing }, isUpdate: !isNew }, {
       onSuccess: () => {
         setEditing(null);
         showToast(isNew ? `${editing.name} added` : `${editing.name} updated`);

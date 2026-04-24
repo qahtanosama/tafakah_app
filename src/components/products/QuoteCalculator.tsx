@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/select";
 import { Copy, Save, Check, Plus, X, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import type { ProductProfile } from "@/types/product";
-import { getProducts, getPriceHistory } from "@/lib/products";
+import { getPriceHistory } from "@/lib/products";
+import { useProducts } from "@/lib/data/products";
 import { toArabicNum, toArabicFormatted } from "@/lib/arabic";
 
 /* ── Types ─────────────────────────────────────── */
@@ -72,11 +73,11 @@ const PRODUCT_AR: Record<string, string> = {
 };
 
 const CONTAINER_AR: Record<string, string> = {
-  "1×40'RH": "١×٤٠ قدم مبرد",
-  "1×40'HC": "١×٤٠ قدم عالي",
-  "1×40'GP": "١×٤٠ قدم عادي",
-  "1×20'GP": "١×٢٠ قدم عادي",
-  "1×45'HC": "١×٤٥ قدم عالي",
+  "40'RH": "٤٠ قدم مبرد",
+  "40'HC": "٤٠ قدم عالي",
+  "40'GP": "٤٠ قدم عادي",
+  "20'GP": "٢٠ قدم عادي",
+  "45'HC": "٤٥ قدم عالي",
 };
 
 /* ── Cost Row Component ────────────────────────── */
@@ -123,10 +124,15 @@ function CostRowInput({ line, unitOptions, onChange, onDelete, usdEquiv }: {
 /*  MAIN CALCULATOR                                */
 /* ═══════════════════════════════════════════════ */
 export default function QuoteCalculator() {
-  const [products, setProducts] = useState<ProductProfile[]>([]);
+  const { data: productsData } = useProducts();
+  const products = useMemo(() => productsData ?? [], [productsData]);
+
   const [selectedId, setSelectedId] = useState("");
+  const [numContainers, setNumContainers] = useState(1);
   const [cartons, setCartons] = useState(9700);
-  const [containerType, setContainerType] = useState("1×40'RH");
+  const [nw, setNw] = useState(0);
+  const [gw, setGw] = useState(0);
+  const [containerType, setContainerType] = useState("40'RH");
   const [mainCosts, setMainCosts] = useState<CostLine[]>(defaultMainCosts());
   const [addOns, setAddOns] = useState<CostLine[]>(defaultAddOns());
   const [customItems, setCustomItems] = useState<CostLine[]>([]);
@@ -140,9 +146,10 @@ export default function QuoteCalculator() {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    const prods = getProducts();
-    setProducts(prods);
-    if (prods.length > 0) setSelectedId(prods[0].id);
+    if (products.length > 0 && !selectedId) setSelectedId(products[0].id);
+  }, [products, selectedId]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -167,11 +174,17 @@ export default function QuoteCalculator() {
   }, [quoteLang]);
 
   const product = useMemo(() => products.find((p) => p.id === selectedId), [products, selectedId]);
-  useEffect(() => { if (product) setContainerType(product.containerType); }, [product]);
+  
+  useEffect(() => { 
+    if (product) {
+      setContainerType(product.containerType);
+      setNw(product.defaultNW || 0);
+      setGw(product.defaultGW || 0);
+    } 
+  }, [product]);
 
-  const nw = product?.defaultNW ?? 0;
-  const gw = product?.defaultGW ?? 0;
-  const totalNW = nw * cartons;
+  const totalCartons = cartons * numContainers;
+  const totalNW = nw * totalCartons;
   const qtyMTS = totalNW / 1000;
 
   const calcLineUSD = useCallback((line: CostLine): number => {
@@ -179,11 +192,12 @@ export default function QuoteCalculator() {
     switch (line.unit) {
       case "per_kg": return amtUSD * totalNW;
       case "per_mt": return amtUSD * qtyMTS;
-      case "per_carton": return amtUSD * cartons;
-      case "per_container": case "flat": return amtUSD;
+      case "per_carton": return amtUSD * totalCartons;
+      case "per_container": return amtUSD * numContainers;
+      case "flat": return amtUSD;
       default: return amtUSD;
     }
-  }, [fx, totalNW, qtyMTS, cartons]);
+  }, [fx, totalNW, qtyMTS, totalCartons, numContainers]);
 
   const mainCostsUSD = useMemo(() => mainCosts.map(calcLineUSD), [mainCosts, calcLineUSD]);
   const addOnsUSD = useMemo(() => addOns.map(calcLineUSD), [addOns, calcLineUSD]);
@@ -192,15 +206,15 @@ export default function QuoteCalculator() {
   const totalAddOnUSD = addOnsUSD.reduce((s, v) => s + v, 0) + customUSD.reduce((s, v) => s + v, 0);
   const landedCost = totalMainUSD + totalAddOnUSD;
   const costPerMT = qtyMTS > 0 ? landedCost / qtyMTS : 0;
-  const costPerCarton = cartons > 0 ? landedCost / cartons : 0;
+  const costPerCarton = totalCartons > 0 ? landedCost / totalCartons : 0;
   const sellPerMT = margin < 100 ? costPerMT / (1 - margin / 100) : 0;
-  const sellPerCarton = cartons > 0 ? (sellPerMT * qtyMTS) / cartons : 0;
+  const sellPerCarton = totalCartons > 0 ? (sellPerMT * qtyMTS) / totalCartons : 0;
   const sellTotal = sellPerMT * qtyMTS;
   const profit = sellTotal - landedCost;
 
   const scenarios = [10, 15, 20, 25, 30].map((m) => {
     const spm = m < 100 ? costPerMT / (1 - m / 100) : 0;
-    return { margin: m, priceMT: spm, priceCarton: cartons > 0 ? (spm * qtyMTS) / cartons : 0, total: spm * qtyMTS };
+    return { margin: m, priceMT: spm, priceCarton: totalCartons > 0 ? (spm * qtyMTS) / totalCartons : 0, total: spm * qtyMTS };
   });
 
   const priceComparisons = useMemo(() => {
@@ -219,10 +233,10 @@ export default function QuoteCalculator() {
     if (lang === "ar") {
       const pName = PRODUCT_AR[product.name] ?? product.name;
       const cType = CONTAINER_AR[containerType] ?? containerType;
-      return `📦 عرض سعر — شركة تفكه للأغذية (شنغهاي)\n\nالمنتج: ${pName}\nالحجم: ${toArabicNum(nw, 1)} كجم / كرتون\nالحاوية: ${cType} (${toArabicFormatted(cartons)} كرتون)\nالكمية: ${toArabicNum(qtyMTS, 2)} طن متري\n\nالسعر لكل طن: ${toArabicFormatted(Math.round(sellPerMT))} دولار أمريكي\nالسعر لكل كرتون: ${toArabicNum(sellPerCarton, 2)} دولار أمريكي\nالقيمة الإجمالية: ${toArabicFormatted(Math.round(sellTotal))} دولار أمريكي\n\nالشروط: CIF (قابل للتفاوض)\nصلاحية العرض: ${toArabicNum(7)} أيام من تاريخه\n\n— شركة تفكه للأغذية (شنغهاي) المحدودة\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
+      return `📦 عرض سعر — شركة تفكه للأغذية (شنغهاي)\n\nالمنتج: ${pName}\nالحجم: ${toArabicNum(nw, 1)} كجم / كرتون\nالحاوية: ${toArabicNum(numContainers)} × ${cType} (${toArabicFormatted(totalCartons)} كرتون)\nالكمية: ${toArabicNum(qtyMTS, 2)} طن متري\n\nالسعر لكل طن: ${toArabicFormatted(Math.round(sellPerMT))} دولار أمريكي\nالسعر لكل كرتون: ${toArabicNum(sellPerCarton, 2)} دولار أمريكي\nالقيمة الإجمالية: ${toArabicFormatted(Math.round(sellTotal))} دولار أمريكي\n\nالشروط: CIF (قابل للتفاوض)\nصلاحية العرض: ${toArabicNum(7)} أيام من تاريخه\n\n— شركة تفكه للأغذية (شنغهاي) المحدودة\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
     }
-    return `📦 Quote — TAFAKAH Food (Shanghai) Co., Ltd.\n\nProduct: ${product.name}\nSize: ${nw} KG / Carton\nContainer: ${containerType} (${cartons.toLocaleString()} cartons)\nQuantity: ${qtyMTS.toFixed(2)} MTS\n\nPrice per MT: ${fmtUSD0(sellPerMT)} USD\nPrice per Carton: ${fmtUSD(sellPerCarton)} USD\nTotal Value: ${fmtUSD0(sellTotal)} USD\n\nTerms: CIF (negotiable)\nValid: 7 days from today\n\n— TAFAKAH Food (Shanghai) Co., Ltd.\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
-  }, [product, nw, containerType, cartons, qtyMTS, sellPerMT, sellPerCarton, sellTotal]);
+    return `📦 Quote — TAFAKAH Food (Shanghai) Co., Ltd.\n\nProduct: ${product.name}\nSize: ${nw} KG / Carton\nContainer: ${numContainers} × ${containerType} (${totalCartons.toLocaleString()} cartons)\nQuantity: ${qtyMTS.toFixed(2)} MTS\n\nPrice per MT: ${fmtUSD0(sellPerMT)} USD\nPrice per Carton: ${fmtUSD(sellPerCarton)} USD\nTotal Value: ${fmtUSD0(sellTotal)} USD\n\nTerms: CIF (negotiable)\nValid: 7 days from today\n\n— TAFAKAH Food (Shanghai) Co., Ltd.\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
+  }, [product, nw, containerType, numContainers, totalCartons, qtyMTS, sellPerMT, sellPerCarton, sellTotal]);
 
   const handleCopy = useCallback(() => {
     const text = showPreview ? previewText : generateQuote(quoteLang);
@@ -258,28 +272,47 @@ export default function QuoteCalculator() {
               <span className="h-2 w-2 rounded-full bg-indigo-500"></span> Configuration
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 grid gap-6 sm:grid-cols-4 items-end">
-            <div className="space-y-2">
+          <CardContent className="p-6 grid gap-6 sm:grid-cols-12 items-end">
+            <div className="space-y-2 sm:col-span-12 lg:col-span-4">
               <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Product</Label>
               <Select value={selectedId} onValueChange={(v) => v && setSelectedId(v)}>
-                <SelectTrigger className="h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 text-slate-800 font-medium focus:ring-indigo-500/20"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger className="w-full h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 text-slate-800 font-medium focus:ring-indigo-500/20">
+                  <SelectValue placeholder="Select">{product?.name}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id} className="font-medium">{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Container</Label>
+            <div className="space-y-2 sm:col-span-6 lg:col-span-3">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Container Type</Label>
               <Select value={containerType} onValueChange={(v) => v && setContainerType(v)}>
-                <SelectTrigger className="h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 text-slate-800 font-medium focus:ring-indigo-500/20"><SelectValue /></SelectTrigger>
-                <SelectContent>{["1×20'GP", "1×40'GP", "1×40'HC", "1×40'RH", "1×45'HC"].map((t) => <SelectItem key={t} value={t} className="font-medium">{t}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="w-full h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 text-slate-800 font-medium focus:ring-indigo-500/20"><SelectValue /></SelectTrigger>
+                <SelectContent>{["20'GP", "40'GP", "40'HC", "40'RH", "45'HC"].map((t) => <SelectItem key={t} value={t} className="font-medium">{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Cartons</Label>
-              <Input type="number" value={cartons} onChange={(e) => setCartons(parseInt(e.target.value) || 0)} className="h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 font-mono text-base focus:border-indigo-400 focus:ring-indigo-500/20" />
+            <div className="space-y-2 sm:col-span-6 lg:col-span-2">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Containers</Label>
+              <Input type="number" value={numContainers || ""} onChange={(e) => setNumContainers(parseInt(e.target.value) || 1)} className="w-full h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 font-mono text-base focus:border-indigo-400 focus:ring-indigo-500/20" />
             </div>
-            <div className="flex flex-col justify-end gap-1.5 p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/5 text-sm font-medium text-indigo-900 dark:text-indigo-200 border border-indigo-100/50 dark:border-indigo-500/10">
-              <div className="flex justify-between"><span>Net Weight:</span> <span className="font-mono font-bold">{totalNW.toLocaleString()} KG</span></div>
-              <div className="flex justify-between"><span>Total Qty:</span> <span className="font-mono font-bold">{qtyMTS.toFixed(2)} MTS</span></div>
+            <div className="space-y-2 sm:col-span-6 lg:col-span-3">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Cartons / Cont.</Label>
+              <Input type="number" value={cartons || ""} onChange={(e) => setCartons(parseInt(e.target.value) || 0)} className="w-full h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 font-mono text-base focus:border-indigo-400 focus:ring-indigo-500/20" />
+            </div>
+
+            {/* Row 2 */}
+            <div className="space-y-2 sm:col-span-6 lg:col-span-2">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">N.W./Ctn (KG)</Label>
+              <Input type="number" value={nw || ""} onChange={(e) => setNw(parseFloat(e.target.value) || 0)} className="w-full h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 font-mono text-base focus:border-indigo-400 focus:ring-indigo-500/20" />
+            </div>
+            <div className="space-y-2 sm:col-span-6 lg:col-span-2">
+              <Label className="text-sm font-semibold text-slate-600 dark:text-slate-400">G.W./Ctn (KG)</Label>
+              <Input type="number" value={gw || ""} onChange={(e) => setGw(parseFloat(e.target.value) || 0)} className="w-full h-10 bg-white dark:bg-zinc-800 border-slate-200 dark:border-white/10 font-mono text-base focus:border-indigo-400 focus:ring-indigo-500/20" />
+            </div>
+            <div className="flex flex-col justify-end gap-1.5 p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/5 text-sm font-medium text-indigo-900 dark:text-indigo-200 border border-indigo-100/50 dark:border-indigo-500/10 sm:col-span-12 lg:col-span-8">
+              <div className="flex flex-wrap gap-x-8 gap-y-2 items-center justify-between px-2">
+                <div className="flex items-center gap-2"><span>Total Cartons:</span> <span className="font-mono font-bold text-base">{totalCartons.toLocaleString()}</span></div>
+                <div className="flex items-center gap-2"><span>Net Weight:</span> <span className="font-mono font-bold text-base">{totalNW.toLocaleString()} KG</span></div>
+                <div className="flex items-center gap-2"><span>Total Qty:</span> <span className="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">{qtyMTS.toFixed(2)} MTS</span></div>
+              </div>
             </div>
           </CardContent>
         </Card>

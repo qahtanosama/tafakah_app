@@ -112,7 +112,11 @@ export async function migrateProducts(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res, mappings };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    for (const item of toInsert) mappings[item.localId] = `dry-run-${item.localId}`;
+    return { ok: true, result: res, mappings };
+  }
 
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
@@ -227,7 +231,11 @@ export async function migrateBuyers(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res, mappings };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    for (const item of toInsert) mappings[item.localId] = `dry-run-${item.localId}`;
+    return { ok: true, result: res, mappings };
+  }
 
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
@@ -326,7 +334,11 @@ export async function migrateSellers(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res, mappings };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    for (const item of toInsert) mappings[item.localId] = `dry-run-${item.localId}`;
+    return { ok: true, result: res, mappings };
+  }
 
   for (const s of toInsert) {
     try {
@@ -418,7 +430,11 @@ export async function migrateContracts(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res, mappings };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    for (const item of toInsert) mappings[item.localId] = `dry-run-${item.localId}`;
+    return { ok: true, result: res, mappings };
+  }
 
   for (const c of toInsert) {
     try {
@@ -488,7 +504,10 @@ export async function migrateFinance(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    return { ok: true, result: res };
+  }
 
   for (const f of toInsert) {
     try {
@@ -553,7 +572,10 @@ export async function migrateShipping(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    return { ok: true, result: res };
+  }
 
   for (const s of toInsert) {
     try {
@@ -628,7 +650,10 @@ export async function migrateDocuments(
     toInsert.push(item);
   }
 
-  if (payload.dryRun) return { ok: true, result: res };
+  if (payload.dryRun) {
+    res.migratedCount += toInsert.length;
+    return { ok: true, result: res };
+  }
 
   for (const d of toInsert) {
     try {

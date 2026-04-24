@@ -8,6 +8,8 @@ export type ShippingLine =
   | "ONE"
   | "Yang Ming"
   | "HMM"
+  | "WAN HAI"
+  | "PIL"
   | "Other"
   | "";
 
@@ -21,6 +23,8 @@ export const SHIPPING_LINES: Exclude<ShippingLine, "">[] = [
   "ONE",
   "Yang Ming",
   "HMM",
+  "WAN HAI",
+  "PIL",
   "Other",
 ];
 

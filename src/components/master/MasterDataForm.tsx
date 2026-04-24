@@ -42,16 +42,12 @@ import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/Qui
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { SalesContractData, LineItem, Product, ContractTotals } from "@/types/sales-contract";
 import {
-  getProductNames,
-  getHSCode,
   calcQtyMTS,
   calcPricePerCarton,
   calcTotals,
   createEmptyLineItem,
   getDefaultContractData,
   getPrefix,
-  generateContractNumber,
-  generateInvoiceNumber,
 } from "@/lib/sales-contract";
 
 const DownloadAllButton = dynamic(
@@ -69,8 +65,10 @@ import {
   contractNoExists,
   addContractLogEntry,
 } from "@/lib/contract-log";
-import { getBuyers, findBuyerByCompany, addBuyer, createEmptyBuyer } from "@/lib/buyers";
-import { getProductByName, getLastPriceToBuyer, getProducts } from "@/lib/products";
+import { findBuyerByCompany, addBuyer, createEmptyBuyer } from "@/lib/buyers";
+import { getLastPriceToBuyer } from "@/lib/products";
+import { useProducts } from "@/lib/data/products";
+import { useBuyers } from "@/lib/data/buyers";
 import type { Buyer } from "@/types/buyer";
 import type { Seller } from "@/types/seller";
 import { getSellers, getSellersByProduct, createEmptySeller, saveSeller } from "@/lib/sellers";
@@ -114,6 +112,10 @@ function NumInput({
 const MAX_STAMP_SIZE = 2 * 1024 * 1024; // 2 MB
 
 export default function MasterDataForm() {
+  const { data: productsData } = useProducts();
+  const productsList = productsData ?? [];
+  const { data: buyersData } = useBuyers();
+  const buyersList = buyersData ?? [];
   const [data, setData] = useState<SalesContractData>(getDefaultContractData);
   const [loaded, setLoaded] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -137,17 +139,24 @@ export default function MasterDataForm() {
   const stampInputRef = useRef<HTMLInputElement>(null);
 
   const firstProduct = data.lineItems[0]?.product || "";
-  const prefix = getPrefix(firstProduct);
+  const firstProductObj = productsList.find((p) => p.name === firstProduct);
+  const prefix = firstProductObj?.prefix || getPrefix(firstProduct);
   const year = data.identifiers.year;
   const sequence = data.identifiers.sequenceNumber;
 
   const contractNo = useMemo(
-    () => generateContractNumber(year, sequence, firstProduct),
-    [year, sequence, firstProduct]
+    () => {
+      if (!prefix || !sequence) return "";
+      return `${year}-${prefix}${sequence}`;
+    },
+    [year, sequence, prefix]
   );
   const invoiceNo = useMemo(
-    () => generateInvoiceNumber(year, sequence, firstProduct),
-    [year, sequence, firstProduct]
+    () => {
+      if (!prefix || !sequence) return "";
+      return `TAFA${year}${prefix}${sequence}`;
+    },
+    [year, sequence, prefix]
   );
 
   const computeSequence = useCallback(() => {
@@ -170,6 +179,24 @@ export default function MasterDataForm() {
     if (!loaded) return;
     computeSequence();
   }, [loaded, computeSequence]);
+
+  useEffect(() => {
+    if (!loaded || productsList.length === 0) return;
+    let changed = false;
+    const newLineItems = data.lineItems.map(item => {
+      if (item.product && !item.hsCode) {
+        const profile = productsList.find(p => p.name === item.product);
+        if (profile && profile.hsCode) {
+          changed = true;
+          return { ...item, hsCode: profile.hsCode };
+        }
+      }
+      return item;
+    });
+    if (changed) {
+      setData(prev => ({ ...prev, lineItems: newLineItems }));
+    }
+  }, [loaded, productsList, data.lineItems]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -210,12 +237,14 @@ export default function MasterDataForm() {
           if (item.id !== id) return item;
           const updated = { ...item, [field]: value };
           if (field === "product" && value) {
-            updated.hsCode = getHSCode(value as string);
-            // Auto-fill defaults from product database
-            const profile = getProductByName(value as string);
+            const profile = productsList.find((p) => p.name === value);
+            updated.hsCode = profile?.hsCode || "";
             if (profile) {
-              if (updated.nwPerCarton === "" || updated.nwPerCarton === 0) updated.nwPerCarton = profile.defaultNW;
-              if (updated.gwPerCarton === "" || updated.gwPerCarton === 0) updated.gwPerCarton = profile.defaultGW;
+              updated.nwPerCarton = profile.defaultNW;
+              updated.gwPerCarton = profile.defaultGW;
+              if (updated.pricePerMT === "" || updated.pricePerMT === 0) {
+                updated.pricePerMT = profile.defaultPriceMT;
+              }
             }
           }
           updated.qtyMTS = calcQtyMTS(updated.nwPerCarton, updated.cartons);
@@ -227,7 +256,7 @@ export default function MasterDataForm() {
         }),
       }));
     },
-    []
+    [productsList]
   );
 
   const addRow = useCallback(() => {
@@ -680,7 +709,7 @@ export default function MasterDataForm() {
           <div className="sm:col-span-2">
             <Label>Select from saved buyers</Label>
             <BuyerCombobox
-              buyers={getBuyers()}
+              buyers={buyersList}
               onSelect={(b) => {
                 setData((prev) => ({
                   ...prev,
@@ -807,14 +836,14 @@ export default function MasterDataForm() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[150px]">Product</TableHead>
-                  <TableHead className="w-[100px]">HS Code</TableHead>
-                  <TableHead className="w-[100px]">N.W./Ctn (kg)</TableHead>
-                  <TableHead className="w-[100px]">G.W./Ctn (kg)</TableHead>
-                  <TableHead className="w-[90px]">Cartons</TableHead>
-                  <TableHead className="w-[90px]">Qty MTS</TableHead>
-                  <TableHead className="w-[110px]">Price/MT ($)</TableHead>
-                  <TableHead className="w-[100px]">Price/Ctn ($)</TableHead>
+                  <TableHead className="min-w-[200px]">Product</TableHead>
+                  <TableHead className="min-w-[100px]">HS Code</TableHead>
+                  <TableHead className="min-w-[110px]">N.W./Ctn (kg)</TableHead>
+                  <TableHead className="min-w-[110px]">G.W./Ctn (kg)</TableHead>
+                  <TableHead className="min-w-[120px]">Cartons</TableHead>
+                  <TableHead className="min-w-[100px]">Qty MTS</TableHead>
+                  <TableHead className="min-w-[120px]">Price/MT ($)</TableHead>
+                  <TableHead className="min-w-[100px]">Price/Ctn ($)</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -832,9 +861,9 @@ export default function MasterDataForm() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {getProductNames().map((p) => (
-                            <SelectItem key={p} value={p}>
-                              {p}
+                          {productsList.map((p) => (
+                            <SelectItem key={p.id} value={p.name}>
+                              {p.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -930,7 +959,7 @@ export default function MasterDataForm() {
         <CardContent className="space-y-3">
           {(() => {
             const lineProductIds = data.lineItems
-              .map((i) => i.product ? getProductByName(i.product)?.id : undefined)
+              .map((i) => i.product ? productsList.find((p) => p.name === i.product)?.id : undefined)
               .filter((v): v is string => !!v);
             const uniqueProductIds = Array.from(new Set(lineProductIds));
             const matching = uniqueProductIds.length === 0
@@ -1127,6 +1156,7 @@ export default function MasterDataForm() {
         <SellerEditForm
           open={!!sellerEditing}
           initial={sellerEditing}
+          products={productsList}
           existingIds={sellers.map((s) => s.id)}
           onSave={(s) => {
             saveSeller(s);

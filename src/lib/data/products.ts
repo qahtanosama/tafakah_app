@@ -21,23 +21,26 @@ interface DbProduct {
   name_zh: string | null;
   prefix: string;
   hs_code: string;
+  default_nw: number;
+  default_gw: number;
+  default_price_mt: number;
+  container_type: string;
+  notes: string;
   created_at: string;
   updated_at: string;
 }
 
 function dbToLocal(row: DbProduct): ProductProfile {
-  // Existing app-side ProductProfile carries extra fields (defaultNW, defaultGW, defaultPriceMT, containerType, notes)
-  // that don't exist in the DB schema. Fill with sensible defaults so the UI doesn't crash.
   return {
     id: row.id,
     name: row.name,
     hsCode: row.hs_code,
     prefix: row.prefix,
-    defaultNW: 0,
-    defaultGW: 0,
-    defaultPriceMT: 0,
-    containerType: "",
-    notes: "",
+    defaultNW: Number(row.default_nw ?? 0),
+    defaultGW: Number(row.default_gw ?? 0),
+    defaultPriceMT: Number(row.default_price_mt ?? 0),
+    containerType: row.container_type ?? "",
+    notes: row.notes ?? "",
   };
 }
 
@@ -49,6 +52,11 @@ function localToDb(p: ProductProfile): Omit<DbProduct, "created_at" | "updated_a
     name_zh: null,
     prefix: p.prefix,
     hs_code: p.hsCode,
+    default_nw: p.defaultNW,
+    default_gw: p.defaultGW,
+    default_price_mt: p.defaultPriceMT,
+    container_type: p.containerType,
+    notes: p.notes,
   };
 }
 
@@ -87,11 +95,7 @@ export function useSaveProduct() {
   const key = ["products", useDb ? "db" : "local"] as const;
 
   return useMutation({
-    mutationFn: async (product: ProductProfile) => {
-      // Detect update vs insert against the current cache (same source the UI sees).
-      // Reading localStorage directly here would miss DB-backed rows when the flag is on.
-      const current = qc.getQueryData<ProductProfile[]>([...key]) ?? [];
-      const isUpdate = !!product.id && current.some((p) => p.id === product.id);
+    mutationFn: async ({ payload: product, isUpdate }: { payload: ProductProfile; isUpdate: boolean }) => {
 
       if (!useDb) {
         if (isUpdate) updateLocal(product);
@@ -104,7 +108,16 @@ export function useSaveProduct() {
         if (isUpdate) {
           const { data, error } = await supabase
             .from("products")
-            .update({ name: row.name, prefix: row.prefix, hs_code: row.hs_code })
+            .update({
+              name: row.name,
+              prefix: row.prefix,
+              hs_code: row.hs_code,
+              default_nw: row.default_nw,
+              default_gw: row.default_gw,
+              default_price_mt: row.default_price_mt,
+              container_type: row.container_type,
+              notes: row.notes,
+            })
             .eq("id", product.id)
             .select()
             .single();
@@ -125,7 +138,7 @@ export function useSaveProduct() {
       });
       return result === "queued" ? product : result;
     },
-    onMutate: async (product) => {
+    onMutate: async ({ payload: product }) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<ProductProfile[]>([...key]);
       qc.setQueryData<ProductProfile[]>([...key], (old) => {
