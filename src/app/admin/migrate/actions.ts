@@ -45,6 +45,17 @@ async function requireTeam(): Promise<{ ok: true } | { ok: false; error: string 
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
+/**
+ * Postgres `date` columns reject empty strings. Local data often stores unset dates as "".
+ * Coerce "" → null so the insert doesn't fail.
+ */
+function normalizeDate(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 function emptyResult(entity: MigrationEntity, localCount: number): EntityMigrationResult {
   return { entity, localCount, migratedCount: 0, failedCount: 0, skippedExisting: 0, errors: [] };
 }
@@ -445,7 +456,7 @@ export async function migrateContracts(
           invoice_no: c.invoiceNo,
           buyer_id: c.buyerId,
           seller_id: c.sellerId,
-          contract_date: c.contractDate ?? null,
+          contract_date: normalizeDate(c.contractDate),
           line_items: c.lineItems,
           terms: c.terms ?? null,
           totals: c.totals ?? null,
@@ -581,10 +592,10 @@ export async function migrateShipping(
     try {
       const { error } = await withRetries(async () => admin.from("contract_shipping").insert({
         contract_id: s.contractId,
-        etd: s.etd ?? null,
-        atd: s.atd ?? null,
-        eta: s.eta ?? null,
-        ata: s.ata ?? null,
+        etd: normalizeDate(s.etd),
+        atd: normalizeDate(s.atd),
+        eta: normalizeDate(s.eta),
+        ata: normalizeDate(s.ata),
         carrier: s.carrier ?? null,
         vessel: s.vessel ?? null,
         voyage: s.voyage ?? null,
@@ -673,6 +684,52 @@ export async function migrateDocuments(
     await sleep(BATCH_DELAY_MS);
   }
   return { ok: true, result: res };
+}
+
+/* ═════════════════════════ BACKFILL PAYMENT IDS (DB) ═════════════════════════ */
+
+interface RawPayment { id?: string; [k: string]: unknown }
+
+export async function backfillPaymentIdsInDb(): Promise<{
+  ok: boolean;
+  error?: string;
+  scanned?: number;
+  updated?: number;
+  paymentsTouched?: number;
+}> {
+  const guard = await requireTeam();
+  if (!guard.ok) return { ok: false, error: guard.error };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("contract_finance")
+    .select("contract_id, payments_received");
+  if (error) return { ok: false, error: `Fetch finance failed: ${error.message}` };
+
+  const rows = (data ?? []) as Array<{ contract_id: string; payments_received: RawPayment[] | null }>;
+  let updated = 0;
+  let paymentsTouched = 0;
+
+  for (const row of rows) {
+    const payments = Array.isArray(row.payments_received) ? row.payments_received : [];
+    let changed = false;
+    const next = payments.map((p) => {
+      if (!p || typeof p !== "object") return p;
+      if (typeof p.id === "string" && p.id.length > 0) return p;
+      changed = true;
+      paymentsTouched++;
+      return { ...p, id: crypto.randomUUID() };
+    });
+    if (!changed) continue;
+    const { error: updErr } = await admin
+      .from("contract_finance")
+      .update({ payments_received: next })
+      .eq("contract_id", row.contract_id);
+    if (updErr) return { ok: false, error: `Update ${row.contract_id} failed: ${updErr.message}`, scanned: rows.length, updated, paymentsTouched };
+    updated++;
+  }
+
+  return { ok: true, scanned: rows.length, updated, paymentsTouched };
 }
 
 /* ═════════════════════════ DB SUMMARY ═════════════════════════ */

@@ -1,5 +1,6 @@
 import type { ContractFinance, CostItem, PaymentItem, FinanceSummary, PaymentStatus } from "@/types/finance";
 import { PREDEFINED_COSTS } from "@/types/finance";
+import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
 
 const STORAGE_KEY = "contract-finance";
 
@@ -7,7 +8,17 @@ export function getAllFinance(): ContractFinance[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as ContractFinance[];
+    const parsed = JSON.parse(raw) as ContractFinance[];
+    let mutated = false;
+    const out = parsed.map((f) => {
+      const { changed, record } = backfillPaymentIds(f);
+      if (changed) mutated = true;
+      return record;
+    });
+    if (mutated) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(out)); } catch { /* ignore */ }
+    }
+    return out;
   } catch {
     return [];
   }
@@ -18,7 +29,9 @@ function saveAll(data: ContractFinance[]): void {
 }
 
 export function getFinance(contractNo: string): ContractFinance | null {
-  return getAllFinance().find((f) => f.contractNo === contractNo) ?? null;
+  const found = getAllFinance().find((f) => f.contractNo === contractNo) ?? null;
+  if (!found) return null;
+  return backfillPaymentIds(found).record;
 }
 
 export function saveFinance(finance: ContractFinance): void {

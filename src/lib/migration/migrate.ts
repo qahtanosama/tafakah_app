@@ -352,18 +352,46 @@ export async function runMigration(options: RunOptions): Promise<MigrationRun> {
     // ── finance ──
     emit("contract_finance", "started");
     const financeEntries = readContractFinance();
-    const fPayloads: FinancePayload[] = [];
+    // True orphans: finance rows whose contract no longer exists in local storage.
+    // These are safe to delete from localStorage; nothing else references them.
+    const localContractNos = new Set(contracts.map((c) => c.contractNo));
+    const liveFinance: typeof financeEntries = [];
+    const orphanFinance: typeof financeEntries = [];
     for (const f of financeEntries) {
+      if (localContractNos.has(f.contractNo)) liveFinance.push(f);
+      else orphanFinance.push(f);
+    }
+    let cleanedOrphans = 0;
+    if (!options.dryRun && orphanFinance.length > 0) {
+      try {
+        localStorage.setItem("contract-finance", JSON.stringify(liveFinance));
+        cleanedOrphans = orphanFinance.length;
+        console.log(`[migration] cleaned ${cleanedOrphans} orphaned finance entry/entries from localStorage`);
+      } catch (e) {
+        console.warn("[migration] failed to clean orphaned finance entries:", e);
+      }
+    }
+
+    const fPayloads: FinancePayload[] = [];
+    let unresolvedFkCount = 0;
+    for (const f of liveFinance) {
       const payload = toFinancePayload(f, idMap);
       if (payload) fPayloads.push(payload);
+      else unresolvedFkCount++; // contract exists locally but didn't migrate this run (e.g. failed)
     }
     const fResp = await migrateFinance({ items: fPayloads, dryRun: options.dryRun });
     if (!fResp.ok || !fResp.result) throw new Error(fResp.error ?? "finance migration failed");
-    // Account for finance entries whose contract FK couldn't be resolved (orphaned)
-    if (financeEntries.length > fPayloads.length) {
-      const orphaned = financeEntries.length - fPayloads.length;
-      fResp.result.skippedExisting += orphaned;
-      fResp.result.errors.push({ message: `Skipped ${orphaned} orphaned finance entry/entries (contract deleted)` });
+
+    if (cleanedOrphans > 0) {
+      fResp.result.errors.push({
+        message: `Cleaned ${cleanedOrphans} orphaned finance entry/entries from localStorage (contract deleted)`,
+      });
+    }
+    if (unresolvedFkCount > 0) {
+      fResp.result.skippedExisting += unresolvedFkCount;
+      fResp.result.errors.push({
+        message: `Skipped ${unresolvedFkCount} finance entry/entries whose contract failed to migrate`,
+      });
     }
     fResp.result.localCount = financeEntries.length;
     record(fResp.result);

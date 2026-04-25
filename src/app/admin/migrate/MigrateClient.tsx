@@ -7,10 +7,12 @@ import {
 } from "@/components/ui/table";
 import { AlertTriangle, CheckCircle, Loader2, Play, RefreshCw, Search, Copy } from "lucide-react";
 import type { DbCounts } from "./actions";
-import { getDbCounts } from "./actions";
+import { getDbCounts, backfillPaymentIdsInDb } from "./actions";
 import type { MigrationRun, EntityMigrationResult, MigrationEntity } from "@/lib/migration/types";
 import { MIGRATION_ENTITIES } from "@/lib/migration/types";
 import { runMigration, getLocalCounts, isMigrationRunning, type LocalCounts } from "@/lib/migration/migrate";
+import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
+import type { ContractFinance } from "@/types/finance";
 
 const ENTITY_LABELS: Record<MigrationEntity, string> = {
   products: "Products",
@@ -39,6 +41,8 @@ export default function MigrateClient({
   const [progress, setProgress] = useState<Partial<Record<MigrationEntity, EntityMigrationResult | "pending" | "running">>>({});
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [raceWarning, setRaceWarning] = useState(false);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -186,6 +190,69 @@ export default function MigrateClient({
           {fatalError}
         </div>
       )}
+
+      {/* Backfill payment ids */}
+      <section className="rounded-xl border bg-white p-5 dark:bg-zinc-900">
+        <h2 className="mb-2 text-lg font-semibold">Backfill payment ids</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          Older payments may not have stable ids, which receipts need. This is idempotent &mdash; safe to run any time.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={backfillBusy}
+          onClick={async () => {
+            setBackfillBusy(true);
+            setBackfillMsg(null);
+            try {
+              // Local
+              let localFiles = 0;
+              let localPayments = 0;
+              try {
+                const raw = localStorage.getItem("contract-finance");
+                if (raw) {
+                  const arr = JSON.parse(raw) as ContractFinance[];
+                  let mutated = false;
+                  const next = arr.map((f) => {
+                    const before = (f.payments ?? []).filter((p) => !p.id).length;
+                    const { changed, record } = backfillPaymentIds(f);
+                    if (changed) {
+                      mutated = true;
+                      localFiles++;
+                      localPayments += before;
+                    }
+                    return record;
+                  });
+                  if (mutated) localStorage.setItem("contract-finance", JSON.stringify(next));
+                }
+              } catch (e) {
+                console.error("local backfill failed", e);
+              }
+
+              // DB
+              const dbResp = await backfillPaymentIdsInDb();
+              if (!dbResp.ok) {
+                setBackfillMsg(`DB error: ${dbResp.error ?? "unknown"} (local: ${localFiles} record(s), ${localPayments} payment(s) updated)`);
+              } else {
+                setBackfillMsg(
+                  `Local: ${localFiles} record(s), ${localPayments} payment(s) updated. DB: ${dbResp.updated}/${dbResp.scanned} record(s), ${dbResp.paymentsTouched} payment(s) updated.`,
+                );
+              }
+            } finally {
+              setBackfillBusy(false);
+            }
+          }}
+          className="gap-1"
+        >
+          {backfillBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Backfill payment ids
+        </Button>
+        {backfillMsg && (
+          <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+            {backfillMsg}
+          </p>
+        )}
+      </section>
 
       {/* Re-run section */}
       {migrateResult?.status === "success" && (

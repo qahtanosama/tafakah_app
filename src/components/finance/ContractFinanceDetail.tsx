@@ -19,13 +19,16 @@ import { PAYMENT_METHODS } from "@/types/finance";
 import { getContractLog } from "@/lib/contract-log";
 import { calcTotals } from "@/lib/sales-contract";
 import { getFinance, saveFinance, createEmptyFinance, ensurePredefinedRows, calcSummary } from "@/lib/finance";
+import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
+import { createClient } from "@/lib/supabase/client";
+import PaymentReceipts from "@/components/finance/PaymentReceipts";
 
 function fmtUSD(n: number) {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtDate(iso: string) {
-  if (!iso) return "\u2014";
+  if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
@@ -97,7 +100,7 @@ function CostRow({
           onFocus={() => setFocused(true)}
           onBlurCapture={() => setFocused(false)}
           className="h-9 w-full rounded border-transparent bg-transparent px-2 text-right font-mono text-sm outline-none transition-colors focus:border-blue-300 focus:bg-white focus:ring-1 focus:ring-blue-200 dark:focus:bg-zinc-800"
-          placeholder="\u2014"
+          placeholder="—"
         />
       </td>
       <td className="w-[140px] px-2 py-1">
@@ -129,6 +132,8 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   const [savedId, setSavedId] = useState<string | null>(null);
   const [newPayment, setNewPayment] = useState<Partial<PaymentItem>>({});
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [contractUuid, setContractUuid] = useState<string | null | undefined>(undefined);
+  const [isSyncingContract, setIsSyncingContract] = useState(false);
   const savedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -138,8 +143,32 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
     let f = getFinance(contractNo);
     if (!f) f = createEmptyFinance(contractNo);
     else f = ensurePredefinedRows(f);
+    // Defensive: ensure every payment has a stable id even if the localStorage reader missed it.
+    const { changed, record } = backfillPaymentIds(f);
+    if (changed) {
+      f = record;
+      saveFinance(f);
+    }
     setFinance(f);
     setLoaded(true);
+  }, [contractNo]);
+
+  // Resolve the Supabase contracts.id (uuid) from contract_no for the receipts component.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await createClient()
+          .from("contracts")
+          .select("id")
+          .eq("contract_no", contractNo)
+          .maybeSingle();
+        if (!cancelled) setContractUuid((data as { id: string } | null)?.id ?? null);
+      } catch {
+        if (!cancelled) setContractUuid(null);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [contractNo]);
 
   const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems) : null, [contract]);
@@ -322,6 +351,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Method</TableHead>
                 <TableHead>Reference</TableHead>
+                <TableHead>Receipts</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -331,17 +361,62 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
                   <TableCell className="text-sm">{fmtDate(p.date)}</TableCell>
                   <TableCell className="text-right font-mono">{fmtUSD(p.amount)}</TableCell>
                   <TableCell>{p.method}</TableCell>
-                  <TableCell className="text-sm">{p.reference || "\u2014"}</TableCell>
+                  <TableCell className="text-sm">{p.reference || "—"}</TableCell>
+                  <TableCell>
+                    {contractUuid === undefined ? (
+                      <span className="text-[11px] text-zinc-400">Loading…</span>
+                    ) : contractUuid ? (
+                      <PaymentReceipts contractId={contractUuid} paymentId={p.id} isClient={false} />
+                    ) : (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={isSyncingContract}
+                        className="h-6 gap-1 border-amber-200 bg-amber-50 px-2 text-[11px] text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-400"
+                        onClick={async () => {
+                          if (isSyncingContract) return;
+                          setIsSyncingContract(true);
+                          try {
+                            // Sync this contract explicitly
+                            const { runMigration } = await import("@/lib/migration/migrate");
+                            await runMigration({ dryRun: false });
+                            
+                            // Re-check the UUID
+                            const { createClient } = await import("@/lib/supabase/client");
+                            const { data } = await createClient()
+                              .from("contracts")
+                              .select("id")
+                              .eq("contract_no", contractNo)
+                              .maybeSingle();
+                            
+                            if (data?.id) {
+                              setContractUuid(data.id);
+                            } else {
+                              alert("Sync completed but could not resolve contract ID.");
+                            }
+                          } catch (err) {
+                            console.error("Failed to sync:", err);
+                            alert("Failed to sync contract to DB.");
+                          } finally {
+                            setIsSyncingContract(false);
+                          }
+                        }}
+                      >
+                        {isSyncingContract ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        {isSyncingContract ? "Syncing..." : "Sync contract to DB to attach receipts"}
+                      </Button>
+                    )}
+                  </TableCell>
                   <TableCell><Button variant="ghost" size="icon" onClick={() => handleDeletePayment(p.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></TableCell>
                 </TableRow>
               ))}
               {(finance?.payments ?? []).length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-8 text-center text-zinc-400">No payments recorded yet</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-zinc-400">No payments recorded yet</TableCell></TableRow>
               )}
               <TableRow className="bg-zinc-50 font-bold dark:bg-zinc-800">
                 <TableCell>TOTAL RECEIVED</TableCell>
                 <TableCell className="text-right font-mono">{fmtUSD(summary.totalReceived)}</TableCell>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <span className={summary.outstanding > 1 ? "text-amber-600" : "text-emerald-600"}>
                     Outstanding: {fmtUSD(Math.max(0, summary.outstanding))}
                   </span>
