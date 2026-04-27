@@ -1,0 +1,144 @@
+{
+  "portal": {
+    "nav": {
+      "dashboard": "لوحة التحكم",
+      "contracts": "عقودي",
+      "profile": "الملف الشخصي",
+      "logout": "تسجيل الخروج",
+      "language": "اللغة"
+    },
+    "dashboard": {
+      "welcome": "أهلاً بك، {name}",
+      "subtitle": "وثائقك التجارية وشحناتك في لمحة",
+      "activeContracts": "العقود النشطة",
+      "totalValue": "القيمة الإجمالية",
+      "outstandingBalance": "الرصيد المستحق",
+      "noContracts": "لا توجد عقود بعد. سيقوم مندوب تفكه بإعداد طلبك الأول.",
+      "yourContracts": "عقودك"
+    },
+    "contractCard": {
+      "stage": "المرحلة",
+      "etd": "تاريخ الشحن المتوقع",
+      "eta": "تاريخ الوصول المتوقع",
+      "viewDetails": "عرض التفاصيل",
+      "invoiceNo": "رقم الفاتورة",
+      "stages": {
+        "costed": "التسعير",
+        "docs-generated": "الوثائق جاهزة",
+        "sent-to-factory": "في المصنع",
+        "sc-sent-to-buyer": "تم إرسال العقد",
+        "shipped": "في الطريق",
+        "certs-ready": "الشهادات جاهزة",
+        "delivered": "تم التسليم"
+      }
+    },
+    "contractDetail": {
+      "back": "العودة للوحة التحكم",
+      "contractInfo": "معلومات العقد",
+      "shipping": "الشحن",
+      "documents": "الوثائق",
+      "payments": "المدفوعات",
+      "noDocs": "لا توجد وثائق متاحة بعد",
+      "noPayments": "لم تسجل أي مدفوعات",
+      "downloadDoc": "تحميل",
+      "totalAmount": "المبلغ الإجمالي",
+      "totalReceived": "المستلم",
+      "outstanding": "المتبقي",
+      "fullyPaid": "تم السداد بالكامل",
+      "loadingPort": "ميناء التحميل",
+      "dischargePort": "ميناء التفريغ",
+      "incoterm": "شروط التسليم",
+      "brand": "العلامة التجارية",
+      "containerType": "نوع الحاوية",
+      "quantity": "الكمية",
+      "cartons": "الكراتين",
+      "contractDate": "تاريخ العقد",
+      "notFound": "العقد غير موجود",
+      "notFoundHint": "هذا العقد غير موجود أو ليس لديك صلاحية للوصول إليه."
+    },
+    "shipping": {
+      "vessel": "السفينة",
+      "voyage": "الرحلة",
+      "blNumber": "رقم بوليصة الشحن",
+      "carrier": "الناقل",
+      "container": "الحاوية",
+      "loadingPort": "ميناء التحميل",
+      "dischargePort": "ميناء التفريغ",
+      "etd": "ETD",
+      "atd": "غادرت",
+      "eta": "ETA",
+      "ata": "وصلت",
+      "trackingTimeline": "الجدول الزمني للشحنة",
+      "noShipping": "تفاصيل الشحن غير متوفرة بعد",
+      "stages": {
+        "booked": "تم الحجز",
+        "documents": "الوثائق جاهزة",
+        "factory": "في المصنع",
+        "loaded": "تم التحميل",
+        "departed": "غادرت",
+        "atSea": "في الطريق",
+        "arrived": "وصلت",
+        "delivered": "تم التسليم"
+      }
+    },
+    "documentTypes": {
+      "sc": "عقد البيع",
+      "ci": "الفاتورة التجارية",
+      "pl": "قائمة التعبئة",
+      "co": "شهادة المنشأ",
+      "health": "الشهادة الصحية",
+      "phyto": "الشهادة الزراعية",
+      "bl": "بوليصة الشحن",
+      "other": "وثيقة أخرى"
+    },
+    "payments": {
+      "date": "التاريخ",
+      "amount": "المبلغ",
+      "method": "الطريقة",
+      "reference": "المرجع",
+      "receipts": "الإيصالات",
+      "addReceipt": "إضافة إيصال",
+      "uploadedBy": "تم التحميل بواسطة",
+      "team": "تفكه",
+      "client": "أنت",
+      "noReference": "لا يوجد مرجع"
+    },
+    "profile": {
+      "title": "ملفي الشخصي",
+      "company": "الشركة",
+      "contact": "جهة الاتصال",
+      "email": "البريد الإلكتروني",
+      "phone": "الهاتف",
+      "country": "البلد",
+      "city": "المدينة",
+      "address": "العنوان",
+      "language": "لغة العرض",
+      "languageNote": "تطبق التغييرات عند إعادة تحميل الصفحة",
+      "readOnlyNote": "لتحديث معلومات الشركة، يرجى التواصل مع مندوب تفكه.",
+      "preferences": "التفضيلات",
+      "account": "الحساب",
+      "changePassword": "تغيير كلمة المرور",
+      "currentPassword": "كلمة المرور الحالية",
+      "newPassword": "كلمة المرور الجديدة",
+      "confirmNewPassword": "تأكيد كلمة المرور الجديدة",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "passwordChanged": "تم تحديث كلمة المرور بنجاح.",
+      "passwordMismatch": "كلمتا المرور غير متطابقتين.",
+      "passwordTooShort": "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل."
+    },
+    "footer": {
+      "copyright": "© {year} شركة تفكه فود (شنغهاي) المحدودة"
+    },
+    "common": {
+      "loading": "جاري التحميل...",
+      "error": "حدث خطأ ما",
+      "retry": "إعادة المحاولة",
+      "openMenu": "فتح القائمة",
+      "closeMenu": "إغلاق القائمة",
+      "currency": {
+        "usd": "دولار أمريكي"
+      }
+    }
+  }
+}

@@ -165,12 +165,16 @@ export function RetryQueueProvider({ children }: { children: React.ReactNode }) 
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [isOnline, pending, retry]);
 
+  // Retain the auto-retry ticker reference. retryDue runs from the periodic effect.
+  void retryDue;
+
   const value: Ctx = {
     pending,
     pendingCount: pending.length,
     syncing,
     isOnline,
     retry,
+    retryOne,
     removeOne,
     clearAll,
   };

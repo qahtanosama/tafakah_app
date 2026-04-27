@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { Providers } from "./providers";
 import AuthBadge from "@/components/auth/AuthBadge";
 import MigrationBanner from "@/components/migration/MigrationBanner";

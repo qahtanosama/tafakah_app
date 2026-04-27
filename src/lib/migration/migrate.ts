@@ -34,7 +34,7 @@ import {
   type ProductPayload,
   type SellerPayload,
   type ShippingPayload,
-} from "@/app/admin/migrate/actions";
+} from "@/app/(team)/admin/migrate/actions";
 
 export interface MigrationProgressEvent {
   entity: MigrationEntity;

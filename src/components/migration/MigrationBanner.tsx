@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CloudUpload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuthContext } from "@/app/providers";
+import { useAuthContext } from "@/app/(team)/providers";
 import { useMigrationStatus } from "@/hooks/useMigrationStatus";
 
 export default function MigrationBanner() {

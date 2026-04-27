@@ -11,11 +11,14 @@ export default async function LoginPage() {
   if (user) {
     const { data: profile } = await supabase
       .from("users_profile")
-      .select("role, is_active")
+      .select("role, is_active, preferred_language")
       .eq("user_id", user.id)
       .single();
     if (profile?.is_active) {
-      redirect(profile.role === "client" ? "/portal" : "/");
+      if (profile.role === "client") {
+        redirect(profile.preferred_language === "ar" ? "/ar/portal" : "/portal");
+      }
+      redirect("/");
     }
   }
 

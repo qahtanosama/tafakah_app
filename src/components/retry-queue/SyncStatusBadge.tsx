@@ -1,11 +1,19 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { CloudOff, Cloud, Loader2, AlertTriangle } from "lucide-react";
 import { useRetryQueue } from "./RetryQueueProvider";
 
 export default function SyncStatusBadge() {
   const { pendingCount, syncing, isOnline } = useRetryQueue();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   if (!isOnline) {
     return (

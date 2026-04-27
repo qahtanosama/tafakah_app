@@ -12,7 +12,7 @@ import {
   resetClientPasswordForBuyer,
   createClientUserForBuyer,
   type BuyerPortalStatus,
-} from "@/app/admin/users/actions";
+} from "@/app/(team)/admin/users/actions";
 
 interface Props {
   localBuyerId: string;

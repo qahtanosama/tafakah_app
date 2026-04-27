@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { LogOut, UserCircle2, Loader2, ChevronDown } from "lucide-react";
-import { useAuthContext } from "@/app/providers";
+import { useAuthContext } from "@/app/(team)/providers";
 
 /** Small floating badge in the top-right showing who's signed in + logout. */
 export default function AuthBadge() {

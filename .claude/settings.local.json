@@ -30,7 +30,11 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(git tag *)",
       "Bash(xargs grep *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Move-Item *)",
+      "Bash(rm -rf \"[locale]\")",
+      "Bash(mkdir -p \"\\(portal\\)/[locale]/portal\")"
     ]
   }
 }

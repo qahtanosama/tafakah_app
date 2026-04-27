@@ -1,0 +1,144 @@
+{
+  "portal": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "contracts": "My Contracts",
+      "profile": "Profile",
+      "logout": "Sign Out",
+      "language": "Language"
+    },
+    "dashboard": {
+      "welcome": "Welcome, {name}",
+      "subtitle": "Your trade documents and shipments at a glance",
+      "activeContracts": "Active Contracts",
+      "totalValue": "Total Value",
+      "outstandingBalance": "Outstanding Balance",
+      "noContracts": "No contracts yet. Your TAFAKAH representative will set up your first order.",
+      "yourContracts": "Your Contracts"
+    },
+    "contractCard": {
+      "stage": "Stage",
+      "etd": "Estimated Departure",
+      "eta": "Estimated Arrival",
+      "viewDetails": "View Details",
+      "invoiceNo": "Invoice No.",
+      "stages": {
+        "costed": "Pricing",
+        "docs-generated": "Documents Ready",
+        "sent-to-factory": "With Factory",
+        "sc-sent-to-buyer": "Contract Sent",
+        "shipped": "In Transit",
+        "certs-ready": "Certificates Ready",
+        "delivered": "Delivered"
+      }
+    },
+    "contractDetail": {
+      "back": "Back to Dashboard",
+      "contractInfo": "Contract Information",
+      "shipping": "Shipping",
+      "documents": "Documents",
+      "payments": "Payments",
+      "noDocs": "No documents available yet",
+      "noPayments": "No payments recorded",
+      "downloadDoc": "Download",
+      "totalAmount": "Total Amount",
+      "totalReceived": "Received",
+      "outstanding": "Outstanding",
+      "fullyPaid": "Fully Paid",
+      "loadingPort": "Loading Port",
+      "dischargePort": "Discharge Port",
+      "incoterm": "Incoterm",
+      "brand": "Brand",
+      "containerType": "Container Type",
+      "quantity": "Quantity",
+      "cartons": "Cartons",
+      "contractDate": "Contract Date",
+      "notFound": "Contract not found",
+      "notFoundHint": "This contract does not exist or you do not have access to it."
+    },
+    "shipping": {
+      "vessel": "Vessel",
+      "voyage": "Voyage",
+      "blNumber": "B/L Number",
+      "carrier": "Carrier",
+      "container": "Container",
+      "loadingPort": "Loading Port",
+      "dischargePort": "Discharge Port",
+      "etd": "ETD",
+      "atd": "Departed",
+      "eta": "ETA",
+      "ata": "Arrived",
+      "trackingTimeline": "Shipment Timeline",
+      "noShipping": "Shipping details not yet available",
+      "stages": {
+        "booked": "Booked",
+        "documents": "Documents Ready",
+        "factory": "At Factory",
+        "loaded": "Loaded",
+        "departed": "Departed",
+        "atSea": "In Transit",
+        "arrived": "Arrived",
+        "delivered": "Delivered"
+      }
+    },
+    "documentTypes": {
+      "sc": "Sales Contract",
+      "ci": "Commercial Invoice",
+      "pl": "Packing List",
+      "co": "Certificate of Origin",
+      "health": "Health Certificate",
+      "phyto": "Phytosanitary Certificate",
+      "bl": "Bill of Lading",
+      "other": "Other Document"
+    },
+    "payments": {
+      "date": "Date",
+      "amount": "Amount",
+      "method": "Method",
+      "reference": "Reference",
+      "receipts": "Receipts",
+      "addReceipt": "Add Receipt",
+      "uploadedBy": "Uploaded by",
+      "team": "TAFAKAH",
+      "client": "You",
+      "noReference": "No reference"
+    },
+    "profile": {
+      "title": "My Profile",
+      "company": "Company",
+      "contact": "Contact",
+      "email": "Email",
+      "phone": "Phone",
+      "country": "Country",
+      "city": "City",
+      "address": "Address",
+      "language": "Display Language",
+      "languageNote": "Changes apply on next page load",
+      "readOnlyNote": "To update company information, contact your TAFAKAH representative.",
+      "preferences": "Preferences",
+      "account": "Account",
+      "changePassword": "Change Password",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmNewPassword": "Confirm New Password",
+      "save": "Save",
+      "cancel": "Cancel",
+      "passwordChanged": "Password updated successfully.",
+      "passwordMismatch": "New passwords do not match.",
+      "passwordTooShort": "Password must be at least 8 characters."
+    },
+    "footer": {
+      "copyright": "© {year} TAFAKAH Food (Shanghai) Co., Ltd."
+    },
+    "common": {
+      "loading": "Loading...",
+      "error": "Something went wrong",
+      "retry": "Retry",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "currency": {
+        "usd": "USD"
+      }
+    }
+  }
+}

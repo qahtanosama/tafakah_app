@@ -44,7 +44,7 @@ export default function LoginForm() {
 
       const { data: profile, error: profileErr } = await supabase
         .from("users_profile")
-        .select("role, is_active")
+        .select("role, is_active, preferred_language")
         .eq("user_id", user.id)
         .single();
 
@@ -60,7 +60,12 @@ export default function LoginForm() {
       }
 
       const next = searchParams?.get("next");
-      const destination = profile.role === "client" ? "/portal" : (next && next !== "/login" ? next : "/");
+      let destination: string;
+      if (profile.role === "client") {
+        destination = profile.preferred_language === "ar" ? "/ar/portal" : "/portal";
+      } else {
+        destination = next && next !== "/login" ? next : "/";
+      }
       router.replace(destination);
       router.refresh();
     } catch (err) {
