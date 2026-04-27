@@ -58,7 +58,7 @@ export default function SalesContractForm() {
   const data = active?.data ?? null;
 
   const totals = useMemo(
-    () => (data ? calcTotals(data.lineItems) : null),
+    () => (data ? calcTotals(data.lineItems, data.terms?.numberOfContainers) : null),
     [data]
   );
 

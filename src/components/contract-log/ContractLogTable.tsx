@@ -127,7 +127,7 @@ export default function ContractLogTable() {
     const all = getAllFinance();
     const map: Record<string, ReturnType<typeof calcSummary>> = {};
     for (const e of log) {
-      const t = calcTotals(e.masterSnapshot.lineItems);
+      const t = calcTotals(e.masterSnapshot.lineItems, e.masterSnapshot.terms?.numberOfContainers);
       const f = all.find((fi) => fi.contractNo === e.contractNo) ?? null;
       map[e.contractNo] = calcSummary(t.totalUSD, f);
     }

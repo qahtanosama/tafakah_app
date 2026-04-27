@@ -89,25 +89,23 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
             <Text style={[s.tableHeaderText, s.colProduct]}>Product</Text>
             <Text style={[s.tableHeaderText, s.colHS]}>HS Code</Text>
             <Text style={[s.tableHeaderText, s.colNW]}>N.W./Ctn</Text>
-            <Text style={[s.tableHeaderText, s.colGW]}>G.W./Ctn</Text>
             <Text style={[s.tableHeaderText, s.colCtns]}>Cartons</Text>
             <Text style={[s.tableHeaderText, s.colQty]}>Qty (MTS)</Text>
-            <Text style={[s.tableHeaderText, s.colPrice]}>Price/MT</Text>
             <Text style={[s.tableHeaderText, s.colPriceCtn]}>Price/Ctn</Text>
             <Text style={[s.tableHeaderText, s.colTotal]}>Amount</Text>
           </View>
           {filledItems.map((item, i) => {
-            const cartons = typeof item.cartons === "number" ? item.cartons : 0;
+            const multiplier = typeof data.terms.numberOfContainers === "number" && data.terms.numberOfContainers > 0 ? data.terms.numberOfContainers : 1;
+            const cartons = typeof item.cartons === "number" ? item.cartons * multiplier : 0;
+            const itemQtyMTS = item.qtyMTS * multiplier;
             const amount = item.pricePerCarton * cartons;
             return (
               <View style={s.tableRow} key={i}>
                 <Text style={[{ fontSize: 9 }, s.colProduct]}>{item.product}</Text>
                 <Text style={[{ fontSize: 9 }, s.colHS]}>{item.hsCode}</Text>
                 <Text style={[{ fontSize: 9 }, s.colNW]}>{item.nwPerCarton !== "" ? fmt(item.nwPerCarton as number) : ""}</Text>
-                <Text style={[{ fontSize: 9 }, s.colGW]}>{item.gwPerCarton !== "" ? fmt(item.gwPerCarton as number) : ""}</Text>
                 <Text style={[{ fontSize: 9 }, s.colCtns]}>{cartons || ""}</Text>
-                <Text style={[{ fontSize: 9 }, s.colQty]}>{fmt(item.qtyMTS, 3)}</Text>
-                <Text style={[{ fontSize: 9 }, s.colPrice]}>{item.pricePerMT !== "" ? fmtUSD(item.pricePerMT as number) : ""}</Text>
+                <Text style={[{ fontSize: 9 }, s.colQty]}>{fmt(itemQtyMTS, 3)}</Text>
                 <Text style={[{ fontSize: 9 }, s.colPriceCtn]}>{fmtUSD(item.pricePerCarton)}</Text>
                 <Text style={[{ fontSize: 9 }, s.colTotal]}>{fmtUSD(amount)}</Text>
               </View>
@@ -117,10 +115,8 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
             <Text style={[{ fontSize: 9, fontFamily: "Times-Bold" }, s.colProduct]}>TOTAL</Text>
             <Text style={[{ fontSize: 9 }, s.colHS]}></Text>
             <Text style={[{ fontSize: 9 }, s.colNW]}></Text>
-            <Text style={[{ fontSize: 9 }, s.colGW]}></Text>
             <Text style={[{ fontSize: 9, fontFamily: "Times-Bold" }, s.colCtns]}>{totals.totalCartons}</Text>
             <Text style={[{ fontSize: 9, fontFamily: "Times-Bold" }, s.colQty]}>{fmt(totals.totalQtyMTS, 3)}</Text>
-            <Text style={[{ fontSize: 9 }, s.colPrice]}></Text>
             <Text style={[{ fontSize: 9 }, s.colPriceCtn]}></Text>
             <Text style={[{ fontSize: 9, fontFamily: "Times-Bold" }, s.colTotal]}>{fmtUSD(totals.totalUSD)}</Text>
           </View>
@@ -136,7 +132,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>1. ORIGIN: </Text>{data.shipping.origin}</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>2. BRAND: </Text>{data.terms.brand}</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>3. DELIVERY: </Text>{data.shipping.incoterm} — from {data.shipping.loadingPort} to {data.shipping.dischargePort || "\u2014"}</Text></View>
-            <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>4. PACKING: </Text>{data.terms.containerType}</Text></View>
+            <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>4. PACKING: </Text>{data.terms.numberOfContainers && data.terms.numberOfContainers > 1 ? `${data.terms.numberOfContainers}x ` : ""}{data.terms.containerType}</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>5. DAMAGE ALLOWANCE: </Text>{data.terms.damageAllowance} of invoice value</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>6. PAYMENT: </Text>T/T (Telegraphic Transfer) to seller&apos;s bank account below.</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>7. VALIDITY: </Text>This contract is valid until {formatDate(data.terms.contractValidTo)}.</Text></View>

@@ -51,6 +51,7 @@ export interface TermsInfo {
   damageAllowance: string;
   contractValidTo: string;
   containerType: string;
+  numberOfContainers?: number | "";
 }
 
 export interface DocumentIdentifiers {

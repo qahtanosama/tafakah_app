@@ -128,7 +128,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const totals = useMemo(() => calcTotals(contract.masterSnapshot.lineItems), [contract]);
+  const totals = useMemo(() => calcTotals(contract.masterSnapshot.lineItems, contract.masterSnapshot.terms?.numberOfContainers), [contract]);
 
   const templateVars = useMemo(() => {
     const snap = contract.masterSnapshot;

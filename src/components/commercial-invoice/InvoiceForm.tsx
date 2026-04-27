@@ -40,7 +40,7 @@ export default function InvoiceForm({ variant }: Props) {
   }, []);
 
   const data = active?.data ?? null;
-  const totals = useMemo(() => (data ? calcTotals(data.lineItems) : null), [data]);
+  const totals = useMemo(() => (data ? calcTotals(data.lineItems, data.terms?.numberOfContainers) : null), [data]);
 
   const isCustoms = variant === "customs";
   const priceFactor = isCustoms ? 0.55 : 1;

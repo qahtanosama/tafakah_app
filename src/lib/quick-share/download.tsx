@@ -104,7 +104,7 @@ export async function downloadContractPdfs(
     import("@/components/packing-list/PackingListPDF"),
   ]);
 
-  const totals = calcTotals(contract.lineItems);
+  const totals = calcTotals(contract.lineItems, contract.terms?.numberOfContainers);
 
   const ordered = DOC_ORDER.filter((d) => selectedDocs.includes(d));
 

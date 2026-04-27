@@ -73,7 +73,7 @@ export function calcPricePerCarton(nwPerCarton: number | "", pricePerMT: number 
   return (nw * p) / 1000;
 }
 
-export function calcTotals(lineItems: LineItem[]): ContractTotals {
+export function calcTotals(lineItems: LineItem[], numberOfContainers?: number | ""): ContractTotals {
   let totalCartons = 0;
   let totalQtyMTS = 0;
   let totalNetWeight = 0;
@@ -92,7 +92,15 @@ export function calcTotals(lineItems: LineItem[]): ContractTotals {
     totalUSD += item.pricePerCarton * cartons;
   }
 
-  return { totalCartons, totalQtyMTS, totalNetWeight, totalGrossWeight, totalUSD };
+  const multiplier = typeof numberOfContainers === "number" ? numberOfContainers : 1;
+
+  return { 
+    totalCartons: totalCartons * multiplier, 
+    totalQtyMTS: totalQtyMTS * multiplier, 
+    totalNetWeight: totalNetWeight * multiplier, 
+    totalGrossWeight: totalGrossWeight * multiplier, 
+    totalUSD: totalUSD * multiplier 
+  };
 }
 
 export function createEmptyLineItem(): LineItem {
@@ -155,6 +163,7 @@ export function getDefaultContractData(): SalesContractData {
       damageAllowance: "5%",
       contractValidTo: "",
       containerType: "40'RH",
+      numberOfContainers: 1,
     },
   };
 }

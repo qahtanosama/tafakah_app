@@ -363,7 +363,7 @@ export default function MasterDataForm() {
     setLastSubmit({
       id: generatedId,
       data: snapshot,
-      totals: calcTotals(snapshot.lineItems),
+      totals: calcTotals(snapshot.lineItems, snapshot.terms?.numberOfContainers),
       contractNo,
       invoiceNo,
       dateSubmitted,
@@ -1073,6 +1073,16 @@ export default function MasterDataForm() {
               onChange={(e) =>
                 update("terms", "containerType", e.target.value)
               }
+            />
+          </div>
+          <div>
+            <Label>Number of Containers</Label>
+            <NumInput
+              value={data.terms.numberOfContainers ?? 1}
+              onChange={(v) =>
+                update("terms", "numberOfContainers", v)
+              }
+              step="1"
             />
           </div>
         </CardContent>

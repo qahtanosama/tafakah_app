@@ -81,18 +81,21 @@ export default function CommercialInvoicePDF({
             <Text style={[s.tableHeaderText, { width: "20%", paddingHorizontal: 3, paddingVertical: 2, textAlign: "right" }]}>Amount</Text>
           </View>
           {filledItems.map((item, i) => {
-            const cartons = typeof item.cartons === "number" ? item.cartons : 0;
+            const multiplier = typeof data.terms.numberOfContainers === "number" && data.terms.numberOfContainers > 0 ? data.terms.numberOfContainers : 1;
+            const containerText = multiplier > 1 ? `${multiplier}x ${data.terms.containerType}` : data.terms.containerType;
+            const cartons = typeof item.cartons === "number" ? item.cartons * multiplier : 0;
             const amount = item.pricePerCarton * cartons * priceFactor;
             const pricePerMT = typeof item.pricePerMT === "number" ? item.pricePerMT * priceFactor : 0;
             const nw = typeof item.nwPerCarton === "number" ? item.nwPerCarton : 0;
+            const itemQtyMTS = item.qtyMTS * multiplier;
             return (
               <View style={s.tableRow} key={i}>
                 <Text style={[{ fontSize: 9 }, { width: "20%", paddingHorizontal: 3, paddingVertical: 2 }]}>{item.product.toUpperCase()}</Text>
                 <Text style={[{ fontSize: 9 }, { width: "10%", paddingHorizontal: 3, paddingVertical: 2 }]}>{nw ? `${fmt(nw)}KGS` : ""}</Text>
                 <Text style={[{ fontSize: 9 }, { width: "12%", paddingHorizontal: 3, paddingVertical: 2 }]}>{item.hsCode}</Text>
                 <View style={{ width: "18%", paddingHorizontal: 3, paddingVertical: 2 }}>
-                  <Text style={{ fontSize: 9 }}>{fmt(item.qtyMTS, 3)} MTS</Text>
-                  <Text style={{ fontSize: 7.5, color: "#444" }}>({data.terms.containerType})</Text>
+                  <Text style={{ fontSize: 9 }}>{fmt(itemQtyMTS, 3)} MTS</Text>
+                  <Text style={{ fontSize: 7.5, color: "#444" }}>({containerText})</Text>
                 </View>
                 <View style={{ width: "20%", paddingHorizontal: 3, paddingVertical: 2 }}>
                   <Text style={{ fontSize: 9 }}>{data.shipping.incoterm}</Text>

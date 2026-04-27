@@ -32,7 +32,7 @@ export default function PackingListForm() {
   }, []);
 
   const data = active?.data ?? null;
-  const totals = useMemo(() => (data ? calcTotals(data.lineItems) : null), [data]);
+  const totals = useMemo(() => (data ? calcTotals(data.lineItems, data.terms?.numberOfContainers) : null), [data]);
 
   if (!loaded) {
     return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;

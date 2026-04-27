@@ -337,7 +337,7 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, hasToken]);
 
-  const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems) : null, [contract]);
+  const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems, contract.masterSnapshot.terms?.numberOfContainers) : null, [contract]);
 
   if (!loaded) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
   if (!contract) {

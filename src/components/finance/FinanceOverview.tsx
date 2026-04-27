@@ -43,7 +43,7 @@ export default function FinanceOverview() {
     const all = getAllFinance();
     const map: Record<string, ReturnType<typeof calcSummary>> = {};
     for (const c of contracts) {
-      const t = calcTotals(c.masterSnapshot.lineItems);
+      const t = calcTotals(c.masterSnapshot.lineItems, c.masterSnapshot.terms?.numberOfContainers);
       const f = all.find((fi) => fi.contractNo === c.contractNo) ?? null;
       map[c.contractNo] = calcSummary(t.totalUSD, f);
     }

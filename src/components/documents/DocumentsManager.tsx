@@ -171,7 +171,7 @@ export default function DocumentsManager() {
   const contractData = selectedContract?.masterSnapshot;
   const contractNo = selectedContract?.contractNo ?? "";
   const invoiceNo = selectedContract?.invoiceNo ?? "";
-  const totals = useMemo(() => contractData ? calcTotals(contractData.lineItems) : null, [contractData]);
+  const totals = useMemo(() => contractData ? calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers) : null, [contractData]);
 
   // Init
   useEffect(() => {
@@ -241,7 +241,7 @@ export default function DocumentsManager() {
       setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...doc } : d)));
 
       const pk = getActiveProviderKey();
-      const t = calcTotals(contractData.lineItems);
+      const t = calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers);
       const reqBody: AnalyzeRequest = {
         provider: pk.provider, apiKey: pk.apiKey, fileBase64: base64, fileName: file.name, mimeType: file.type,
         masterData: {

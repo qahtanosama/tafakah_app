@@ -171,7 +171,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
     return () => { cancelled = true; };
   }, [contractNo]);
 
-  const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems) : null, [contract]);
+  const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems, contract.masterSnapshot.terms?.numberOfContainers) : null, [contract]);
   const revenue = totals?.totalUSD ?? 0;
   const summary = useMemo(() => calcSummary(revenue, finance), [revenue, finance]);
 

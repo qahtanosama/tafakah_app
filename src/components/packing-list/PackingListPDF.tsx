@@ -79,7 +79,10 @@ export default function PackingListPDF({ data, totals, contractNumber, invoiceNu
             <Text style={[s.tableHeaderText, col.gw]}>G.W.</Text>
           </View>
           {filledItems.map((item, i) => {
-            const cartons = typeof item.cartons === "number" ? item.cartons : 0;
+            const multiplier = typeof data.terms.numberOfContainers === "number" && data.terms.numberOfContainers > 0 ? data.terms.numberOfContainers : 1;
+            const containerText = multiplier > 1 ? `${multiplier}x ${data.terms.containerType}` : data.terms.containerType;
+            const cartons = typeof item.cartons === "number" ? item.cartons * multiplier : 0;
+            const itemQtyMTS = item.qtyMTS * multiplier;
             const nw = typeof item.nwPerCarton === "number" ? item.nwPerCarton : 0;
             const gw = typeof item.gwPerCarton === "number" ? item.gwPerCarton : 0;
             const totalNW = nw * cartons;
@@ -94,8 +97,8 @@ export default function PackingListPDF({ data, totals, contractNumber, invoiceNu
                   <Text style={{ fontSize: 8 }}>({cartons.toLocaleString()} CARTONS)</Text>
                 </View>
                 <View style={col.qty}>
-                  <Text style={{ fontSize: 9 }}>{fmt(item.qtyMTS, 3)} MTS</Text>
-                  <Text style={{ fontSize: 7.5, color: "#444" }}>({data.terms.containerType})</Text>
+                  <Text style={{ fontSize: 9 }}>{fmt(itemQtyMTS, 3)} MTS</Text>
+                  <Text style={{ fontSize: 7.5, color: "#444" }}>({containerText})</Text>
                 </View>
                 <Text style={[{ fontSize: 9 }, col.nw]}>{totalNW.toLocaleString()} KGS</Text>
                 <Text style={[{ fontSize: 9 }, col.gw]}>{totalGW.toLocaleString()} KGS</Text>
