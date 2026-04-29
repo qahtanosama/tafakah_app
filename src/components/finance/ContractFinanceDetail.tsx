@@ -12,7 +12,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, X, ArrowLeft, DollarSign, TrendingUp, CreditCard, Check } from "lucide-react";
+import { Plus, Trash2, X, ArrowLeft, DollarSign, TrendingUp, CreditCard, Check, Loader2 } from "lucide-react";
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ContractFinance, CostItem, PaymentItem, PaymentMethod } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
