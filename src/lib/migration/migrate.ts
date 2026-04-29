@@ -36,6 +36,9 @@ import {
   type ShippingPayload,
 } from "@/app/(team)/admin/migrate/actions";
 
+import { calcTotals } from "@/lib/sales-contract";
+import type { LineItem } from "@/types/sales-contract";
+
 export interface MigrationProgressEvent {
   entity: MigrationEntity;
   status: "started" | "finished";
@@ -179,7 +182,7 @@ function toContractPayload(entry: {
   invoiceNo: string;
   dateSubmitted: string;
   masterSnapshot: {
-    identifiers?: { contractDate?: string };
+    identifiers?: { contractDate?: string; numberOfContainers?: number | "" };
     lineItems?: unknown;
     terms?: unknown;
     buyer?: { company?: string };
@@ -196,6 +199,10 @@ function toContractPayload(entry: {
 
   const stage = entry.workflow?.currentStage ?? entry.masterSnapshot?.workflow?.currentStage ?? "docs-generated";
   const history = entry.workflow?.history ?? entry.masterSnapshot?.workflow?.history ?? {};
+  
+  const lineItems = (entry.masterSnapshot?.lineItems as LineItem[]) ?? [];
+  const numberOfContainers = entry.masterSnapshot?.identifiers?.numberOfContainers;
+  const computedTotals = calcTotals(lineItems, numberOfContainers);
 
   return {
     localId: entry.contractNo,
@@ -206,7 +213,7 @@ function toContractPayload(entry: {
     contractDate: entry.masterSnapshot?.identifiers?.contractDate ?? null,
     lineItems: entry.masterSnapshot?.lineItems ?? [],
     terms: entry.masterSnapshot?.terms ?? null,
-    totals: null,
+    totals: computedTotals,
     currentStage: stage,
     workflowHistory: history,
   };

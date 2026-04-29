@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import createIntlMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 
-const PUBLIC_PATHS = ["/login", "/setup", "/api/health", "/logout"];
+const PUBLIC_PATHS = ["/login", "/setup", "/api/health", "/logout", "/logo.png", "/fonts"];
 const intlMiddleware = createIntlMiddleware(routing);
 
 function stripLocale(pathname: string): { locale: string | null; rest: string } {

@@ -33,6 +33,12 @@
       }
     },
     "contractDetail": {
+      "generatedDocuments": "الوثائق الرسمية",
+      "salesContract": "عقد البيع",
+      "commercialInvoice": "الفاتورة التجارية",
+      "customsInvoice": "فاتورة الجمارك",
+      "packingList": "قائمة التعبئة",
+      "product": "المنتج",
       "back": "العودة للوحة التحكم",
       "contractInfo": "معلومات العقد",
       "shipping": "الشحن",

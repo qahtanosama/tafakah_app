@@ -35,7 +35,7 @@ export default function PortalHeader({ fullName, email }: { fullName: string; em
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         {/* Logo */}
         <Link href="/portal" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="TAFAKAH" width={36} height={36} className="rounded-md bg-white p-0.5" priority />
+          <Image src="/logo.png" alt="TAFAKAH" width={36} height={36} className="rounded-md bg-white p-0.5" priority unoptimized />
           <span className="hidden text-lg font-semibold tracking-tight sm:inline">
             TAFAKAH
             <span className="ms-1 text-gold">Portal</span>

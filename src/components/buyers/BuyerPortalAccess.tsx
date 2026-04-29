@@ -106,6 +106,16 @@ export default function BuyerPortalAccess({ localBuyerId, buyerEmail, buyerCompa
       {loaded && !buyerUuid && (
         <div className="space-y-2 text-xs text-zinc-500">
           <p>This buyer isn&rsquo;t in the cloud database yet.</p>
+          <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
+            startTransition(async () => {
+              const { runMigration } = await import("@/lib/migration/migrate");
+              await runMigration({ dryRun: false });
+              window.location.reload();
+            });
+          }}>
+            {isPending ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : null}
+            {isPending ? "Syncing..." : "Sync Buyer to Database"}
+          </Button>
           <Button size="sm" variant="outline" disabled>Create Client Login (requires migration first)</Button>
         </div>
       )}

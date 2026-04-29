@@ -1,7 +1,9 @@
-"use client";
 
 import { View, Text, Image } from "@react-pdf/renderer";
 import { s } from "./pdfStyles";
+import { getAbsoluteUrl } from "./utils";
+
+const isServer = typeof window === "undefined";
 
 export default function Letterhead() {
   return (
@@ -17,7 +19,7 @@ export default function Letterhead() {
         </View>
         <View style={s.letterheadCenter}>
           <Image
-            src="/logo.png"
+            src={isServer ? require("path").join(process.cwd(), "public/logo.png") : getAbsoluteUrl("/logo.png")}
             style={{ width: 55, height: 55, objectFit: "contain" }}
           />
         </View>

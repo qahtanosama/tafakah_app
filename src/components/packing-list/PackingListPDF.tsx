@@ -1,5 +1,3 @@
-"use client";
-
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 import type { SalesContractData, ContractTotals } from "@/types/sales-contract";
 import SellerSignatureBlock from "@/components/pdf/SellerSignatureBlock";

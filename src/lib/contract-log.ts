@@ -1,4 +1,5 @@
 import type { ContractLogEntry, ContractStatus } from "@/types/sales-contract";
+import { triggerBackgroundSync } from "@/lib/sync";
 
 const STORAGE_KEY = "contract-log";
 const SEQUENCE_START = 7001;
@@ -16,6 +17,7 @@ export function getContractLog(): ContractLogEntry[] {
 export function saveContractLog(log: ContractLogEntry[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+    triggerBackgroundSync();
   } catch {
     // localStorage full or unavailable
   }

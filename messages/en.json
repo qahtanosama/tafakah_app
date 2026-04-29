@@ -33,6 +33,12 @@
       }
     },
     "contractDetail": {
+      "generatedDocuments": "Generated Documents",
+      "salesContract": "Sales Contract",
+      "commercialInvoice": "Commercial Invoice",
+      "customsInvoice": "Customs Invoice",
+      "packingList": "Packing List",
+      "product": "Product",
       "back": "Back to Dashboard",
       "contractInfo": "Contract Information",
       "shipping": "Shipping",

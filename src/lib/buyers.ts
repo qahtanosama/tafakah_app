@@ -1,4 +1,5 @@
 import type { Buyer } from "@/types/buyer";
+import { triggerBackgroundSync } from "@/lib/sync";
 
 const STORAGE_KEY = "buyers-database";
 
@@ -14,6 +15,7 @@ export function getBuyers(): Buyer[] {
 
 export function saveBuyers(buyers: Buyer[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(buyers));
+  triggerBackgroundSync();
 }
 
 export function addBuyer(buyer: Buyer): void {

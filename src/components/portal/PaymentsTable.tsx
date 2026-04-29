@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency, formatDate, type AppLocale } from "@/lib/i18n/format";
+import PaymentReceipts from "@/components/finance/PaymentReceipts";
 
 export interface PortalPayment {
   id: string;
@@ -15,10 +16,12 @@ export default function PaymentsTable({
   payments,
   totalAmount,
   totalReceived,
+  contractId,
 }: {
   payments: PortalPayment[];
   totalAmount: number;
   totalReceived: number;
+  contractId: string;
 }) {
   const t = useTranslations("portal.payments");
   const tCD = useTranslations("portal.contractDetail");
@@ -46,13 +49,16 @@ export default function PaymentsTable({
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id} className="border-t">
-                  <td className="px-3 py-2.5">{formatDate(p.date, locale)}</td>
-                  <td className="px-3 py-2.5 text-end font-medium tabular-nums">
+                  <td className="px-3 py-2.5 align-top pt-4">{formatDate(p.date, locale)}</td>
+                  <td className="px-3 py-2.5 align-top pt-4 text-end font-medium tabular-nums">
                     {formatCurrency(p.amount, locale)}
                   </td>
-                  <td className="px-3 py-2.5">{p.method}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground">
-                    {p.reference || t("noReference")}
+                  <td className="px-3 py-2.5 align-top pt-4">{p.method}</td>
+                  <td className="px-3 py-2.5 align-top pt-4">
+                    <div className="text-muted-foreground mb-2">
+                      {p.reference || t("noReference")}
+                    </div>
+                    <PaymentReceipts contractId={contractId} paymentId={p.id} isClient={true} />
                   </td>
                 </tr>
               ))}

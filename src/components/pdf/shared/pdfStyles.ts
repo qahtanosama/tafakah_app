@@ -1,8 +1,13 @@
 import { Font, StyleSheet } from "@react-pdf/renderer";
+import { getAbsoluteUrl } from "./utils";
+
+const isServer = typeof window === "undefined";
 
 Font.register({
   family: "NotoSansSC",
-  src: "/fonts/NotoSansSC-Regular.ttf",
+  src: isServer
+    ? require("path").join(process.cwd(), "public/fonts/NotoSansSC-Regular.ttf")
+    : getAbsoluteUrl("/fonts/NotoSansSC-Regular.ttf"),
 });
 
 export const GRAY_BORDER = "#CCCCCC";

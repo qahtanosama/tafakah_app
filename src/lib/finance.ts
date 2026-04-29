@@ -1,6 +1,7 @@
 import type { ContractFinance, CostItem, PaymentItem, FinanceSummary, PaymentStatus } from "@/types/finance";
 import { PREDEFINED_COSTS } from "@/types/finance";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
+import { triggerBackgroundSync } from "@/lib/sync";
 
 const STORAGE_KEY = "contract-finance";
 
@@ -26,6 +27,7 @@ export function getAllFinance(): ContractFinance[] {
 
 function saveAll(data: ContractFinance[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  triggerBackgroundSync();
 }
 
 export function getFinance(contractNo: string): ContractFinance | null {
