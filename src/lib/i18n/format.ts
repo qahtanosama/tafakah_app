@@ -4,19 +4,15 @@ const intlLocale = (l: AppLocale) => (l === "ar" ? "ar-SA" : "en-US");
 const numberingSystem = (l: AppLocale) => "latn"; // Always use Western numerals (1, 2, 3)
 
 export function formatCurrency(amount: number, locale: AppLocale, currency: string = "USD"): string {
-  return new Intl.NumberFormat(intlLocale(locale), {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    numberingSystem: numberingSystem(locale),
     maximumFractionDigits: 2,
   }).format(amount);
 }
 
 export function formatNumber(value: number, locale: AppLocale, opts: Intl.NumberFormatOptions = {}): string {
-  return new Intl.NumberFormat(intlLocale(locale), {
-    numberingSystem: numberingSystem(locale),
-    ...opts,
-  }).format(value);
+  return new Intl.NumberFormat("en-US", opts).format(value);
 }
 
 export function formatDate(date: Date | string | null | undefined, locale: AppLocale): string {
