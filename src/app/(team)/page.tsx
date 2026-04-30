@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import ShippingCardSummary from "@/components/shipping/ShippingCardSummary";
 import HomeStageWidget from "@/components/workflow/HomeStageWidget";
+import SignOutIcon from "@/components/auth/SignOutIcon";
 
 const sections = [
   {
@@ -67,6 +68,7 @@ export default function Home() {
             <Link href="/settings" className="relative p-2 rounded-full text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all duration-300" title="Settings">
               <Settings className="h-5 w-5" />
             </Link>
+            <SignOutIcon />
           </div>
         </div>
       </header>

@@ -1,7 +1,7 @@
 export type AppLocale = "en" | "ar";
 
 const intlLocale = (l: AppLocale) => (l === "ar" ? "ar-SA" : "en-US");
-const numberingSystem = (l: AppLocale) => (l === "ar" ? "arab" : "latn");
+const numberingSystem = (l: AppLocale) => "latn"; // Always use Western numerals (1, 2, 3)
 
 export function formatCurrency(amount: number, locale: AppLocale, currency: string = "USD"): string {
   return new Intl.NumberFormat(intlLocale(locale), {

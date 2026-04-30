@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import SignOutIcon from "@/components/auth/SignOutIcon";
 
 interface Props {
   title: string;
@@ -21,7 +22,8 @@ export default function AppHeader({ title, backHref = "/", backLabel = "Home" }:
           <span className="hidden sm:inline-block">{backLabel}</span>
         </Link>
         <div className="h-4 w-px bg-slate-200 dark:bg-zinc-800 mx-2"></div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{title}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex-1">{title}</h1>
+        <SignOutIcon />
       </div>
     </header>
   );
