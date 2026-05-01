@@ -206,6 +206,21 @@ function buyerKey(name: string, country: string | null | undefined): string {
   return `${(name ?? "").trim().toLowerCase()}|${(country ?? "").trim().toLowerCase()}`;
 }
 
+function nameOnlyKey(name: string | null | undefined): string {
+  return (name ?? "").trim().toLowerCase();
+}
+
+function buyerRichness(row: { country?: string | null; address?: string | null; email?: string | null; phone_number?: string | null; whatsapp_number?: string | null; contact_name?: string | null }): number {
+  let n = 0;
+  if (row.country) n++;
+  if (row.address) n++;
+  if (row.email) n++;
+  if (row.phone_number) n++;
+  if (row.whatsapp_number) n++;
+  if (row.contact_name) n++;
+  return n;
+}
+
 export async function migrateBuyers(
   payload: { items: BuyerPayload[]; dryRun: boolean }
 ): Promise<{ ok: boolean; error?: string; result?: EntityMigrationResult; mappings?: Record<string, string> }> {
@@ -218,11 +233,23 @@ export async function migrateBuyers(
 
   const admin = createAdminClient();
 
-  const { data: existing, error: selErr } = await admin.from("buyers").select("id, company_name, country");
+  // Match buyers by company_name ALONE (case-insensitive trim). Earlier we keyed
+  // by company_name+country, which created duplicate rows whenever a local
+  // record had blank country but a richer DB row existed (or vice versa).
+  // On collisions, prefer the row with the most populated fields.
+  const { data: existing, error: selErr } = await admin
+    .from("buyers")
+    .select("id, company_name, country, address, email, phone_number, whatsapp_number, contact_name");
   if (selErr) return { ok: false, error: `Fetch existing buyers failed: ${selErr.message}` };
-  const existingByKey = new Map<string, string>();
-  for (const row of (existing ?? []) as Array<{ id: string; company_name: string; country: string | null }>) {
-    existingByKey.set(buyerKey(row.company_name, row.country), row.id);
+  type ExistingBuyer = { id: string; company_name: string; country: string | null; address: string | null; email: string | null; phone_number: string | null; whatsapp_number: string | null; contact_name: string | null };
+  const existingByName = new Map<string, ExistingBuyer>();
+  for (const row of ((existing ?? []) as ExistingBuyer[])) {
+    const key = nameOnlyKey(row.company_name);
+    if (!key) continue;
+    const prev = existingByName.get(key);
+    if (!prev || buyerRichness(row) > buyerRichness(prev)) {
+      existingByName.set(key, row);
+    }
   }
 
   const toInsert: BuyerPayload[] = [];
@@ -232,10 +259,10 @@ export async function migrateBuyers(
       res.errors.push({ id: item.localId, message: "Missing company_name or contact_name", item });
       continue;
     }
-    const key = buyerKey(item.companyName, item.country);
-    const existingId = existingByKey.get(key);
-    if (existingId) {
-      mappings[item.localId] = existingId;
+    const key = nameOnlyKey(item.companyName);
+    const match = existingByName.get(key);
+    if (match) {
+      mappings[item.localId] = match.id;
       res.skippedExisting++;
       continue;
     }

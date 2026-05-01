@@ -371,16 +371,33 @@ export default function MasterDataForm() {
 
     showToast("success", `\u2713 Contract ${contractNo} submitted and logged`);
 
-    // Auto-save new buyer if not in database
-    if (data.buyer.company.trim() && !findBuyerByCompany(data.buyer.company)) {
-      const newBuyer = createEmptyBuyer();
-      newBuyer.company = data.buyer.company;
-      newBuyer.address = data.buyer.address;
-      newBuyer.additionalNumber = data.buyer.additionalNumber;
-      newBuyer.cityPostal = data.buyer.cityPostal;
-      newBuyer.email = data.buyer.email;
-      newBuyer.ccEmail = data.buyer.ccEmail;
-      addBuyer(newBuyer);
+    // Auto-save new buyer ONLY if neither (a) a UUID is already attached to the
+    // form's buyer (selected from dropdown / pre-filled), nor (b) a match by
+    // company name exists in the live buyers list. Trusting the id avoids
+    // duplicate buyer rows when pre-fill carries a known buyer.
+    const trimmedCompany = data.buyer.company.trim();
+    const formBuyerId = data.buyer.id;
+    const isUuid = typeof formBuyerId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formBuyerId);
+
+    if (!isUuid && trimmedCompany) {
+      const norm = trimmedCompany.toLowerCase();
+      const matchInList = buyersList.find((b) => (b.company ?? "").trim().toLowerCase() === norm);
+      const matchInLocal = findBuyerByCompany(trimmedCompany);
+      if (!matchInList && !matchInLocal) {
+        const newBuyer = createEmptyBuyer();
+        newBuyer.company = trimmedCompany;
+        newBuyer.address = data.buyer.address;
+        newBuyer.additionalNumber = data.buyer.additionalNumber;
+        newBuyer.cityPostal = data.buyer.cityPostal;
+        newBuyer.country = data.buyer.country ?? "";
+        newBuyer.email = data.buyer.email;
+        newBuyer.ccEmail = data.buyer.ccEmail;
+        addBuyer(newBuyer);
+      }
+    } else if (!isUuid && formBuyerId) {
+      // Form had a buyer.id but it isn't a UUID — likely a legacy local id that
+      // never got relinked. Best-effort: fall through (no duplicate insert).
+      console.warn("[MasterDataForm] buyer.id is not a UUID; auto-create skipped to prevent duplicates", formBuyerId);
     }
 
     computeSequence();
@@ -392,6 +409,7 @@ export default function MasterDataForm() {
     firstProduct,
     showToast,
     computeSequence,
+    buyersList,
   ]);
 
   const fmt = (n: number, d = 2) => n.toFixed(d);
@@ -714,12 +732,14 @@ export default function MasterDataForm() {
                 setData((prev) => ({
                   ...prev,
                   buyer: {
+                    id: b.id,
                     company: b.company,
                     address: b.address,
                     additionalNumber: b.additionalNumber,
                     cityPostal: b.cityPostal,
                     email: b.email,
                     ccEmail: b.ccEmail,
+                    country: b.country,
                   },
                 }));
               }}

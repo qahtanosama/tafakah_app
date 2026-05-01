@@ -21,12 +21,19 @@ export interface SellerInfo {
 }
 
 export interface BuyerInfo {
+  /**
+   * Optional UUID linking back to the buyers row this contract is for.
+   * When present and a valid UUID, the submit/sync pipeline uses this directly
+   * instead of name-matching (which previously created duplicate buyer rows).
+   */
+  id?: string;
   company: string;
   address: string;
   additionalNumber: string;
   cityPostal: string;
   email: string;
   ccEmail: string;
+  country?: string;
 }
 
 export interface ShippingInfo {
