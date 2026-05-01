@@ -3,11 +3,11 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Link } from "@/i18n/navigation";
-import { Download, FileText, Loader2 } from "lucide-react";
 import StageBadge from "@/components/portal/StageBadge";
 import ShippingTimeline, { type ShippingData } from "@/components/portal/ShippingTimeline";
 import DocumentRow, { type DocumentRowData } from "@/components/portal/DocumentRow";
 import PaymentsTable, { type PortalPayment } from "@/components/portal/PaymentsTable";
+import GeneratedDocDownload from "@/components/portal/GeneratedDocDownload";
 import { formatCurrency, formatDate, formatNumber, type AppLocale } from "@/lib/i18n/format";
 
 interface ContractRow {
@@ -209,29 +209,19 @@ export default async function ContractDetailPage({
       <section className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-lg font-semibold text-navy">{t("generatedDocuments", { defaultValue: "Official Documents" })}</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[
+          {([
             { id: "sc", label: t("salesContract", { defaultValue: "Sales Contract" }) },
             { id: "ci", label: t("commercialInvoice", { defaultValue: "Commercial Invoice" }) },
             { id: "customs", label: t("customsInvoice", { defaultValue: "Customs Invoice" }) },
             { id: "pl", label: t("packingList", { defaultValue: "Packing List" }) },
-          ].map((doc) => (
-            <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-white p-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy/5 text-navy">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{doc.label}</p>
-              </div>
-              <a
-                href={`/api/portal/generate-pdf?contractId=${id}&docType=${doc.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-navy bg-white px-3 text-sm font-medium text-navy transition-colors hover:bg-navy hover:text-white"
-              >
-                <Download className="h-3.5 w-3.5" />
-                {t("downloadDoc")}
-              </a>
-            </div>
+          ] as const).map((doc) => (
+            <GeneratedDocDownload
+              key={doc.id}
+              contractId={id}
+              docType={doc.id}
+              label={doc.label}
+              downloadLabel={t("downloadDoc")}
+            />
           ))}
         </div>
       </section>
