@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Download, FileText, Loader2 } from "lucide-react";
 import { formatDate, type AppLocale } from "@/lib/i18n/format";
-import { getDocumentSignedUrl } from "@/app/(portal)/[locale]/portal/contract/[id]/actions";
 
 export interface DocumentRowData {
   id: string;
@@ -17,19 +16,38 @@ export default function DocumentRow({ doc }: { doc: DocumentRowData }) {
   const t = useTranslations("portal.contractDetail");
   const tTypes = useTranslations("portal.documentTypes");
   const locale = useLocale() as AppLocale;
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleDownload() {
+  async function handleDownload() {
+    setPending(true);
     setError(null);
-    startTransition(async () => {
-      const res = await getDocumentSignedUrl(doc.id);
+    try {
+      const res = await fetch(`/api/cert/download?documentId=${encodeURIComponent(doc.id)}`, {
+        credentials: "include",
+      });
       if (!res.ok) {
-        setError(res.error);
+        const text = await res.text().catch(() => "");
+        setError(text || `Download failed (${res.status})`);
         return;
       }
-      window.open(res.url, "_blank", "noopener");
-    });
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="?([^"]+)"?/i.exec(disposition);
+      const filename = match?.[1] ?? doc.file_name;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPending(false);
+    }
   }
 
   return (

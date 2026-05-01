@@ -91,6 +91,7 @@ export default async function ContractDetailPage({
       .from("contract_documents")
       .select("id, doc_type, file_name, uploaded_at")
       .eq("contract_id", id)
+      .eq("is_archived", false)
       .neq("doc_type", "ci-customs")
       .order("uploaded_at", { ascending: false }),
   ]);

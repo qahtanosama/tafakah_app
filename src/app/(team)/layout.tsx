@@ -4,6 +4,7 @@ import "../globals.css";
 import { Providers } from "./providers";
 import AuthBadge from "@/components/auth/AuthBadge";
 import MigrationBanner from "@/components/migration/MigrationBanner";
+import IdbCertWipe from "@/components/migration/IdbCertWipe";
 import SyncStatusBadge from "@/components/retry-queue/SyncStatusBadge";
 
 const geistSans = Geist({
@@ -33,6 +34,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
+          <IdbCertWipe />
           <AuthBadge />
           <SyncStatusBadge />
           <MigrationBanner />

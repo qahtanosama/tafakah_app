@@ -12,11 +12,7 @@
 
 import type { SalesContractData } from "@/types/sales-contract";
 import { calcTotals } from "@/lib/sales-contract";
-import {
-  supportsSaveFilePicker,
-  saveBlobWithPicker,
-  saveBlobWithDownload,
-} from "./save-file";
+import { saveBlobWithDownload } from "./save-file";
 
 export type QuickShareDoc = "sc" | "ci" | "ci-customs" | "pl";
 
@@ -83,15 +79,14 @@ export async function downloadContractPdfs(
   options: DownloadOptions = {}
 ): Promise<DownloadResult> {
   if (selectedDocs.length === 0) {
-    return { saved: 0, cancelled: false, method: supportsSaveFilePicker() ? "picker" : "download" };
+    return { saved: 0, cancelled: false, method: "download" };
   }
 
-  const usePicker = supportsSaveFilePicker();
-  const method: DownloadResult["method"] = usePicker ? "picker" : "download";
-
-  if (!usePicker) {
-    maybeShowFallbackNotice(options.onFallbackNotice);
-  }
+  // Always anchor-download. showSaveFilePicker requires an unbroken user-gesture
+  // context and the per-doc render pipeline (`pdf(...).toBlob()` + sequential
+  // await loop) drops it before the picker can open.
+  const method: DownloadResult["method"] = "download";
+  maybeShowFallbackNotice(options.onFallbackNotice);
 
   const { pdf } = await import("@react-pdf/renderer");
   const [
@@ -125,18 +120,11 @@ export async function downloadContractPdfs(
     const blob = await pdf(element).toBlob();
     const name = fileName(doc, contractNo);
 
-    if (usePicker) {
-      const result = await saveBlobWithPicker(blob, name);
-      if (result === "cancelled") {
-        return { saved, cancelled: true, method };
-      }
-      saved++;
-    } else {
-      await saveBlobWithDownload(blob, name);
-      saved++;
-      if (i < ordered.length - 1) {
-        await new Promise((r) => setTimeout(r, 250));
-      }
+    await saveBlobWithDownload(blob, name);
+    saved++;
+    if (i < ordered.length - 1) {
+      // Stagger so consecutive anchor-clicks don't get coalesced/blocked.
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
 

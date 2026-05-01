@@ -10,16 +10,18 @@ import {
   CheckCircle, Clock, AlertTriangle, Package, X, ClipboardList,
 } from "lucide-react";
 import type { SalesContractData, ContractLogEntry, ContractTotals } from "@/types/sales-contract";
-import type { TradeDocument, AnalyzeRequest, AnalyzeResponse, DocSlot } from "@/types/document";
+import type { TradeDocument, AnalyzeRequest, AnalyzeResponse, DocSlot, DocumentCategory, ExtractedFields, ValidationResult } from "@/types/document";
 import { RECEIVED_SLOTS, SLOT_LABELS, CATEGORY_LABELS, categoryToSlot } from "@/types/document";
 import { calcTotals } from "@/lib/sales-contract";
 import { loadActiveContract, saveActiveContract } from "@/lib/master-data";
 import { getContractLog } from "@/lib/contract-log";
-import { getDocuments, saveDocument, removeDocument as removeDoc, getDocumentFile, compressImage, migrateOldData } from "@/lib/documents";
+import { compressImage } from "@/lib/documents";
+import { uploadCertificate, deleteCertificate } from "@/lib/contracts/upload-cert";
+import { listCertsForContract, type CertRow } from "@/lib/contracts/list-certs";
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
 import { getShipping, getStatusInfo } from "@/lib/shipping";
-import { supportsSaveFilePicker, saveBlobWithPicker, saveBlobWithDownload } from "@/lib/quick-share/save-file";
+import { saveBlobWithDownload } from "@/lib/quick-share/save-file";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
 import { setCertRef, clearCertRef } from "@/lib/workflow";
 import type { RequiredCert } from "@/types/workflow";
@@ -37,13 +39,51 @@ function certTypeForSlot(slot: DocSlot): RequiredCert | null {
   return CERT_SLOT_MAP[slot] ?? null;
 }
 
-function estimateFileSize(doc: TradeDocument): number {
-  if (!doc.base64Data) return 0;
-  // Rough base64 → bytes estimate: (len * 3/4) minus padding
-  const commaIdx = doc.base64Data.indexOf(",");
-  const body = commaIdx >= 0 ? doc.base64Data.slice(commaIdx + 1) : doc.base64Data;
-  const padding = body.endsWith("==") ? 2 : body.endsWith("=") ? 1 : 0;
-  return Math.floor((body.length * 3) / 4) - padding;
+/** UI slot ↔ Storage `doc_type` mapping. */
+type StorageDocType = "co" | "bl" | "phyto" | "health" | "other";
+const SLOT_TO_DOC_TYPE: Record<DocSlot, StorageDocType> = {
+  certificate_of_origin: "co",
+  bill_of_lading: "bl",
+  phytosanitary_certificate: "phyto",
+  health_certificate: "health",
+  other: "other",
+};
+const DOC_TYPE_TO_SLOT: Partial<Record<string, DocSlot>> = {
+  co: "certificate_of_origin",
+  bl: "bill_of_lading",
+  phyto: "phytosanitary_certificate",
+  health: "health_certificate",
+  other: "other",
+};
+
+function certRowToTradeDoc(row: CertRow): TradeDocument {
+  const slot: DocSlot = DOC_TYPE_TO_SLOT[row.doc_type] ?? "other";
+  const ai = (row.ai_metadata ?? {}) as Partial<{
+    category: DocumentCategory;
+    confidence: number;
+    extractedFields: ExtractedFields;
+    validationResults: ValidationResult[];
+  }>;
+  return {
+    id: row.id,
+    fileName: row.file_name,
+    fileType: (row.mime_type ?? "").startsWith("image/") ? "image" : "pdf",
+    mimeType: row.mime_type ?? "application/octet-stream",
+    base64Data: "",
+    slot,
+    category: ai.category ?? (slot === "other" ? "other" : "unknown"),
+    confidence: ai.confidence ?? 0,
+    extractedFields: ai.extractedFields ?? {},
+    validationResults: ai.validationResults ?? [],
+    status: "ready",
+    addedAt: row.created_at,
+  };
+}
+
+/** Strip the `data:<mime>;base64,` prefix; the server action wants raw base64. */
+function stripDataUrl(b64: string): string {
+  const idx = b64.indexOf(",");
+  return idx >= 0 ? b64.slice(idx + 1) : b64;
 }
 
 /* ── Types for merge items ──────────────────────────── */
@@ -151,7 +191,9 @@ function ReceivedSlotCard({ slot, doc, onUpload, onRemove }: {
 export default function DocumentsManager() {
   const [contracts, setContracts] = useState<ContractLogEntry[]>([]);
   const [selectedContractNo, setSelectedContractNo] = useState<string>("");
+  const [dbContractId, setDbContractId] = useState<string | null>(null);
   const [docs, setDocs] = useState<TradeDocument[]>([]);
+  const [docsError, setDocsError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [merging, setMerging] = useState(false);
   const [mergeProgress, setMergeProgress] = useState("");
@@ -173,10 +215,30 @@ export default function DocumentsManager() {
   const invoiceNo = selectedContract?.invoiceNo ?? "";
   const totals = useMemo(() => contractData ? calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers) : null, [contractData]);
 
+  // Reload the cert list for a given contract from Supabase. Stores the
+  // resolved DB UUID so subsequent uploads/deletes can address the row.
+  const refetchDocs = useCallback(async (contractNo: string) => {
+    if (!contractNo) {
+      setDocs([]);
+      setDbContractId(null);
+      setDocsError(null);
+      return;
+    }
+    const result = await listCertsForContract({ contractNo });
+    if (!result.ok) {
+      setDocs([]);
+      setDbContractId(null);
+      setDocsError(result.error);
+      return;
+    }
+    setDbContractId(result.contractId);
+    setDocs(result.rows.map(certRowToTradeDoc));
+    setDocsError(null);
+  }, []);
+
   // Init
   useEffect(() => {
     async function init() {
-      await migrateOldData();
       const log = getContractLog();
       setContracts(log);
       const ac = loadActiveContract();
@@ -184,19 +246,20 @@ export default function DocumentsManager() {
         ? ac.contractNo
         : log[log.length - 1]?.contractNo ?? "";
       setSelectedContractNo(initial);
-      if (initial) setDocs(getDocuments(initial));
       const pk = getActiveProviderKey();
       setProviderInfo({ provider: pk.provider, hasKey: !!pk.apiKey });
+      if (initial) await refetchDocs(initial);
       setLoaded(true);
     }
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When selected contract changes, reload docs
+  // When selected contract changes, reload docs from Supabase
   const switchContract = useCallback((newContractNo: string) => {
     setSelectedContractNo(newContractNo);
-    setDocs(getDocuments(newContractNo));
-  }, []);
+    void refetchDocs(newContractNo);
+  }, [refetchDocs]);
 
   const handleSetActive = useCallback(() => {
     if (!selectedContract) return;
@@ -217,33 +280,36 @@ export default function DocumentsManager() {
   // ── File processing ──
   const processFile = useCallback(async (file: File, targetSlot?: DocSlot) => {
     if (!contractData || !contractNo) return;
+    if (!dbContractId) {
+      showToastMsg("error", docsError ?? "Contract not yet synced to the cloud \u2014 open Admin \u2192 Migrate first.");
+      return;
+    }
     const isImage = file.type.startsWith("image/");
-    const doc: TradeDocument = {
-      id: crypto.randomUUID(), fileName: file.name, fileType: isImage ? "image" : "pdf",
+    const tempId = crypto.randomUUID();
+    const optimistic: TradeDocument = {
+      id: tempId, fileName: file.name, fileType: isImage ? "image" : "pdf",
       mimeType: file.type, base64Data: "", slot: targetSlot ?? "other", category: "unknown",
       confidence: 0, extractedFields: {}, validationResults: [], status: "uploading",
       addedAt: new Date().toISOString(),
     };
     setDocs((prev) => {
       const filtered = targetSlot && targetSlot !== "other" ? prev.filter((d) => d.slot !== targetSlot) : prev;
-      return [...filtered, doc];
+      return [...filtered, optimistic];
     });
     try {
-      let base64: string = await new Promise((resolve, reject) => {
+      let base64DataUrl: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      if (isImage) base64 = await compressImage(base64);
-      doc.base64Data = base64;
-      doc.status = "analyzing";
-      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...doc } : d)));
+      if (isImage) base64DataUrl = await compressImage(base64DataUrl);
+      setDocs((prev) => prev.map((d) => (d.id === tempId ? { ...d, base64Data: base64DataUrl, status: "analyzing" } : d)));
 
       const pk = getActiveProviderKey();
       const t = calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers);
       const reqBody: AnalyzeRequest = {
-        provider: pk.provider, apiKey: pk.apiKey, fileBase64: base64, fileName: file.name, mimeType: file.type,
+        provider: pk.provider, apiKey: pk.apiKey, fileBase64: base64DataUrl, fileName: file.name, mimeType: file.type,
         masterData: {
           contractNo, buyer: contractData.buyer.company, origin: contractData.shipping.origin,
           loadingPort: contractData.shipping.loadingPort, dischargePort: contractData.shipping.dischargePort,
@@ -253,37 +319,59 @@ export default function DocumentsManager() {
           totalNetWeight: t.totalNetWeight, totalGrossWeight: t.totalGrossWeight,
         },
       };
-      const res = await fetch("/api/analyze-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody) });
-      if (!res.ok) throw new Error("Analysis API returned " + res.status);
-      const analysis: AnalyzeResponse = await res.json();
-      doc.category = analysis.category; doc.confidence = analysis.confidence;
-      doc.extractedFields = analysis.extractedFields; doc.validationResults = analysis.validationResults;
-      doc.status = "ready";
-      if (!targetSlot) {
-        doc.slot = categoryToSlot(analysis.category);
-        if (doc.slot !== "other") showToastMsg("success", `Detected as ${SLOT_LABELS[doc.slot]} \u2014 assigned automatically`);
+      let analysis: AnalyzeResponse | null = null;
+      try {
+        const res = await fetch("/api/analyze-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody) });
+        if (!res.ok) throw new Error("Analysis API returned " + res.status);
+        analysis = await res.json();
+      } catch (err) {
+        // AI is best-effort. Keep going so the upload still succeeds.
+        console.warn("[documents] analysis failed, continuing without metadata:", err);
       }
-      setDocs((prev) => {
-        let updated = prev;
-        if (!targetSlot && doc.slot !== "other") updated = prev.filter((d) => d.id === doc.id || d.slot !== doc.slot);
-        return updated.map((d) => (d.id === doc.id ? { ...doc } : d));
+
+      const finalSlot: DocSlot = targetSlot ?? (analysis ? categoryToSlot(analysis.category) : "other");
+      const docType = SLOT_TO_DOC_TYPE[finalSlot];
+      const aiMetadata = analysis
+        ? {
+            category: analysis.category,
+            confidence: analysis.confidence,
+            extractedFields: analysis.extractedFields,
+            validationResults: analysis.validationResults,
+          }
+        : null;
+
+      const upload = await uploadCertificate({
+        contractId: dbContractId,
+        docType,
+        fileName: file.name,
+        mimeType: file.type,
+        base64: stripDataUrl(base64DataUrl),
+        aiMetadata,
       });
-      await saveDocument(contractNo, doc);
-      // Mirror cert reference onto the contract workflow if this was a recognized cert slot
-      const certType = certTypeForSlot(doc.slot);
+      if (!upload.ok) throw new Error(upload.error);
+
+      // Refresh from source of truth (handles archived predecessors etc.)
+      await refetchDocs(contractNo);
+
+      if (!targetSlot && analysis && finalSlot !== "other") {
+        showToastMsg("success", `Detected as ${SLOT_LABELS[finalSlot]} \u2014 assigned automatically`);
+      }
+
+      const certType = certTypeForSlot(finalSlot);
       if (certType && selectedContract) {
         setCertRef(selectedContract.id, certType, {
-          docId: doc.id,
-          uploadedAt: doc.addedAt,
-          fileName: doc.fileName,
-          fileSize: estimateFileSize(doc),
+          docId: upload.documentId,
+          uploadedAt: new Date().toISOString(),
+          fileName: file.name,
+          fileSize: file.size,
         });
       }
     } catch (err) {
-      doc.status = "error"; doc.error = (err as Error).message || "Processing failed";
-      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...doc } : d)));
+      const message = (err as Error).message || "Upload failed";
+      setDocs((prev) => prev.map((d) => (d.id === tempId ? { ...d, status: "error", error: message } : d)));
+      showToastMsg("error", message);
     }
-  }, [contractData, contractNo, selectedContract, showToastMsg]);
+  }, [contractData, contractNo, dbContractId, docsError, refetchDocs, selectedContract, showToastMsg]);
 
   const handleGeneralDrop = useCallback((files: File[]) => { for (const file of files) processFile(file); }, [processFile]);
   const handleSlotUpload = useCallback((slot: DocSlot) => { pendingSlotRef.current = slot; fileInputRef.current?.click(); }, []);
@@ -291,17 +379,22 @@ export default function DocumentsManager() {
     const file = e.target.files?.[0]; if (!file) return;
     processFile(file, pendingSlotRef.current ?? undefined); pendingSlotRef.current = null; e.target.value = "";
   }, [processFile]);
-  const handleRemove = useCallback((id: string) => {
+  const handleRemove = useCallback(async (id: string) => {
     if (!contractNo) return;
-    // Determine if this doc was a recognized cert before we drop it
     const removed = docs.find((d) => d.id === id);
     setDocs((prev) => prev.filter((d) => d.id !== id));
-    removeDoc(contractNo, id);
+    const result = await deleteCertificate(id);
+    if (!result.ok) {
+      showToastMsg("error", result.error);
+      // Refetch to restore on failure.
+      await refetchDocs(contractNo);
+      return;
+    }
     if (removed && selectedContract) {
       const certType = certTypeForSlot(removed.slot);
       if (certType) clearCertRef(selectedContract.id, certType);
     }
-  }, [contractNo, docs, selectedContract]);
+  }, [contractNo, docs, refetchDocs, selectedContract, showToastMsg]);
 
   // ── Merge items ──
   const slotMap = useMemo(() => {
@@ -403,9 +496,20 @@ export default function DocumentsManager() {
             allDocs.push(await blobToDoc(blob, "Packing List"));
           }
         } else if (item.docId) {
-          const fileData = await getDocumentFile(contractNo, item.docId);
           const docMeta = docs.find((d) => d.id === item.docId);
-          if (fileData && docMeta) allDocs.push({ ...docMeta, base64Data: fileData });
+          if (!docMeta) continue;
+          const res = await fetch(`/api/cert/download?documentId=${encodeURIComponent(item.docId)}`, { credentials: "include" });
+          if (!res.ok) {
+            console.warn(`[merge] skip ${item.label}: download returned ${res.status}`);
+            continue;
+          }
+          const buf = await res.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          const mime = res.headers.get("Content-Type") || docMeta.mimeType || "application/pdf";
+          const dataUrl = `data:${mime};base64,${btoa(binary)}`;
+          allDocs.push({ ...docMeta, base64Data: dataUrl, mimeType: mime });
         }
       }
 
@@ -414,20 +518,13 @@ export default function DocumentsManager() {
       const blob = new Blob([merged.buffer as ArrayBuffer], { type: "application/pdf" });
       const filename = `Shipment_Package_${contractNo}.pdf`;
 
-      if (supportsSaveFilePicker()) {
-        setMergeProgress("Choose save location\u2026");
-        const result = await saveBlobWithPicker(blob, filename);
-        if (result === "cancelled") {
-          showToastMsg("success", "Download cancelled.");
-        } else {
-          setShowMergeModal(false);
-          showToastMsg("success", "Shipment package saved!");
-        }
-      } else {
-        await saveBlobWithDownload(blob, filename);
-        setShowMergeModal(false);
-        showToastMsg("success", "Shipment package downloaded!");
-      }
+      // Always use the classic anchor download here. showSaveFilePicker requires
+      // an unbroken user-gesture context and the merge pipeline has many awaits
+      // (signing URLs, fetching certs, pdf-lib merging) before this point \u2014 the
+      // picker call will reliably throw with "Must be handling a user gesture".
+      await saveBlobWithDownload(blob, filename);
+      setShowMergeModal(false);
+      showToastMsg("success", "Shipment package downloaded!");
     } catch (err) {
       showToastMsg("error", "Merge failed: " + (err as Error).message);
     } finally {
@@ -497,6 +594,14 @@ export default function DocumentsManager() {
         })()}
       </div>
 
+      {docsError && contractNo && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <strong>Cloud sync needed:</strong> {docsError}. Open <Link href="/admin/migrate" className="underline">Admin → Migrate</Link> and run sync, then return.
+          </div>
+        </div>
+      )}
       {!contractData ? (
         <p className="py-10 text-center text-zinc-400">Select a contract above.</p>
       ) : (
