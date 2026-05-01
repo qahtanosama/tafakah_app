@@ -732,6 +732,41 @@ export async function backfillPaymentIdsInDb(): Promise<{
   return { ok: true, scanned: rows.length, updated, paymentsTouched };
 }
 
+/* ═════════════════════════ RELINK READS ═════════════════════════ */
+
+export async function getBuyersForRelink(): Promise<
+  { ok: true; rows: { id: string; company_name: string; country: string | null }[] } | { ok: false; error: string }
+> {
+  const guard = await requireTeam();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("buyers").select("id, company_name, country");
+  if (error) return { ok: false, error: `Failed to load buyers: ${error.message}` };
+  return { ok: true, rows: (data ?? []) as { id: string; company_name: string; country: string | null }[] };
+}
+
+export async function getSellersForRelink(): Promise<
+  { ok: true; rows: { id: string; company_name: string; country: string | null }[] } | { ok: false; error: string }
+> {
+  const guard = await requireTeam();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("sellers").select("id, company_name, country");
+  if (error) return { ok: false, error: `Failed to load sellers: ${error.message}` };
+  return { ok: true, rows: (data ?? []) as { id: string; company_name: string; country: string | null }[] };
+}
+
+export async function getProductsForRelink(): Promise<
+  { ok: true; rows: { id: string; prefix: string; name: string }[] } | { ok: false; error: string }
+> {
+  const guard = await requireTeam();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("products").select("id, prefix, name");
+  if (error) return { ok: false, error: `Failed to load products: ${error.message}` };
+  return { ok: true, rows: (data ?? []) as { id: string; prefix: string; name: string }[] };
+}
+
 /* ═════════════════════════ DB SUMMARY ═════════════════════════ */
 
 export interface DbCounts {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle, Loader2, Play, RefreshCw, Search, Copy } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Play, RefreshCw, Search, Copy, Link2 } from "lucide-react";
 import type { DbCounts } from "./actions";
 import { getDbCounts, backfillPaymentIdsInDb } from "./actions";
 import type { MigrationRun, EntityMigrationResult, MigrationEntity } from "@/lib/migration/types";
@@ -13,6 +13,15 @@ import { MIGRATION_ENTITIES } from "@/lib/migration/types";
 import { runMigration, getLocalCounts, isMigrationRunning, type LocalCounts } from "@/lib/migration/migrate";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
 import type { ContractFinance } from "@/types/finance";
+import {
+  relinkBuyersInLocalStorage,
+  relinkSellersInLocalStorage,
+  relinkProductsInLocalStorage,
+  auditLocalLinkage,
+  type RelinkResult,
+  type RelinkEntity,
+  type AuditReport,
+} from "@/lib/migration/relink-client";
 
 const ENTITY_LABELS: Record<MigrationEntity, string> = {
   products: "Products",
@@ -43,6 +52,12 @@ export default function MigrateClient({
   const [raceWarning, setRaceWarning] = useState(false);
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+
+  const [relinkBusy, setRelinkBusy] = useState<"idle" | "buyers" | "sellers" | "products" | "all">("idle");
+  const [relinkResults, setRelinkResults] = useState<Partial<Record<RelinkEntity, RelinkResult>>>({});
+  const [auditBusy, setAuditBusy] = useState(false);
+  const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
+  const [redirectMsg, setRedirectMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -86,6 +101,35 @@ export default function MigrateClient({
     }
     setBusy("idle");
   }, [refreshDbCounts]);
+
+  const runRelink = useCallback(async (which: "buyers" | "sellers" | "products" | "all") => {
+    setRelinkBusy(which);
+    setRedirectMsg(null);
+    try {
+      const next: Partial<Record<RelinkEntity, RelinkResult>> = { ...relinkResults };
+      if (which === "buyers" || which === "all") next.buyers = await relinkBuyersInLocalStorage();
+      if (which === "sellers" || which === "all") next.sellers = await relinkSellersInLocalStorage();
+      if (which === "products" || which === "all") next.products = await relinkProductsInLocalStorage();
+      setRelinkResults(next);
+      const totalRelinked =
+        (next.buyers?.relinked ?? 0) + (next.sellers?.relinked ?? 0) + (next.products?.relinked ?? 0);
+      if (totalRelinked > 0) {
+        setRedirectMsg(`Relinked ${totalRelinked} record(s). Refreshing /buyers in 3 seconds...`);
+        setTimeout(() => { window.location.href = "/buyers"; }, 3000);
+      }
+    } finally {
+      setRelinkBusy("idle");
+    }
+  }, [relinkResults]);
+
+  const runAudit = useCallback(async () => {
+    setAuditBusy(true);
+    try {
+      setAuditReport(auditLocalLinkage());
+    } finally {
+      setAuditBusy(false);
+    }
+  }, []);
 
   const dryRunPassed = !!dryRunResult && dryRunResult.results.every((r) => r.failedCount === 0);
   const canStart = dryRunPassed && busy === "idle";
@@ -190,6 +234,146 @@ export default function MigrateClient({
           {fatalError}
         </div>
       )}
+
+      {/* Relink localStorage to Supabase IDs */}
+      <section className="rounded-xl border bg-white p-5 dark:bg-zinc-900">
+        <div className="mb-3 flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-indigo-600" />
+          <h2 className="text-lg font-semibold">Relink localStorage to Supabase IDs</h2>
+        </div>
+        <p className="mb-4 text-sm text-slate-500">
+          Some buyers/sellers/products in localStorage have legacy IDs that don&rsquo;t match the Supabase rows.
+          This re-links them so &ldquo;Create Client Login&rdquo; and other features work correctly. Idempotent &mdash; safe to run any time.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={relinkBusy !== "idle"}
+            onClick={() => runRelink("buyers")}
+            className="gap-1"
+          >
+            {relinkBusy === "buyers" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+            Relink Buyers
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={relinkBusy !== "idle"}
+            onClick={() => runRelink("sellers")}
+            className="gap-1"
+          >
+            {relinkBusy === "sellers" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+            Relink Sellers
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={relinkBusy !== "idle"}
+            onClick={() => runRelink("products")}
+            className="gap-1"
+          >
+            {relinkBusy === "products" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+            Relink Products
+          </Button>
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              disabled={relinkBusy !== "idle"}
+              onClick={() => runRelink("all")}
+              className="gap-1"
+            >
+              {relinkBusy === "all" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              Relink All
+            </Button>
+          </div>
+        </div>
+
+        {(relinkResults.buyers || relinkResults.sellers || relinkResults.products) && (
+          <div className="mt-4 space-y-2 rounded-lg border bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
+            {(["buyers", "sellers", "products"] as const).map((e) => {
+              const r = relinkResults[e];
+              if (!r) return null;
+              const label = e.charAt(0).toUpperCase() + e.slice(1);
+              return (
+                <div key={e}>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    <span className="font-semibold">{label}:</span>
+                    <span><span className="font-mono">{r.totalLocal}</span> total</span>
+                    <span className="text-zinc-500"><span className="font-mono">{r.alreadyLinked}</span> already linked</span>
+                    <span className="text-emerald-700"><span className="font-mono">{r.relinked}</span> relinked</span>
+                    {r.notFoundInDb > 0 && (
+                      <span className="text-amber-700"><span className="font-mono">{r.notFoundInDb}</span> not in DB</span>
+                    )}
+                  </div>
+                  {r.errors.length > 0 && (
+                    <details className="mt-1 rounded border bg-white p-2 text-xs dark:bg-zinc-900">
+                      <summary className="cursor-pointer text-amber-700">Errors ({r.errors.length})</summary>
+                      <ul className="mt-1 space-y-0.5">
+                        {r.errors.map((err, i) => (
+                          <li key={i}>
+                            <span className="font-mono text-zinc-500">{err.localId}:</span> {err.reason}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 gap-1"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(JSON.stringify(r, null, 2));
+                          } catch { /* ignore */ }
+                        }}
+                      >
+                        <Copy className="h-3 w-3" /> Copy errors
+                      </Button>
+                    </details>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {redirectMsg && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{redirectMsg}</span>
+          </div>
+        )}
+
+        {/* Audit linkage */}
+        <div className="mt-5 border-t pt-4">
+          <Button variant="outline" size="sm" disabled={auditBusy} onClick={runAudit} className="gap-1">
+            {auditBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            Audit linkage status
+          </Button>
+          {auditReport && (
+            <div className="mt-3 space-y-1 rounded-lg border bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
+              {(["buyers", "sellers", "products"] as const).map((e) => {
+                const r = auditReport[e];
+                return (
+                  <div key={e} className="flex flex-wrap gap-x-3 gap-y-1">
+                    <span className="font-semibold capitalize">{e}:</span>
+                    <span><span className="font-mono">{r.total}</span> local</span>
+                    <span className="text-emerald-700"><span className="font-mono">{r.withUuid}</span> with UUID id</span>
+                    <span className={r.withLegacyId > 0 ? "text-amber-700" : "text-zinc-500"}>
+                      <span className="font-mono">{r.withLegacyId}</span> with legacy id
+                    </span>
+                  </div>
+                );
+              })}
+              <p className={`mt-2 ${auditReport.ok ? "text-emerald-700" : "text-amber-700"}`}>
+                {auditReport.ok
+                  ? "✓ All entities cleanly linked"
+                  : "⚠ Some records need relinking — click Relink All above"}
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Backfill payment ids */}
       <section className="rounded-xl border bg-white p-5 dark:bg-zinc-900">

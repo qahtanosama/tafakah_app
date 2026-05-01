@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useTransition } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KeyRound, Loader2, AlertTriangle, CheckCircle, Copy, X } from "lucide-react";
-import { IdMapper } from "@/lib/migration/id-map";
+import { createClient } from "@/lib/supabase/client";
+import { isUuid } from "@/lib/migration/relink-client";
 import {
   getBuyerPortalStatus,
   disableClientUserForBuyer,
@@ -32,7 +34,23 @@ export default function BuyerPortalAccess({ localBuyerId, buyerEmail, buyerCompa
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [copyFlash, setCopyFlash] = useState(false);
 
-  const buyerUuid = IdMapper.load().resolve("buyers", localBuyerId) ?? null;
+  const existsQuery = useQuery({
+    queryKey: ["buyer-exists", localBuyerId],
+    queryFn: async () => {
+      if (!isUuid(localBuyerId)) return false;
+      const supabase = createClient();
+      const { data, error: dbErr } = await supabase
+        .from("buyers")
+        .select("id")
+        .eq("id", localBuyerId)
+        .maybeSingle();
+      if (dbErr) return false;
+      return !!data;
+    },
+  });
+
+  const existsInDb = existsQuery.isSuccess && existsQuery.data === true;
+  const buyerUuid = existsInDb ? localBuyerId : null;
 
   const load = useCallback(async () => {
     if (!buyerUuid) { setLoaded(true); return; }
@@ -94,7 +112,11 @@ export default function BuyerPortalAccess({ localBuyerId, buyerEmail, buyerCompa
         <h3 className="text-sm font-semibold">Portal Access</h3>
       </div>
 
-      {!loaded && <p className="text-xs text-zinc-400">Checking portal status&hellip;</p>}
+      {(existsQuery.isPending || (existsInDb && !loaded)) && (
+        <p className="flex items-center gap-1 text-xs text-zinc-400">
+          <Loader2 className="h-3 w-3 animate-spin" /> Checking portal status&hellip;
+        </p>
+      )}
 
       {error && (
         <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
@@ -103,7 +125,7 @@ export default function BuyerPortalAccess({ localBuyerId, buyerEmail, buyerCompa
         </div>
       )}
 
-      {loaded && !buyerUuid && (
+      {existsQuery.isSuccess && !existsInDb && (
         <div className="space-y-2 text-xs text-zinc-500">
           <p>This buyer isn&rsquo;t in the cloud database yet.</p>
           <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
@@ -116,7 +138,6 @@ export default function BuyerPortalAccess({ localBuyerId, buyerEmail, buyerCompa
             {isPending ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : null}
             {isPending ? "Syncing..." : "Sync Buyer to Database"}
           </Button>
-          <Button size="sm" variant="outline" disabled>Create Client Login (requires migration first)</Button>
         </div>
       )}
 
