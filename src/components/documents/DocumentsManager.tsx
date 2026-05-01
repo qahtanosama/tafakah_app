@@ -459,6 +459,28 @@ export default function DocumentsManager() {
   // Merge execution
   const handleMerge = useCallback(async () => {
     if (!contractData || !totals || !contractNo) return;
+
+    // Open the save-location picker BEFORE any other await so the user-gesture
+    // context survives. If the user cancels, abort silently. If the picker
+    // isn't supported (Safari/Firefox) or errors for any other reason, we'll
+    // fall back to the classic anchor download after the merge completes.
+    const filename = `${contractNo}-shipment-package.pdf`;
+    let fileHandle: FileSystemFileHandle | null = null;
+    if (typeof window !== "undefined" && window.showSaveFilePicker) {
+      try {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: "PDF Document", accept: { "application/pdf": [".pdf"] } }],
+        });
+      } catch (err) {
+        // AbortError = user cancelled. Surface nothing and bail.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof Error && (err.name === "AbortError" || /abort/i.test(err.message))) return;
+        // Any other picker failure: fall through to anchor download.
+        fileHandle = null;
+      }
+    }
+
     setMerging(true);
     try {
       const { pdf } = await import("@react-pdf/renderer");
@@ -516,15 +538,22 @@ export default function DocumentsManager() {
       setMergeProgress("Merging all documents...");
       const merged = await mergeDocuments(allDocs);
       const blob = new Blob([merged.buffer as ArrayBuffer], { type: "application/pdf" });
-      const filename = `Shipment_Package_${contractNo}.pdf`;
 
-      // Always use the classic anchor download here. showSaveFilePicker requires
-      // an unbroken user-gesture context and the merge pipeline has many awaits
-      // (signing URLs, fetching certs, pdf-lib merging) before this point \u2014 the
-      // picker call will reliably throw with "Must be handling a user gesture".
-      await saveBlobWithDownload(blob, filename);
+      if (fileHandle) {
+        setMergeProgress("Saving to chosen location\u2026");
+        const writable = await fileHandle.createWritable();
+        try {
+          await writable.write(blob);
+        } finally {
+          await writable.close();
+        }
+        showToastMsg("success", "Shipment package saved!");
+      } else {
+        // Fallback for Safari/Firefox/iOS or when the picker errored.
+        await saveBlobWithDownload(blob, filename);
+        showToastMsg("success", "Shipment package downloaded!");
+      }
       setShowMergeModal(false);
-      showToastMsg("success", "Shipment package downloaded!");
     } catch (err) {
       showToastMsg("error", "Merge failed: " + (err as Error).message);
     } finally {
