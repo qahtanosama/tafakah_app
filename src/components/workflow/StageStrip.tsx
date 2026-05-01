@@ -17,6 +17,8 @@ import {
 } from "@/lib/workflow";
 import QuickShareDialog, { type QuickShareRecipientType } from "@/components/quick-share/QuickShareDialog";
 import type { QuickShareDoc } from "@/lib/quick-share/download";
+import FinalPackagePanel from "@/components/workflow/FinalPackagePanel";
+import { generateMergedPdfForContract } from "@/lib/contracts/generate-merged-pdf";
 
 interface Props {
   contract: ContractLogEntry;
@@ -311,7 +313,22 @@ function StageActions({
           {allReady && (
             <Button
               size="sm"
-              onClick={() => advanceStage(contract.id, "certs-ready", { by: "manual", notes: "all 3 certs uploaded" })}
+              onClick={async () => {
+                advanceStage(contract.id, "certs-ready", { by: "manual", notes: "all 3 certs uploaded" });
+                // Push local state to DB so the merge action can find the
+                // contract + its uploaded certificate metadata, then fire the
+                // merge in the background. Failures aren't fatal — the user
+                // can retry manually from the Final Package panel below.
+                try {
+                  const { runMigration } = await import("@/lib/migration/migrate");
+                  await runMigration({ dryRun: false });
+                } catch (err) {
+                  console.warn("[stage-advance] sync before merge failed:", err);
+                }
+                generateMergedPdfForContract({ contractNo: contract.contractNo }).catch((err) => {
+                  console.error("[stage-advance] merged PDF generation failed:", err);
+                });
+              }}
               className="gap-1"
             >
               <Check className="h-3.5 w-3.5" /> Advance to Certs Ready
@@ -345,6 +362,7 @@ function StageActions({
             <Send className="h-3.5 w-3.5" /> Finalize &amp; Send to Buyer
           </Button>
         </div>
+        <FinalPackagePanel contractNo={contract.contractNo} />
       </div>
     );
   }
@@ -365,6 +383,7 @@ function StageActions({
           {" "}SC sent {stageSC ? fmtDate(stageSC.completedAt) : "\u2014"} &middot;
           {" "}Shipped {stageShipped ? fmtDate(stageShipped.completedAt) : "\u2014"}
         </div>
+        <FinalPackagePanel contractNo={contract.contractNo} />
       </div>
     );
   }

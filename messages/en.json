@@ -60,7 +60,15 @@
       "cartons": "Cartons",
       "contractDate": "Contract Date",
       "notFound": "Contract not found",
-      "notFoundHint": "This contract does not exist or you do not have access to it."
+      "notFoundHint": "This contract does not exist or you do not have access to it.",
+      "finalPackage": {
+        "title": "Final Document Package",
+        "heading": "Complete Document Package",
+        "subtitle": "{count} documents combined into one file",
+        "generatedOn": "Generated {date}",
+        "size": "Size: {size}",
+        "download": "Download Package"
+      }
     },
     "shipping": {
       "vessel": "Vessel",

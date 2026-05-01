@@ -8,6 +8,7 @@ import ShippingTimeline, { type ShippingData } from "@/components/portal/Shippin
 import DocumentRow, { type DocumentRowData } from "@/components/portal/DocumentRow";
 import PaymentsTable, { type PortalPayment } from "@/components/portal/PaymentsTable";
 import GeneratedDocDownload from "@/components/portal/GeneratedDocDownload";
+import FinalPackageCard from "@/components/portal/FinalPackageCard";
 import { formatCurrency, formatDate, formatNumber, type AppLocale } from "@/lib/i18n/format";
 
 interface ContractRow {
@@ -19,6 +20,10 @@ interface ContractRow {
   line_items: unknown;
   terms: { incoterm?: string; brand?: string; containerType?: string } | null;
   totals: { totalUSD?: number; totalCartons?: number; totalQtyMTS?: number } | null;
+  merged_pdf_path: string | null;
+  merged_pdf_generated_at: string | null;
+  merged_pdf_size_bytes: number | null;
+  merged_pdf_doc_count: number | null;
 }
 
 interface ShippingRow extends ShippingData {
@@ -64,7 +69,7 @@ export default async function ContractDetailPage({
   // Defensive SELECT — never list seller_id, cost_items, or workflow_history here.
   const { data: contractRaw } = await supabase
     .from("contracts")
-    .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals")
+    .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals, merged_pdf_path, merged_pdf_generated_at, merged_pdf_size_bytes, merged_pdf_doc_count")
     .eq("id", id)
     .maybeSingle();
 
@@ -204,6 +209,18 @@ export default async function ContractDetailPage({
           <ShippingTimeline shipping={shippingForTimeline} stage={contract.current_stage} />
         </div>
       </section>
+
+      {/* Final Document Package — only renders if merged PDF exists */}
+      {contract.merged_pdf_path && (
+        <FinalPackageCard
+          contractId={contract.id}
+          contractNo={contract.contract_no}
+          generatedAt={contract.merged_pdf_generated_at}
+          sizeBytes={contract.merged_pdf_size_bytes}
+          docCount={contract.merged_pdf_doc_count}
+          locale={loc}
+        />
+      )}
 
       {/* Generated Documents */}
       <section className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
