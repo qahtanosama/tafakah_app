@@ -6,6 +6,7 @@ import AuthBadge from "@/components/auth/AuthBadge";
 import MigrationBanner from "@/components/migration/MigrationBanner";
 import IdbCertWipe from "@/components/migration/IdbCertWipe";
 import SyncStatusBadge from "@/components/retry-queue/SyncStatusBadge";
+import ImpersonationBanner from "@/components/admin/ImpersonationBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <Providers>
           <IdbCertWipe />
+          <ImpersonationBanner />
           <AuthBadge />
           <SyncStatusBadge />
           <MigrationBanner />

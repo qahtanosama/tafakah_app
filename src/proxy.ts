@@ -71,15 +71,33 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=disabled", req.url));
   }
 
+  // Super-admin-only paths. Team users hitting these get redirected home.
+  // (Note: super_admin can still hit them — they pass the check below.)
+  const SUPER_ONLY_PREFIXES = ["/admin/super", "/admin/users", "/admin/audit"];
+  if (SUPER_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    if (profile.role !== "super_admin") {
+      return NextResponse.redirect(new URL("/?error=super_admin_required", req.url));
+    }
+  }
+
   // Role-based route guards.
   if (profile.role === "client") {
     if (!isPortalPath(pathname)) {
       const target = profile.preferred_language === "ar" ? "/ar/portal" : "/portal";
       return NextResponse.redirect(new URL(target, req.url));
     }
-  } else if (profile.role === "team") {
+  } else if (profile.role === "team" || profile.role === "super_admin") {
+    // Both team and super_admin live on the team-side app. Bounce them out of
+    // the client portal.
     if (isPortalPath(pathname)) {
-      return NextResponse.redirect(new URL("/", req.url));
+      // Allowance for impersonation: a super_admin actively impersonating a
+      // client may legitimately need to view /portal pages. The cookie is set
+      // by the impersonateUser server action and validated against
+      // impersonation_sessions on each portal page render (see lib/impersonation).
+      const impersonationCookie = req.cookies.get("sb-impersonation-target")?.value;
+      if (!(profile.role === "super_admin" && impersonationCookie)) {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
     }
   }
 

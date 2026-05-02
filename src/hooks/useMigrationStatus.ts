@@ -51,7 +51,7 @@ function hasAnyLocalData(): boolean {
   return false;
 }
 
-export function useMigrationStatus(opts: { role?: "team" | "client" | null } = {}): Status & {
+export function useMigrationStatus(opts: { role?: "super_admin" | "team" | "client" | null } = {}): Status & {
   dismissBanner: (hours?: number) => void;
   setLastRun: (run: MigrationRun) => void;
   refresh: () => void;
@@ -65,7 +65,7 @@ export function useMigrationStatus(opts: { role?: "team" | "client" | null } = {
     const hasLocalData = hasAnyLocalData();
     const hasMigrated = lastRun?.status === "success";
     const dismissed = isDismissed();
-    const shouldShowBanner = hasLocalData && !hasMigrated && !dismissed && opts.role === "team";
+    const shouldShowBanner = hasLocalData && !hasMigrated && !dismissed && (opts.role === "team" || opts.role === "super_admin");
     setState({ hasLocalData, hasMigrated, lastRun, shouldShowBanner });
   }, [opts.role, version]);
 

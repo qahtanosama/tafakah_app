@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveImpersonation } from "@/lib/impersonation";
 import { Link } from "@/i18n/navigation";
 import StageBadge from "@/components/portal/StageBadge";
 import ShippingTimeline, { type ShippingData } from "@/components/portal/ShippingTimeline";
@@ -65,13 +66,18 @@ export default async function ContractDetailPage({
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/login");
 
-  // RLS scopes contracts to the client's buyer; missing rows surface as not-found.
-  // Defensive SELECT — never list seller_id, cost_items, or workflow_history here.
-  const { data: contractRaw } = await supabase
+  // For real client logins RLS already scopes by buyer_id. For super-admin
+  // impersonation we have to filter explicitly because their is_team()
+  // returns true and would otherwise expose every contract.
+  const impersonation = await getActiveImpersonation();
+  let q = supabase
     .from("contracts")
     .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals, merged_pdf_path, merged_pdf_generated_at, merged_pdf_size_bytes, merged_pdf_doc_count")
-    .eq("id", id)
-    .maybeSingle();
+    .eq("id", id);
+  if (impersonation?.targetBuyerId) {
+    q = q.eq("buyer_id", impersonation.targetBuyerId);
+  }
+  const { data: contractRaw } = await q.maybeSingle();
 
   const contract = contractRaw as ContractRow | null;
   if (!contract) notFound();

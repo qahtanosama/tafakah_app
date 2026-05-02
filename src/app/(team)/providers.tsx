@@ -2,15 +2,18 @@
 
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuth, type UserProfile } from "@/hooks/useAuth";
+import { useAuth, type UserProfile, type Role } from "@/hooks/useAuth";
 import type { User } from "@supabase/supabase-js";
 import { RetryQueueProvider } from "@/components/retry-queue/RetryQueueProvider";
 
 interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
-  role: "team" | "client" | null;
+  role: Role | null;
   loading: boolean;
+  isSuperAdmin: boolean;
+  isTeam: boolean;
+  isClient: boolean;
   signOut: () => Promise<void>;
 }
 

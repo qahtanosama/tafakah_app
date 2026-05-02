@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerClient } from "@/lib/supabase/server";
+import { requireTeamUser } from "@/lib/auth/require-team";
+import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export interface ActionResult {
   ok: boolean;
@@ -10,36 +12,25 @@ export interface ActionResult {
   data?: { userId?: string; email?: string; password?: string };
 }
 
-async function requireTeamUser(): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createServerClient();
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
-  if (!user) return { error: "Not signed in" };
-  const { data: profile } = await supabase
-    .from("users_profile")
-    .select("role, is_active")
-    .eq("user_id", user.id)
-    .single();
-  if (!profile || profile.role !== "team" || !profile.is_active) {
-    return { error: "Team access required" };
-  }
-  return { userId: user.id };
-}
+export type Role = "super_admin" | "team" | "client";
 
 export interface UserRow {
   user_id: string;
   email: string | null;
-  role: "team" | "client";
+  role: Role;
   full_name: string | null;
   is_active: boolean;
   buyer_id: string | null;
   buyer_name: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
 }
 
-export async function listUsers(): Promise<{ ok: boolean; users?: UserRow[]; error?: string }> {
-  const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+/* ─────────────────────────── Read ─────────────────────────── */
+
+export async function listUsers(): Promise<{ ok: boolean; users?: UserRow[]; error?: string; currentUserId?: string }> {
+  const guard = await requireSuperAdmin();
+  if (!guard.ok) return { ok: false, error: guard.error };
 
   const admin = createAdminClient();
   const [{ data: profiles, error: pErr }, { data: authList, error: aErr }, { data: buyers }] = await Promise.all([
@@ -50,28 +41,34 @@ export async function listUsers(): Promise<{ ok: boolean; users?: UserRow[]; err
   if (pErr) return { ok: false, error: pErr.message };
   if (aErr) return { ok: false, error: aErr.message };
 
-  const emailByUser = new Map<string, string>();
+  const authByUser = new Map<string, { email: string | null; lastSignIn: string | null }>();
   for (const u of authList.users ?? []) {
-    if (u.id && u.email) emailByUser.set(u.id, u.email);
+    if (u.id) authByUser.set(u.id, { email: u.email ?? null, lastSignIn: u.last_sign_in_at ?? null });
   }
   const buyerNameById = new Map<string, string>();
   for (const b of buyers ?? []) {
     buyerNameById.set(b.id as string, (b.company_name as string) ?? "");
   }
 
-  const rows: UserRow[] = (profiles ?? []).map((p) => ({
-    user_id: p.user_id,
-    email: emailByUser.get(p.user_id) ?? null,
-    role: p.role as "team" | "client",
-    full_name: p.full_name ?? null,
-    is_active: p.is_active,
-    buyer_id: p.buyer_id ?? null,
-    buyer_name: p.buyer_id ? buyerNameById.get(p.buyer_id) ?? null : null,
-    created_at: p.created_at,
-  }));
+  const rows: UserRow[] = (profiles ?? []).map((p) => {
+    const a = authByUser.get(p.user_id) ?? { email: null, lastSignIn: null };
+    return {
+      user_id: p.user_id,
+      email: a.email,
+      role: p.role as Role,
+      full_name: p.full_name ?? null,
+      is_active: p.is_active,
+      buyer_id: p.buyer_id ?? null,
+      buyer_name: p.buyer_id ? buyerNameById.get(p.buyer_id) ?? null : null,
+      created_at: p.created_at,
+      last_sign_in_at: a.lastSignIn,
+    };
+  });
 
-  return { ok: true, users: rows };
+  return { ok: true, users: rows, currentUserId: guard.userId };
 }
+
+/* ─────────────────────────── Helpers ─────────────────────────── */
 
 function generatePassword(length = 16): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
@@ -84,15 +81,22 @@ function generatePassword(length = 16): string {
     for (let i = 0; i < length; i++) out += alphabet[arr[i] % alphabet.length];
     return out;
   }
-  // Fallback (shouldn't happen on the server)
   let out = "";
   for (let i = 0; i < length; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
   return out;
 }
 
+async function lookupAuthEmail(userId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data } = await admin.auth.admin.getUserById(userId);
+  return data?.user?.email ?? null;
+}
+
+/* ─────────────────────── Account creation ─────────────────────── */
+
 export async function createTeamUser(formData: FormData): Promise<ActionResult> {
-  const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+  const guard = await requireSuperAdmin();
+  if (!guard.ok) return { ok: false, error: guard.error };
 
   const email = (formData.get("email") as string | null)?.trim() ?? "";
   const fullName = (formData.get("fullName") as string | null)?.trim() ?? "";
@@ -120,13 +124,23 @@ export async function createTeamUser(formData: FormData): Promise<ActionResult> 
     return { ok: false, error: `Profile insert failed: ${profileErr.message}` };
   }
 
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: "super_admin",
+    action: "account_create",
+    targetUserId: created.user.id,
+    targetEmail: email,
+    metadata: { role: "team", full_name: fullName },
+  });
+
   revalidatePath("/admin/users");
   return { ok: true, data: { userId: created.user.id, email, password } };
 }
 
 export async function createClientUserForBuyer(buyerId: string, passwordIn?: string): Promise<ActionResult> {
   const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+  if (!guard.ok) return { ok: false, error: guard.error };
 
   const admin = createAdminClient();
   const { data: buyer, error: buyerErr } = await admin
@@ -160,18 +174,134 @@ export async function createClientUserForBuyer(buyerId: string, passwordIn?: str
 
   await admin.from("buyers").update({ portal_enabled: true }).eq("id", buyer.id as string);
 
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: guard.role,
+    action: "client_login_create",
+    targetUserId: created.user.id,
+    targetEmail: buyer.email as string,
+    targetResourceType: "buyer",
+    targetResourceId: buyer.id as string,
+    metadata: { company_name: buyer.company_name },
+  });
+
   revalidatePath("/admin/users");
   return { ok: true, data: { userId: created.user.id, email: buyer.email as string, password } };
 }
 
+/* ───────────────────── Account state changes ───────────────────── */
+
 export async function toggleUserActive(userId: string, active: boolean): Promise<ActionResult> {
-  const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+  const guard = await requireSuperAdmin();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  if (userId === guard.userId) return { ok: false, error: "You cannot disable your own super-admin account." };
+
   const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("users_profile")
+    .select("role, full_name")
+    .eq("user_id", userId)
+    .single();
+  if (!existing) return { ok: false, error: "User not found." };
+  if (existing.role === "super_admin") {
+    return { ok: false, error: "Cannot disable a super-admin account from the UI. Use SQL." };
+  }
+
   const { error } = await admin.from("users_profile").update({ is_active: active }).eq("user_id", userId);
   if (error) return { ok: false, error: error.message };
+
+  const targetEmail = await lookupAuthEmail(userId);
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: "super_admin",
+    action: active ? "account_enable" : "account_disable",
+    targetUserId: userId,
+    targetEmail,
+    metadata: { previous_role: existing.role, full_name: existing.full_name },
+  });
+
   revalidatePath("/admin/users");
   return { ok: true };
+}
+
+export async function changeUserRole(userId: string, newRole: "team" | "client"): Promise<ActionResult> {
+  const guard = await requireSuperAdmin();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  if (userId === guard.userId) return { ok: false, error: "You cannot change your own role." };
+  if (newRole !== "team" && newRole !== "client") {
+    return { ok: false, error: "Role must be 'team' or 'client'. Promotion to 'super_admin' must be done via SQL." };
+  }
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("users_profile")
+    .select("role, buyer_id, full_name")
+    .eq("user_id", userId)
+    .single();
+  if (!existing) return { ok: false, error: "User not found." };
+  if (existing.role === "super_admin") {
+    return { ok: false, error: "Cannot demote a super-admin from the UI. Use SQL." };
+  }
+  if (existing.role === newRole) {
+    return { ok: false, error: `User is already ${newRole}.` };
+  }
+
+  // Demoting team → client without a buyer link is almost certainly a bug.
+  if (newRole === "client" && !existing.buyer_id) {
+    return { ok: false, error: "Cannot move to 'client' without a linked buyer. Use the buyer-side 'Create Client Login' flow instead." };
+  }
+
+  const { error } = await admin.from("users_profile").update({ role: newRole }).eq("user_id", userId);
+  if (error) return { ok: false, error: error.message };
+
+  const targetEmail = await lookupAuthEmail(userId);
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: "super_admin",
+    action: "role_change",
+    targetUserId: userId,
+    targetEmail,
+    metadata: { from: existing.role, to: newRole, full_name: existing.full_name },
+  });
+
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+export async function resetTeamUserPassword(userId: string): Promise<ActionResult> {
+  const guard = await requireSuperAdmin();
+  if (!guard.ok) return { ok: false, error: guard.error };
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("users_profile")
+    .select("role, full_name")
+    .eq("user_id", userId)
+    .single();
+  if (!existing) return { ok: false, error: "User not found." };
+  if (existing.role === "super_admin" && userId !== guard.userId) {
+    return { ok: false, error: "Cannot reset password for another super-admin from the UI. Use SQL." };
+  }
+
+  const newPassword = generatePassword();
+  const { error } = await admin.auth.admin.updateUserById(userId, { password: newPassword });
+  if (error) return { ok: false, error: error.message };
+
+  const targetEmail = await lookupAuthEmail(userId);
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: "super_admin",
+    action: "password_reset",
+    targetUserId: userId,
+    targetEmail,
+    metadata: { role: existing.role },
+  });
+
+  return { ok: true, data: { userId, email: targetEmail ?? "", password: newPassword } };
 }
 
 /* ─── Buyer portal-access helpers (called from the buyer edit form) ─── */
@@ -187,7 +317,7 @@ export interface BuyerPortalStatus {
 
 export async function getBuyerPortalStatus(buyerUuid: string): Promise<{ ok: boolean; error?: string; status?: BuyerPortalStatus }> {
   const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+  if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
 
   const { data: buyer, error } = await admin
@@ -222,7 +352,7 @@ export async function getBuyerPortalStatus(buyerUuid: string): Promise<{ ok: boo
 
 export async function disableClientUserForBuyer(buyerUuid: string): Promise<ActionResult> {
   const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+  if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
 
   const { data: profile } = await admin
@@ -234,6 +364,17 @@ export async function disableClientUserForBuyer(buyerUuid: string): Promise<Acti
 
   if (profile) {
     await admin.from("users_profile").update({ is_active: false }).eq("user_id", profile.user_id as string);
+    const targetEmail = await lookupAuthEmail(profile.user_id as string);
+    await logAuditEvent({
+      actorUserId: guard.userId,
+      actorEmail: guard.email,
+      actorRole: guard.role,
+      action: "account_disable",
+      targetUserId: profile.user_id as string,
+      targetEmail,
+      targetResourceType: "buyer",
+      targetResourceId: buyerUuid,
+    });
   }
   await admin.from("buyers").update({ portal_enabled: false }).eq("id", buyerUuid);
   revalidatePath("/admin/users");
@@ -242,7 +383,7 @@ export async function disableClientUserForBuyer(buyerUuid: string): Promise<Acti
 
 export async function resetClientPasswordForBuyer(buyerUuid: string): Promise<ActionResult> {
   const guard = await requireTeamUser();
-  if ("error" in guard) return { ok: false, error: guard.error };
+  if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
 
   const { data: buyer } = await admin.from("buyers").select("email").eq("id", buyerUuid).maybeSingle();
@@ -259,8 +400,19 @@ export async function resetClientPasswordForBuyer(buyerUuid: string): Promise<Ac
   const newPassword = generatePassword();
   const { error } = await admin.auth.admin.updateUserById(profile.user_id as string, { password: newPassword });
   if (error) return { ok: false, error: error.message };
-  // Re-enable in case it was disabled
   await admin.from("users_profile").update({ is_active: true }).eq("user_id", profile.user_id as string);
   await admin.from("buyers").update({ portal_enabled: true }).eq("id", buyerUuid);
+
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: guard.role,
+    action: "password_reset",
+    targetUserId: profile.user_id as string,
+    targetEmail: buyer.email as string,
+    targetResourceType: "buyer",
+    targetResourceId: buyerUuid,
+  });
+
   return { ok: true, data: { userId: profile.user_id as string, email: buyer.email as string, password: newPassword } };
 }

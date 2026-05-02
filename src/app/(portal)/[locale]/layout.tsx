@@ -6,6 +6,7 @@ import { setRequestLocale } from "next-intl/server";
 import "../../globals.css";
 import { Providers } from "../../(team)/providers";
 import { routing } from "@/i18n/routing";
+import ImpersonationBanner from "@/components/admin/ImpersonationBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +45,7 @@ export default async function PortalRootLayout({
       <body className="min-h-full flex flex-col bg-portal-bg text-foreground">
         <NextIntlClientProvider locale={locale}>
           <Providers>
+            <ImpersonationBanner />
             <div className={isAr ? "font-arabic" : ""}>{children}</div>
           </Providers>
         </NextIntlClientProvider>

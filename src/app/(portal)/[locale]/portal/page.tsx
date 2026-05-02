@@ -2,10 +2,12 @@ import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Briefcase, DollarSign, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { loadClientContracts } from "@/lib/portal/contracts";
 import { formatCurrency, type AppLocale } from "@/lib/i18n/format";
 import StatCard from "@/components/portal/StatCard";
 import ContractCard from "@/components/portal/ContractCard";
+import { getActiveImpersonation } from "@/lib/impersonation";
 
 export default async function PortalDashboard({
   params,
@@ -21,31 +23,52 @@ export default async function PortalDashboard({
   const user = userData.user;
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("users_profile")
-    .select("full_name, buyer_id, role, is_active")
-    .eq("user_id", user.id)
-    .single();
+  // Super-admin impersonation: when an active session is in flight we render
+  // the portal as if we were the target client (using their buyer_id).
+  const impersonation = await getActiveImpersonation();
 
-  if (!profile || !profile.is_active || profile.role !== "client") {
+  type EffectiveProfile = { full_name: string | null; buyer_id: string | null; role: string; is_active: boolean };
+  let effectiveProfile: EffectiveProfile | null = null;
+  let effectiveBuyerId: string | null = null;
+
+  if (impersonation && impersonation.targetBuyerId) {
+    const adminClient = createAdminClient();
+    const { data: tProfile } = await adminClient
+      .from("users_profile")
+      .select("full_name, buyer_id, role, is_active")
+      .eq("user_id", impersonation.targetUserId)
+      .single();
+    effectiveProfile = tProfile as EffectiveProfile | null;
+    effectiveBuyerId = impersonation.targetBuyerId;
+  } else {
+    const { data: profile } = await supabase
+      .from("users_profile")
+      .select("full_name, buyer_id, role, is_active")
+      .eq("user_id", user.id)
+      .single();
+    effectiveProfile = profile as EffectiveProfile | null;
+    effectiveBuyerId = effectiveProfile?.buyer_id ?? null;
+  }
+
+  if (!effectiveProfile || !effectiveProfile.is_active || effectiveProfile.role !== "client") {
     redirect("/login?error=disabled");
   }
 
-  const { data: buyer } = profile.buyer_id
+  const { data: buyer } = effectiveBuyerId
     ? await supabase
         .from("buyers")
         .select("company_name, company_name_cn, country")
-        .eq("id", profile.buyer_id)
+        .eq("id", effectiveBuyerId)
         .single()
     : { data: null };
 
-  const contracts = await loadClientContracts(supabase);
+  const contracts = await loadClientContracts(supabase, effectiveBuyerId);
 
   const activeCount = contracts.filter((c) => c.stage !== "delivered").length;
   const totalValue = contracts.reduce((s, c) => s + c.totalUSD, 0);
   const outstanding = contracts.reduce((s, c) => s + Math.max(0, c.totalUSD - c.totalReceived), 0);
 
-  const fullName = profile.full_name ?? user.email ?? "";
+  const fullName = effectiveProfile.full_name ?? user.email ?? "";
   const loc = locale as AppLocale;
 
   return (

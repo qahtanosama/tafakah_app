@@ -33,16 +33,21 @@ interface FinanceRow {
 }
 
 /**
- * Loads all contracts visible to the signed-in client (RLS scopes by buyer_id).
- * Strips internal-only fields. Aggregates payments and shipping for the dashboard.
+ * Loads all contracts for the dashboard. For real client logins, RLS scopes
+ * by buyer_id and `scopeBuyerId` may be omitted. For super-admin impersonation,
+ * RLS would otherwise return every contract — pass `scopeBuyerId` to filter
+ * down to the impersonated buyer.
  */
 export async function loadClientContracts(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  scopeBuyerId?: string | null,
 ): Promise<PortalContractSummary[]> {
-  const { data: contractRows } = await supabase
+  let q = supabase
     .from("contracts")
     .select("id, contract_no, invoice_no, current_stage, totals, contract_date")
     .order("created_at", { ascending: false });
+  if (scopeBuyerId) q = q.eq("buyer_id", scopeBuyerId);
+  const { data: contractRows } = await q;
 
   const contracts = (contractRows ?? []) as PortalContractRow[];
   if (contracts.length === 0) return [];

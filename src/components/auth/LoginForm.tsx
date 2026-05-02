@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { recordLoginEvent } from "@/app/(team)/login/log-login";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -59,11 +60,16 @@ export default function LoginForm() {
         return;
       }
 
+      // Audit log — best-effort, never block the redirect.
+      void recordLoginEvent(user.id);
+
       const next = searchParams?.get("next");
       let destination: string;
       if (profile.role === "client") {
         destination = profile.preferred_language === "ar" ? "/ar/portal" : "/portal";
       } else {
+        // Both team and super_admin land on /. super_admin can navigate to
+        // /admin/super from there.
         destination = next && next !== "/login" ? next : "/";
       }
       router.replace(destination);
