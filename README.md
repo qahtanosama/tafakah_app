@@ -44,3 +44,4 @@ src/
 - [ ] Phase 2: Database and authentication
 - [ ] Phase 3: Trade document generation
 - [ ] Phase 4: AI document scanning and merging (CO, B/L, Phyto certificates)
+ # add a blank line, harmless change
