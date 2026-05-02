@@ -10,7 +10,6 @@ import HomeStageWidget from "@/components/workflow/HomeStageWidget";
 import SuperAdminHomeBanner from "@/components/admin/SuperAdminHomeBanner";
 import SignOutIcon from "@/components/ui/SignOutIcon";
 import { Settings } from "lucide-react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
 const sections = [
