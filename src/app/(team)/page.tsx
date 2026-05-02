@@ -3,12 +3,12 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet, Calculator,
-  Receipt, ScrollText, Settings, ArrowRight, PenLine, Merge, Ship, Factory, Sparkles, ChevronRight
+  Receipt, ScrollText, ArrowRight, PenLine, Merge, Ship, Factory, Sparkles, ChevronRight
 } from "lucide-react";
 import ShippingCardSummary from "@/components/shipping/ShippingCardSummary";
 import HomeStageWidget from "@/components/workflow/HomeStageWidget";
-import SignOutIcon from "@/components/auth/SignOutIcon";
 import SuperAdminHomeBanner from "@/components/admin/SuperAdminHomeBanner";
+import SignOutIcon from "@/components/ui/SignOutIcon";
 import { createClient } from "@/lib/supabase/server";
 
 const sections = [
@@ -89,9 +89,7 @@ export default async function Home() {
               </span>
               <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Shanghai Hub</span>
             </div>
-            <Link href="/settings" className="relative p-2 rounded-full text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all duration-300" title="Settings">
-              <Settings className="h-5 w-5" />
-            </Link>
+            {/* The global profile dropdown may occasionally fail if the profile DB row is missing, so we provide an explicit fail-safe sign-out button here. */}
             <SignOutIcon />
           </div>
         </div>
