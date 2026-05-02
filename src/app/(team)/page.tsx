@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet, Calculator,
@@ -7,6 +8,8 @@ import {
 import ShippingCardSummary from "@/components/shipping/ShippingCardSummary";
 import HomeStageWidget from "@/components/workflow/HomeStageWidget";
 import SignOutIcon from "@/components/auth/SignOutIcon";
+import SuperAdminHomeBanner from "@/components/admin/SuperAdminHomeBanner";
+import { createClient } from "@/lib/supabase/server";
 
 const sections = [
   {
@@ -38,7 +41,28 @@ const sections = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // Resolve role server-side so the page can decide whether to show the
+  // super-admin hero. Middleware already gates access; this read is just for
+  // role-conditional layout.
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData.user;
+  let role: "super_admin" | "team" | "client" | null = null;
+  let fullName: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("users_profile")
+      .select("role, full_name")
+      .eq("user_id", user.id)
+      .single();
+    role = (profile?.role as "super_admin" | "team" | "client" | undefined) ?? null;
+    fullName = (profile?.full_name as string | null) ?? null;
+  }
+  // Safeguard: clients shouldn't reach here (middleware redirects), but if
+  // they do (e.g. middleware bypass), bounce them out.
+  if (role === "client") redirect("/portal");
+
   return (
     <div className="flex flex-col min-h-screen relative font-sans text-slate-900 dark:text-slate-100 selection:bg-indigo-500/30">
       {/* Dynamic Background */}
@@ -74,15 +98,30 @@ export default function Home() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-6 lg:px-8 py-12 flex-1 flex flex-col gap-12">
+        {role === "super_admin" && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <SuperAdminHomeBanner fullName={fullName} />
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-sm font-medium mb-4 border border-indigo-100 dark:border-indigo-500/20">
-              <Sparkles className="h-4 w-4" /> Welcome back
-            </div>
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Trade Management <br className="hidden md:block"/>
-              <span className="bg-gradient-to-r from-indigo-600 to-cyan-500 bg-clip-text text-transparent">Reimagined.</span>
+            {role === "super_admin" ? (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 text-xs font-semibold uppercase tracking-wide mb-4 border border-slate-200 dark:border-zinc-700">
+                Trade Operations
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-sm font-medium mb-4 border border-indigo-100 dark:border-indigo-500/20">
+                <Sparkles className="h-4 w-4" /> Welcome back
+              </div>
+            )}
+            <h1 className={role === "super_admin"
+              ? "text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white"
+              : "text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white"
+            }>
+              Trade Management {role !== "super_admin" && <br className="hidden md:block"/>}
+              {role !== "super_admin" && <span className="bg-gradient-to-r from-indigo-600 to-cyan-500 bg-clip-text text-transparent">Reimagined.</span>}
             </h1>
           </div>
           
