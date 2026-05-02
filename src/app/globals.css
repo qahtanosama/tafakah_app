@@ -143,7 +143,4 @@
     font-family: "Noto Sans Arabic", "Cairo", system-ui, sans-serif;
     line-height: 1.7;
   }
-  html[lang="ar"] body {
-    font-feature-settings: "ss01" on;
-  }
 }
