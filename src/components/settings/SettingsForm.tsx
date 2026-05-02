@@ -12,6 +12,7 @@ import { exportBackup, parseBackup, restoreBackup, clearAllData, getStorageStats
 import { getUsage, setUsageLimit } from "@/lib/shipsgo";
 import { supportsSaveFilePicker, saveBlobWithPicker, saveBlobWithDownload } from "@/lib/quick-share/save-file";
 import DataSourceSection from "./DataSourceSection";
+import { changePassword } from "@/app/(portal)/[locale]/portal/profile/actions";
 
 interface ProviderCardProps {
   provider: AIProvider;
@@ -260,6 +261,9 @@ export default function SettingsForm() {
       {/* ═══ DATA SOURCE + SYNC ISSUES ═══ */}
       <DataSourceSection />
 
+      {/* ═══ ACCOUNT SECURITY ═══ */}
+      <ChangePasswordSection showToast={showToast} />
+
       {/* ═══ DATA MANAGEMENT ═══ */}
       <DataManagementSection showToast={showToast} />
     </div>
@@ -392,6 +396,63 @@ function ShipsgoSection({ token, onTokenChange, onSave, showToast }: {
           <a href="https://shipsgo.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-600">shipsgo.com</a>.
           Token is stored in your browser only. When deployed to the web, we&rsquo;ll move it to secure server storage.
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChangePasswordSection({ showToast }: { showToast: (msg: string) => void }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (next.length < 8) return showToast("New password must be at least 8 characters");
+    if (next !== confirm) return showToast("New passwords do not match");
+
+    setLoading(true);
+    try {
+      const res = await changePassword(current, next);
+      if (!res.ok) {
+        showToast(res.error);
+      } else {
+        showToast("Password changed successfully!");
+        setCurrent("");
+        setNext("");
+        setConfirm("");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Account Security</CardTitle>
+        <p className="text-xs text-zinc-500">Update your account password</p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-3">
+          <div>
+            <Label>Current Password</Label>
+            <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required className="mt-1 h-9" />
+          </div>
+          <div>
+            <Label>New Password</Label>
+            <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} required className="mt-1 h-9" />
+          </div>
+          <div>
+            <Label>Confirm New Password</Label>
+            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required className="mt-1 h-9" />
+          </div>
+          <Button type="submit" disabled={loading || !current || !next || !confirm} className="mt-2 w-fit">
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Change Password
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );
