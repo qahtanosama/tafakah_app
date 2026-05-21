@@ -58,6 +58,8 @@
       "containerType": "نوع الحاوية",
       "quantity": "الكمية",
       "cartons": "الكراتين",
+      "blNumber": "رقم بوليصة الشحن",
+      "containers": "الحاويات",
       "contractDate": "تاريخ العقد",
       "notFound": "العقد غير موجود",
       "notFoundHint": "هذا العقد غير موجود أو ليس لديك صلاحية للوصول إليه.",

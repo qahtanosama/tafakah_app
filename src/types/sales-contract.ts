@@ -72,6 +72,7 @@ export interface DocumentIdentifiers {
 }
 
 import type { ContractWorkflow } from "./workflow";
+import type { ContractContainer } from "./contract";
 
 export interface SalesContractData {
   identifiers: DocumentIdentifiers;
@@ -85,6 +86,18 @@ export interface SalesContractData {
   sellerId?: string;
   /** Stage tracker. Older contracts default to "docs-generated" on read via defaultWorkflow(). */
   workflow?: ContractWorkflow;
+  /**
+   * Canonical B/L number entered on Shipping Tracker. When set, overrides
+   * `identifiers.blNumber` on CI / PL / CI-Customs renderings. Optional —
+   * older contracts won't have this.
+   */
+  blNumber?: string | null;
+  /**
+   * Multiple container numbers entered on Shipping Tracker. Rendered on CI,
+   * PL, and CI-Customs (not on the Sales Contract — that's a pre-shipment
+   * document).
+   */
+  containers?: ContractContainer[];
 }
 
 export interface ContractTotals {

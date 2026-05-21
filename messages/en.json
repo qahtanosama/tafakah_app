@@ -58,6 +58,8 @@
       "containerType": "Container Type",
       "quantity": "Quantity",
       "cartons": "Cartons",
+      "blNumber": "B/L Number",
+      "containers": "Containers",
       "contractDate": "Contract Date",
       "notFound": "Contract not found",
       "notFoundHint": "This contract does not exist or you do not have access to it.",

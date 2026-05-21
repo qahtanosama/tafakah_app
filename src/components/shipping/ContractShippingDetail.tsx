@@ -24,6 +24,7 @@ import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, formatRelativeTime, isSt
 import { useRouter } from "next/navigation";
 import { findContractByNo, getWorkflow, advanceStage } from "@/lib/workflow";
 import StageStrip from "@/components/workflow/StageStrip";
+import ShippingDocsSection from "@/components/shipping/ShippingDocsSection";
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "\u2014";
@@ -534,6 +535,9 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
           <div><Label>Seal Number</Label><Input value={entry.sealNumber} onChange={(e) => update("sealNumber", e.target.value)} onBlur={commit} /></div>
         </CardContent>
       </Card>
+
+      {/* B/L + Containers (canonical, persisted on contracts row) */}
+      <ShippingDocsSection contract={contract} />
 
       {/* Status & notes */}
       <Card>

@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 import type { SalesContractData, ContractTotals } from "@/types/sales-contract";
 import SellerSignatureBlock from "@/components/pdf/SellerSignatureBlock";
+import ShippingDocsHeader from "@/components/pdf/ShippingDocsHeader";
 import { Letterhead, Footer, s, formatDate, fmt, fmtUSD } from "@/components/pdf/shared";
 import { numberToWords } from "@/lib/number-to-words";
 
@@ -52,20 +53,24 @@ export default function CommercialInvoicePDF({
           </View>
         </View>
 
-        {/* Optional IDs */}
-        {(data.identifiers.sealNumber || data.identifiers.containerNumber || data.identifiers.blNumber) && (
+        {/* Optional legacy IDs (seal number kept for back-compat — B/L and
+            container now live in the ShippingDocsHeader below). */}
+        {data.identifiers.sealNumber ? (
           <View style={[s.contractInfoRowNoBorder, { marginTop: 4 }]}>
-            {data.identifiers.sealNumber ? (
-              <Text><Text style={s.contractInfoLabel}>Seal No: </Text><Text style={s.contractInfoValue}>{data.identifiers.sealNumber}</Text></Text>
-            ) : null}
-            {data.identifiers.containerNumber ? (
-              <Text><Text style={s.contractInfoLabel}>Container No: </Text><Text style={s.contractInfoValue}>{data.identifiers.containerNumber}</Text></Text>
-            ) : null}
-            {data.identifiers.blNumber ? (
-              <Text><Text style={s.contractInfoLabel}>B/L No: </Text><Text style={s.contractInfoValue}>{data.identifiers.blNumber}</Text></Text>
-            ) : null}
+            <Text><Text style={s.contractInfoLabel}>Seal No: </Text><Text style={s.contractInfoValue}>{data.identifiers.sealNumber}</Text></Text>
           </View>
-        )}
+        ) : null}
+
+        <ShippingDocsHeader
+          blNumber={data.blNumber ?? data.identifiers.blNumber}
+          containers={
+            data.containers && data.containers.length > 0
+              ? data.containers
+              : data.identifiers.containerNumber
+              ? [{ number: data.identifiers.containerNumber }]
+              : []
+          }
+        />
 
         {/* Goods Table */}
         <Text style={s.sectionTitle}>GOODS / PRICING</Text>

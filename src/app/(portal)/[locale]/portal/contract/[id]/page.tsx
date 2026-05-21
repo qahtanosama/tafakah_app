@@ -21,11 +21,15 @@ interface ContractRow {
   line_items: unknown;
   terms: { incoterm?: string; brand?: string; containerType?: string } | null;
   totals: { totalUSD?: number; totalCartons?: number; totalQtyMTS?: number } | null;
+  bl_number: string | null;
+  containers: Array<{ number?: string }> | null;
   merged_pdf_path: string | null;
   merged_pdf_generated_at: string | null;
   merged_pdf_size_bytes: number | null;
   merged_pdf_doc_count: number | null;
 }
+
+const POST_SHIPPED_STAGES = new Set(["shipped", "certs-ready", "delivered"]);
 
 interface ShippingRow extends ShippingData {
   contract_id: string;
@@ -72,7 +76,7 @@ export default async function ContractDetailPage({
   const impersonation = await getActiveImpersonation();
   let q = supabase
     .from("contracts")
-    .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals, merged_pdf_path, merged_pdf_generated_at, merged_pdf_size_bytes, merged_pdf_doc_count")
+    .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals, bl_number, containers, merged_pdf_path, merged_pdf_generated_at, merged_pdf_size_bytes, merged_pdf_doc_count")
     .eq("id", id);
   if (impersonation?.targetBuyerId) {
     q = q.eq("buyer_id", impersonation.targetBuyerId);
@@ -127,6 +131,12 @@ export default async function ContractDetailPage({
 
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const Back = locale === "ar" ? ArrowRight : ArrowLeft;
+
+  const showShippingDocs = POST_SHIPPED_STAGES.has(contract.current_stage);
+  const containerNumbers = (contract.containers ?? [])
+    .map((c) => (typeof c?.number === "string" ? c.number : ""))
+    .filter((n) => n.length > 0);
+  const hasShippingDocs = !!contract.bl_number || containerNumbers.length > 0;
 
   const shippingForTimeline: ShippingData | null = shipping
     ? {
@@ -207,6 +217,33 @@ export default async function ContractDetailPage({
             }
           />
         </div>
+        {showShippingDocs && hasShippingDocs && (
+          <div className="mt-5 grid gap-4 border-t pt-5 sm:grid-cols-2">
+            {contract.bl_number ? (
+              <Field
+                label={t("blNumber")}
+                value={<span className="font-mono">{contract.bl_number}</span>}
+              />
+            ) : null}
+            {containerNumbers.length > 0 ? (
+              <div className={contract.bl_number ? "" : "sm:col-span-2"}>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {t("containers")}
+                </dt>
+                <dd className="mt-1 flex flex-wrap gap-2 text-base font-medium text-foreground">
+                  {containerNumbers.map((num) => (
+                    <span
+                      key={num}
+                      className="rounded-md border bg-muted/40 px-2 py-0.5 font-mono text-sm"
+                    >
+                      {num}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            ) : null}
+          </div>
+        )}
       </section>
 
       {/* Shipping */}

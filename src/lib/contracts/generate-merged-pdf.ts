@@ -55,6 +55,8 @@ interface ContractRow {
   line_items: unknown;
   terms: Record<string, unknown> | null;
   totals: unknown;
+  bl_number: string | null;
+  containers: Array<{ number?: string }> | null;
   buyer: { company_name: string | null; country: string | null } | { company_name: string | null; country: string | null }[] | null;
 }
 
@@ -70,6 +72,10 @@ function buildPdfData(contract: ContractRow) {
   const firstLineMeta = (lineItemsRaw[0] ?? {}) as { loadingPort?: string; dischargePort?: string };
   const buyerJoined = Array.isArray(contract.buyer) ? contract.buyer[0] : contract.buyer;
   const terms = (contract.terms ?? {}) as Record<string, unknown>;
+  const containers = (contract.containers ?? [])
+    .map((c) => (typeof c?.number === "string" ? c.number : ""))
+    .filter((n) => n.length > 0)
+    .map((number) => ({ number }));
 
   return {
     identifiers: {
@@ -94,6 +100,8 @@ function buildPdfData(contract: ContractRow) {
     },
     terms: contract.terms ?? defaults.terms,
     lineItems: contract.line_items ?? defaults.lineItems,
+    blNumber: contract.bl_number,
+    containers,
   };
 }
 
@@ -120,7 +128,7 @@ export async function generateMergedPdfForContract(
     const { data: contractRaw, error: cErr } = await admin
       .from("contracts")
       .select(
-        "id, contract_no, invoice_no, contract_date, line_items, terms, totals, buyer:buyers(company_name, country)",
+        "id, contract_no, invoice_no, contract_date, line_items, terms, totals, bl_number, containers, buyer:buyers(company_name, country)",
       )
       .eq(lookupCol, lookupVal)
       .maybeSingle();
