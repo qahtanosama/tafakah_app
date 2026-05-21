@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import type { ActiveContract } from "@/types/sales-contract";
 import { calcTotals } from "@/lib/sales-contract";
 import { loadActiveContract } from "@/lib/master-data";
+import {
+  getContractContainers,
+  getContractIdByNo,
+} from "@/lib/contracts/update-shipping";
 
 const PackingListPDFDownload = dynamic(
   () => import("./PackingListPDFDownload"),
@@ -27,8 +31,39 @@ export default function PackingListForm() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setActive(loadActiveContract());
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      const local = loadActiveContract();
+      if (!local) {
+        if (!cancelled) {
+          setActive(null);
+          setLoaded(true);
+        }
+        return;
+      }
+      try {
+        const idRes = await getContractIdByNo({ contractNo: local.contractNo });
+        if (idRes.ok) {
+          const data = await getContractContainers({ contractId: idRes.contractId });
+          if (data.ok) {
+            local.data = {
+              ...local.data,
+              blNumber: data.blNumber,
+              containers: data.containers.map((number) => ({ number })),
+            };
+          }
+        }
+      } catch {
+        // best-effort
+      }
+      if (!cancelled) {
+        setActive(local);
+        setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const data = active?.data ?? null;

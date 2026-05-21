@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   const { data: contract, error: contractError } = await supabase
     .from("contracts")
     .select(
-      "id, contract_no, invoice_no, contract_date, line_items, terms, totals, buyer:buyers(company_name, country)"
+      "id, contract_no, invoice_no, contract_date, line_items, terms, totals, bl_number, containers, buyer:buyers(company_name, country)"
     )
     .eq("id", contractId)
     .maybeSingle();
@@ -48,6 +48,10 @@ export async function GET(request: Request) {
 
   const defaults = getDefaultContractData();
   const buyerJoined = Array.isArray(contract.buyer) ? contract.buyer[0] : contract.buyer;
+  const containers = ((contract.containers as Array<{ number?: unknown }> | null) ?? [])
+    .map((c) => (typeof c?.number === "string" ? c.number : ""))
+    .filter((n) => n.length > 0)
+    .map((number) => ({ number }));
   const data = {
     identifiers: {
       ...defaults.identifiers,
@@ -70,6 +74,8 @@ export async function GET(request: Request) {
     },
     terms: contract.terms ?? defaults.terms,
     lineItems: contract.line_items ?? defaults.lineItems,
+    blNumber: (contract.bl_number as string | null) ?? null,
+    containers,
   };
 
   const totals = contract.totals;
