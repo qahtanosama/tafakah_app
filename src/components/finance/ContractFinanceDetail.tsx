@@ -12,15 +12,16 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, X, ArrowLeft, DollarSign, TrendingUp, CreditCard, Check, Loader2 } from "lucide-react";
-import type { ContractLogEntry } from "@/types/sales-contract";
+import { Plus, Trash2, X, ArrowLeft, Check } from "lucide-react";
+import type { SalesContractData } from "@/types/sales-contract";
 import type { ContractFinance, CostItem, PaymentItem, PaymentMethod } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
 import { getContractLog } from "@/lib/contract-log";
 import { calcTotals } from "@/lib/sales-contract";
 import { getFinance, saveFinance, createEmptyFinance, ensurePredefinedRows, calcSummary } from "@/lib/finance";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
-import { createClient } from "@/lib/supabase/client";
+import { useContractByNo } from "@/lib/data/contracts";
+import { useFinance, useSaveFinance } from "@/lib/data/finance";
 import PaymentReceipts from "@/components/finance/PaymentReceipts";
 
 function fmtUSD(n: number) {
@@ -126,52 +127,56 @@ function CostRow({
 
 /* ── Main component ────────────────────────────────── */
 export default function ContractFinanceDetail({ contractNo }: { contractNo: string }) {
-  const [contract, setContract] = useState<ContractLogEntry | null>(null);
+  const contractQuery = useContractByNo(contractNo);
+  const contractRow = contractQuery.data;
+  const contractId = contractRow?.id ?? null;
+  const { data: financeRow, isLoading: financeLoading } = useFinance(contractId ?? undefined);
+  const saveFinanceMut = useSaveFinance(contractId ?? "");
+
   const [finance, setFinance] = useState<ContractFinance | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [newPayment, setNewPayment] = useState<Partial<PaymentItem>>({});
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [contractUuid, setContractUuid] = useState<string | null | undefined>(undefined);
-  const [isSyncingContract, setIsSyncingContract] = useState(false);
   const savedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initedRef = useRef<string | null>(null);
 
+  // The contract snapshot — prefer Supabase, fall back to the localStorage mirror
+  // for any not-yet-synced contract.
+  const snapshot: SalesContractData | null = useMemo(() => {
+    if (contractRow?.master_snapshot) return contractRow.master_snapshot;
+    const local = getContractLog().find((e) => e.contractNo === contractNo);
+    return local?.masterSnapshot ?? null;
+  }, [contractRow, contractNo]);
+
+  const buyer = useMemo(() => {
+    if (contractRow) return contractRow.master_snapshot?.buyer?.company?.trim() || "—";
+    return getContractLog().find((e) => e.contractNo === contractNo)?.buyer ?? "—";
+  }, [contractRow, contractNo]);
+
+  const dateSubmitted = contractRow?.created_at
+    ?? getContractLog().find((e) => e.contractNo === contractNo)?.dateSubmitted
+    ?? "";
+
+  // Initialize the editable finance state once, preferring the Supabase row.
   useEffect(() => {
-    const log = getContractLog();
-    const c = log.find((e) => e.contractNo === contractNo);
-    setContract(c ?? null);
-    let f = getFinance(contractNo);
-    if (!f) f = createEmptyFinance(contractNo);
-    else f = ensurePredefinedRows(f);
-    // Defensive: ensure every payment has a stable id even if the localStorage reader missed it.
-    const { changed, record } = backfillPaymentIds(f);
-    if (changed) {
-      f = record;
-      saveFinance(f);
+    if (contractQuery.isLoading) return;
+    if (contractId && financeLoading) return; // wait for finance fetch
+    if (initedRef.current === contractNo) return;
+    initedRef.current = contractNo;
+
+    let f: ContractFinance;
+    if (financeRow) {
+      f = { contractNo, costs: financeRow.cost_items ?? [], payments: financeRow.payments_received ?? [], updatedAt: financeRow.updated_at ?? "" };
+    } else {
+      f = getFinance(contractNo) ?? createEmptyFinance(contractNo);
     }
+    f = ensurePredefinedRows(f);
+    const { changed, record } = backfillPaymentIds(f);
+    if (changed) f = record;
     setFinance(f);
-    setLoaded(true);
-  }, [contractNo]);
+  }, [contractNo, contractId, contractQuery.isLoading, financeLoading, financeRow]);
 
-  // Resolve the Supabase contracts.id (uuid) from contract_no for the receipts component.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await createClient()
-          .from("contracts")
-          .select("id")
-          .eq("contract_no", contractNo)
-          .maybeSingle();
-        if (!cancelled) setContractUuid((data as { id: string } | null)?.id ?? null);
-      } catch {
-        if (!cancelled) setContractUuid(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [contractNo]);
-
-  const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems, contract.masterSnapshot.terms?.numberOfContainers) : null, [contract]);
+  const totals = useMemo(() => snapshot ? calcTotals(snapshot.lineItems, snapshot.terms?.numberOfContainers) : null, [snapshot]);
   const revenue = totals?.totalUSD ?? 0;
   const summary = useMemo(() => calcSummary(revenue, finance), [revenue, finance]);
 
@@ -181,13 +186,21 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
     savedTimeout.current = setTimeout(() => setSavedId(null), 1200);
   }, []);
 
+  /** Single write funnel: optimistic state + Supabase + TRANSITIONAL DUAL-WRITE localStorage. */
+  const persist = useCallback((next: ContractFinance) => {
+    setFinance(next);
+    // TRANSITIONAL DUAL-WRITE — remove in Batch 3 Step 7 (once DocumentsManager + PDFs are off localStorage)
+    saveFinance(next);
+    if (contractId) {
+      saveFinanceMut.mutate({ costs: next.costs, payments: next.payments });
+    }
+  }, [contractId, saveFinanceMut]);
+
   const handleCostUpdate = useCallback((updated: CostItem) => {
     if (!finance) return;
-    const newFinance = { ...finance, costs: finance.costs.map((c) => c.id === updated.id ? updated : c) };
-    setFinance(newFinance);
-    saveFinance(newFinance);
+    persist({ ...finance, costs: finance.costs.map((c) => c.id === updated.id ? updated : c) });
     flashSaved(updated.id);
-  }, [finance, flashSaved]);
+  }, [finance, flashSaved, persist]);
 
   const handleAddCustom = useCallback(() => {
     if (!finance) return;
@@ -200,17 +213,13 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
       date: "",
       notes: "",
     };
-    const newFinance = { ...finance, costs: [...finance.costs, custom] };
-    setFinance(newFinance);
-    saveFinance(newFinance);
-  }, [finance]);
+    persist({ ...finance, costs: [...finance.costs, custom] });
+  }, [finance, persist]);
 
   const handleDeleteCustom = useCallback((id: string) => {
     if (!finance) return;
-    const newFinance = { ...finance, costs: finance.costs.filter((c) => c.id !== id) };
-    setFinance(newFinance);
-    saveFinance(newFinance);
-  }, [finance]);
+    persist({ ...finance, costs: finance.costs.filter((c) => c.id !== id) });
+  }, [finance, persist]);
 
   // Payments
   const handleAddPayment = useCallback(() => {
@@ -223,22 +232,18 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
       reference: newPayment.reference ?? "",
       notes: newPayment.notes ?? "",
     };
-    const newFinance = { ...finance, payments: [...finance.payments, payment] };
-    setFinance(newFinance);
-    saveFinance(newFinance);
+    persist({ ...finance, payments: [...finance.payments, payment] });
     setNewPayment({});
     setShowPaymentForm(false);
-  }, [newPayment, finance]);
+  }, [newPayment, finance, persist]);
 
   const handleDeletePayment = useCallback((id: string) => {
     if (!finance) return;
-    const newFinance = { ...finance, payments: finance.payments.filter((p) => p.id !== id) };
-    setFinance(newFinance);
-    saveFinance(newFinance);
-  }, [finance]);
+    persist({ ...finance, payments: finance.payments.filter((p) => p.id !== id) });
+  }, [finance, persist]);
 
-  if (!loaded) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
-  if (!contract) return <div className="py-20 text-center text-zinc-400">Contract not found.</div>;
+  if (contractQuery.isLoading || !finance) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
+  if (!snapshot) return <div className="py-20 text-center text-zinc-400">Contract not found.</div>;
 
   const statusColor = summary.paymentStatus === "paid" ? "text-emerald-600" : summary.paymentStatus === "partial" ? "text-amber-600" : summary.paymentStatus === "overpaid" ? "text-blue-600" : "text-zinc-400";
   const statusLabel = summary.paymentStatus === "paid" ? "Fully Paid" : summary.paymentStatus === "partial" ? "Partial" : summary.paymentStatus === "overpaid" ? "Overpaid" : "Unpaid";
@@ -250,7 +255,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
         <Link href="/finance" className="text-zinc-400 hover:text-zinc-600"><ArrowLeft className="h-5 w-5" /></Link>
         <div>
           <h1 className="text-2xl font-bold">{contractNo}</h1>
-          <p className="text-base text-zinc-500">{contract.buyer} &middot; {fmtDate(contract.dateSubmitted)} &middot; {fmtUSD(revenue)}</p>
+          <p className="text-base text-zinc-500">{buyer} &middot; {fmtDate(dateSubmitted)} &middot; {fmtUSD(revenue)}</p>
         </div>
       </div>
 
@@ -363,48 +368,12 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
                   <TableCell>{p.method}</TableCell>
                   <TableCell className="text-sm">{p.reference || "—"}</TableCell>
                   <TableCell>
-                    {contractUuid === undefined ? (
+                    {contractQuery.isLoading ? (
                       <span className="text-[11px] text-zinc-400">Loading…</span>
-                    ) : contractUuid ? (
-                      <PaymentReceipts contractId={contractUuid} paymentId={p.id} isClient={false} />
+                    ) : contractId ? (
+                      <PaymentReceipts contractId={contractId} paymentId={p.id} isClient={false} />
                     ) : (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        disabled={isSyncingContract}
-                        className="h-6 gap-1 border-amber-200 bg-amber-50 px-2 text-[11px] text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-400"
-                        onClick={async () => {
-                          if (isSyncingContract) return;
-                          setIsSyncingContract(true);
-                          try {
-                            // Sync this contract explicitly
-                            const { runMigration } = await import("@/lib/migration/migrate");
-                            await runMigration({ dryRun: false });
-                            
-                            // Re-check the UUID
-                            const { createClient } = await import("@/lib/supabase/client");
-                            const { data } = await createClient()
-                              .from("contracts")
-                              .select("id")
-                              .eq("contract_no", contractNo)
-                              .maybeSingle();
-                            
-                            if (data?.id) {
-                              setContractUuid(data.id);
-                            } else {
-                              alert("Sync completed but could not resolve contract ID.");
-                            }
-                          } catch (err) {
-                            console.error("Failed to sync:", err);
-                            alert("Failed to sync contract to DB.");
-                          } finally {
-                            setIsSyncingContract(false);
-                          }
-                        }}
-                      >
-                        {isSyncingContract ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                        {isSyncingContract ? "Syncing..." : "Sync contract to DB to attach receipts"}
-                      </Button>
+                      <span className="text-[11px] text-zinc-400">Not synced to cloud</span>
                     )}
                   </TableCell>
                   <TableCell><Button variant="ghost" size="icon" onClick={() => handleDeletePayment(p.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button></TableCell>

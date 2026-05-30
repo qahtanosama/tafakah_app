@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getAllShipping, resolveStatus } from "@/lib/shipping";
+import { resolveStatus } from "@/lib/shipping";
+import { useAllShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import type { ShippingStatus } from "@/types/shipping";
 
 export default function ShippingCardSummary() {
-  const [summary, setSummary] = useState<{ atSea: number; pending: number; delayed: number } | null>(null);
+  const { data: shippingByCid } = useAllShipping();
 
-  useEffect(() => {
-    const all = getAllShipping();
-    const counts: Record<ShippingStatus, number> = {
-      not_scheduled: 0, pending: 0, at_sea: 0, delivered: 0, delayed: 0, cancelled: 0,
-    };
-    for (const e of all) counts[resolveStatus(e)]++;
-    setSummary({ atSea: counts.at_sea, pending: counts.pending, delayed: counts.delayed });
-  }, []);
+  if (!shippingByCid) return null;
 
-  if (!summary) return null;
+  const counts: Record<ShippingStatus, number> = {
+    not_scheduled: 0, pending: 0, at_sea: 0, delivered: 0, delayed: 0, cancelled: 0,
+  };
+  for (const cid of Object.keys(shippingByCid)) {
+    const entry = shippingRowToEntry("", shippingByCid[cid]);
+    counts[resolveStatus(entry)]++;
+  }
+  const summary = { atSea: counts.at_sea, pending: counts.pending, delayed: counts.delayed };
+
   if (summary.atSea === 0 && summary.pending === 0 && summary.delayed === 0) return null;
 
   const parts: string[] = [];
@@ -26,7 +27,7 @@ export default function ShippingCardSummary() {
 
   return (
     <p className={`mt-2 text-xs font-medium ${summary.delayed > 0 ? "text-red-600" : "text-blue-600"}`}>
-      {parts.join(" \u00b7 ")}
+      {parts.join(" · ")}
     </p>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,23 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Search, DollarSign, TrendingUp, Clock, Trophy, Wallet } from "lucide-react";
-import type { ContractLogEntry } from "@/types/sales-contract";
-import { getContractLog } from "@/lib/contract-log";
+import type { ContractFinance } from "@/types/finance";
 import { calcTotals } from "@/lib/sales-contract";
-import { getAllFinance, calcSummary } from "@/lib/finance";
+import { calcSummary } from "@/lib/finance";
+import { useContracts } from "@/lib/data/contracts";
+import { useAllFinance, type FinanceRow } from "@/lib/data/finance";
 import { Card } from "@/components/ui/card";
+
+/** Adapt a Supabase finance row to the ContractFinance shape calcSummary expects. */
+function rowToFinance(row: FinanceRow | undefined): ContractFinance | null {
+  if (!row) return null;
+  return {
+    contractNo: "",
+    costs: row.cost_items ?? [],
+    payments: row.payments_received ?? [],
+    updatedAt: row.updated_at ?? "",
+  };
+}
 
 function fmtUSD(n: number) {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -30,25 +42,36 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function FinanceOverview() {
-  const [contracts, setContracts] = useState<ContractLogEntry[]>([]);
+  const { data: contractRows, isLoading } = useContracts();
+  const { data: financeByCid } = useAllFinance();
   const [search, setSearch] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const loaded = !isLoading;
 
-  useEffect(() => {
-    setContracts(getContractLog());
-    setLoaded(true);
-  }, []);
+  // Project Supabase contract rows into the display shape (excl. Cancelled).
+  const contracts = useMemo(
+    () =>
+      (contractRows ?? [])
+        .filter((c) => c.status !== "Cancelled")
+        .map((c) => ({
+          id: c.id,
+          contractNo: c.contract_no,
+          invoiceNo: c.invoice_no,
+          buyer: c.master_snapshot?.buyer?.company?.trim() || "—",
+          lineItems: c.master_snapshot?.lineItems ?? [],
+          numberOfContainers: c.master_snapshot?.terms?.numberOfContainers,
+        })),
+    [contractRows]
+  );
 
   const financeMap = useMemo(() => {
-    const all = getAllFinance();
     const map: Record<string, ReturnType<typeof calcSummary>> = {};
     for (const c of contracts) {
-      const t = calcTotals(c.masterSnapshot.lineItems, c.masterSnapshot.terms?.numberOfContainers);
-      const f = all.find((fi) => fi.contractNo === c.contractNo) ?? null;
+      const t = calcTotals(c.lineItems, c.numberOfContainers);
+      const f = rowToFinance(financeByCid?.[c.id]);
       map[c.contractNo] = calcSummary(t.totalUSD, f);
     }
     return map;
-  }, [contracts]);
+  }, [contracts, financeByCid]);
 
   // Dashboard stats
   const stats = useMemo(() => {

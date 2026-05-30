@@ -17,6 +17,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { saveContractShipping, type ShippingInput } from "@/lib/contracts/save-shipping";
+import type { ShippingEntry, ShippingLine, ShippingStatusOverride } from "@/types/shipping";
 
 /** Row shape of public.contract_shipping (post-migration C). */
 export interface ShippingRow {
@@ -46,6 +47,74 @@ export interface ShippingRow {
 }
 
 export type { ShippingInput };
+
+/** Fetch all shipping rows the user may see (RLS-scoped), keyed by contract_id. */
+export function useAllShipping() {
+  return useQuery<Record<string, ShippingRow>>({
+    queryKey: ["contract_shipping", "all"],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase.from("contract_shipping").select("*");
+      if (error) throw error;
+      const map: Record<string, ShippingRow> = {};
+      for (const r of (data as unknown as ShippingRow[]) ?? []) map[r.contract_id] = r;
+      return map;
+    },
+  });
+}
+
+/** Map a Supabase contract_shipping row to the app's ShippingEntry shape. */
+export function shippingRowToEntry(contractNo: string, row: ShippingRow): ShippingEntry {
+  return {
+    contractNo,
+    shippingLine: (row.carrier ?? "") as ShippingLine,
+    bookingRef: row.booking_ref ?? "",
+    vesselName: row.vessel ?? "",
+    voyageNumber: row.voyage ?? "",
+    blNumber: row.bl_number ?? "",
+    cutoffDate: row.cutoff_date ?? "",
+    loadingDate: row.loading_date ?? "",
+    etd: row.etd ?? "",
+    atd: row.atd,
+    eta: row.eta ?? "",
+    ata: row.ata,
+    portOfLoading: row.port_of_loading ?? "",
+    portOfDischarge: row.port_of_discharge ?? "",
+    containerNumber: row.container_numbers?.[0] ?? "",
+    sealNumber: row.seal_number ?? "",
+    statusOverride: (row.status_override ?? "auto") as ShippingStatusOverride,
+    notes: row.notes ?? "",
+    updatedAt: row.updated_at ?? "",
+    shipsgoRequestId: row.shipsgo_request_id ?? null,
+    lastAutoFetchAt: row.last_auto_fetch_at ?? null,
+  };
+}
+
+/** Map an app ShippingEntry to the server action's ShippingInput. */
+export function shippingEntryToInput(e: ShippingEntry): ShippingInput {
+  return {
+    shippingLine: e.shippingLine || null,
+    bookingRef: e.bookingRef || null,
+    vesselName: e.vesselName || null,
+    voyageNumber: e.voyageNumber || null,
+    blNumber: e.blNumber || null,
+    cutoffDate: e.cutoffDate || null,
+    loadingDate: e.loadingDate || null,
+    etd: e.etd || null,
+    atd: e.atd,
+    eta: e.eta || null,
+    ata: e.ata,
+    portOfLoading: e.portOfLoading || null,
+    portOfDischarge: e.portOfDischarge || null,
+    containerNumber: e.containerNumber || null,
+    sealNumber: e.sealNumber || null,
+    statusOverride: e.statusOverride || null,
+    notes: e.notes || null,
+    shipsgoData: undefined,
+    shipsgoRequestId: e.shipsgoRequestId,
+    lastAutoFetchAt: e.lastAutoFetchAt,
+  };
+}
 
 /** Fetch the shipping row for a contract (null if none yet). */
 export function useShipping(contractId: string | undefined) {

@@ -81,6 +81,24 @@ export function useContracts() {
   });
 }
 
+/** Fetch a single contract by its human contract_no (for routed detail pages). */
+export function useContractByNo(contractNo: string | undefined) {
+  return useQuery<ContractRow | null>({
+    queryKey: ["contracts", "by-no", contractNo],
+    enabled: !!contractNo,
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("contracts")
+        .select("*")
+        .eq("contract_no", contractNo!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as unknown as ContractRow) ?? null;
+    },
+  });
+}
+
 /** Fetch a single contract (with full master_snapshot) by id. */
 export function useContract(id: string | undefined) {
   return useQuery<ContractRow | null>({

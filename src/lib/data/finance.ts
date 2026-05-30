@@ -24,6 +24,21 @@ export interface FinanceRow {
   updated_at: string;
 }
 
+/** Fetch all finance rows the user may see (RLS-scoped), keyed by contract_id. */
+export function useAllFinance() {
+  return useQuery<Record<string, FinanceRow>>({
+    queryKey: ["contract_finance", "all"],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase.from("contract_finance").select("*");
+      if (error) throw error;
+      const map: Record<string, FinanceRow> = {};
+      for (const r of (data as unknown as FinanceRow[]) ?? []) map[r.contract_id] = r;
+      return map;
+    },
+  });
+}
+
 /** Fetch the finance row for a contract (null if none yet). */
 export function useFinance(contractId: string | undefined) {
   return useQuery<FinanceRow | null>({

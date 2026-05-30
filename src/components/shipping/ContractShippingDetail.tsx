@@ -18,6 +18,8 @@ import {
   getShipping, saveShipping, createEmptyShipping, ensureShippingFields,
   getStatusInfo, calcTransitProgress, getTrackingLinks, calcAutoStatus,
 } from "@/lib/shipping";
+import { useShipping, useSaveShipping, shippingRowToEntry, shippingEntryToInput } from "@/lib/data/shipping";
+import { useContractByNo } from "@/lib/data/contracts";
 import { calcTotals } from "@/lib/sales-contract";
 import { getShipsgoToken } from "@/lib/settings";
 import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, formatRelativeTime, isStale } from "@/lib/shipsgo";
@@ -162,7 +164,15 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   const savedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoTriggered = useRef(false);
+  const initedRef = useRef<string | null>(null);
   const router = useRouter();
+
+  // Supabase data layer (reads source of truth; dual-write target).
+  const contractQuery = useContractByNo(contractNo);
+  const contractRow = contractQuery.data;
+  const contractId = contractRow?.id ?? null;
+  const { data: shippingRow, isLoading: shippingLoading } = useShipping(contractId ?? undefined);
+  const saveShippingMut = useSaveShipping(contractId ?? "");
 
   const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
     setToast({ type, msg });
@@ -170,26 +180,41 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
     toastTimeout.current = setTimeout(() => setToast(null), 4000);
   }, []);
 
+  // Keep the localStorage ContractLogEntry for StageStrip + workflow auto-advance
+  // (those remain localStorage-backed, mirrored to Supabase via StageStrip).
   useEffect(() => {
     const log = getContractLog();
-    const c = log.find((e) => e.contractNo === contractNo) ?? null;
-    setContract(c);
-    let e = getShipping(contractNo);
-    if (!e) {
-      e = createEmptyShipping(contractNo, {
-        blNumber: c?.masterSnapshot.identifiers.blNumber ?? "",
-        containerNumber: c?.masterSnapshot.identifiers.containerNumber ?? "",
-        sealNumber: c?.masterSnapshot.identifiers.sealNumber ?? "",
-        portOfLoading: c?.masterSnapshot.shipping.loadingPort ?? "",
-        portOfDischarge: c?.masterSnapshot.shipping.dischargePort ?? "",
-      });
+    setContract(log.find((e) => e.contractNo === contractNo) ?? null);
+    setHasToken(!!getShipsgoToken());
+  }, [contractNo]);
+
+  // Initialize the editable shipping entry once — Supabase first, localStorage fallback.
+  useEffect(() => {
+    if (contractQuery.isLoading) return;
+    if (contractId && shippingLoading) return; // wait for the shipping fetch
+    if (initedRef.current === contractNo) return;
+    initedRef.current = contractNo;
+
+    const localC = getContractLog().find((e) => e.contractNo === contractNo) ?? null;
+    const snap = contractRow?.master_snapshot ?? localC?.masterSnapshot;
+    let e: ShippingEntry;
+    if (shippingRow) {
+      e = ensureShippingFields(shippingRowToEntry(contractNo, shippingRow));
     } else {
-      e = ensureShippingFields(e);
+      const local = getShipping(contractNo);
+      e = local
+        ? ensureShippingFields(local)
+        : createEmptyShipping(contractNo, {
+            blNumber: snap?.identifiers.blNumber ?? "",
+            containerNumber: snap?.identifiers.containerNumber ?? "",
+            sealNumber: snap?.identifiers.sealNumber ?? "",
+            portOfLoading: snap?.shipping.loadingPort ?? "",
+            portOfDischarge: snap?.shipping.dischargePort ?? "",
+          });
     }
     setEntry(e);
-    setHasToken(!!getShipsgoToken());
     setLoaded(true);
-  }, [contractNo]);
+  }, [contractNo, contractId, contractQuery.isLoading, shippingLoading, shippingRow, contractRow]);
 
   const flashSaved = useCallback(() => {
     setSavedFlash(true);
@@ -198,10 +223,12 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   }, []);
 
   const persist = useCallback((next: ShippingEntry) => {
+    // TRANSITIONAL DUAL-WRITE — remove in Batch 3 Step 7
     saveShipping(next);
+    if (contractId) saveShippingMut.mutate(shippingEntryToInput(next));
     setEntry({ ...next });
     flashSaved();
-  }, [flashSaved]);
+  }, [flashSaved, contractId, saveShippingMut]);
 
   const update = useCallback(<K extends keyof ShippingEntry>(key: K, value: ShippingEntry[K]) => {
     setEntry((prev) => (prev ? { ...prev, [key]: value } : prev));

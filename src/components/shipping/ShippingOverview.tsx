@@ -11,10 +11,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Search, Ship, Calendar, Anchor, AlertTriangle, RefreshCw, Loader2, Navigation } from "lucide-react";
-import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ShippingEntry, ShippingStatus } from "@/types/shipping";
-import { getContractLog } from "@/lib/contract-log";
-import { getAllShipping, getStatusInfo, resolveStatus, saveShipping, ensureShippingFields } from "@/lib/shipping";
+import { getStatusInfo, resolveStatus, saveShipping, ensureShippingFields } from "@/lib/shipping";
+import { useContracts } from "@/lib/data/contracts";
+import { useAllShipping, shippingRowToEntry, shippingEntryToInput } from "@/lib/data/shipping";
+import { saveContractShipping } from "@/lib/contracts/save-shipping";
+import { useQueryClient } from "@tanstack/react-query";
 import { getShipsgoToken } from "@/lib/settings";
 import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, getUsage, usageRemaining } from "@/lib/shipsgo";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,9 +39,9 @@ function daysFromToday(iso: string | null | undefined): number | null {
 }
 
 export default function ShippingOverview() {
-  const [contracts, setContracts] = useState<ContractLogEntry[]>([]);
-  const [entries, setEntries] = useState<ShippingEntry[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { data: contractRows, isLoading } = useContracts();
+  const { data: shippingByCid } = useAllShipping();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("eta");
@@ -47,13 +49,43 @@ export default function ShippingOverview() {
   const [bulkState, setBulkState] = useState<{ running: boolean; index: number; total: number; current: string } | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const cancelBulkRef = useRef(false);
+  const loaded = !isLoading;
 
   useEffect(() => {
-    setContracts(getContractLog());
-    setEntries(getAllShipping());
     setHasToken(!!getShipsgoToken());
-    setLoaded(true);
   }, []);
+
+  // Project Supabase contract rows into the display shape (excl. Cancelled).
+  const contracts = useMemo(
+    () =>
+      (contractRows ?? [])
+        .filter((c) => c.status !== "Cancelled")
+        .map((c) => ({
+          id: c.id,
+          contractNo: c.contract_no,
+          buyer: c.master_snapshot?.buyer?.company?.trim() || "—",
+          masterSnapshot: c.master_snapshot,
+        })),
+    [contractRows]
+  );
+
+  // contractNo → contractId, for dual-write resolution in bulk refresh.
+  const idByNo = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of contractRows ?? []) m[c.contract_no] = c.id;
+    return m;
+  }, [contractRows]);
+
+  // Shipping entries (Supabase), keyed by contract_no via the contract rows.
+  const entries = useMemo(() => {
+    const list: ShippingEntry[] = [];
+    if (!shippingByCid) return list;
+    for (const c of contractRows ?? []) {
+      const row = shippingByCid[c.id];
+      if (row) list.push(shippingRowToEntry(c.contract_no, row));
+    }
+    return list;
+  }, [contractRows, shippingByCid]);
 
   const rows = useMemo(() => {
     return contracts.map((c) => {
@@ -170,8 +202,12 @@ export default function ShippingOverview() {
       const result = await fetchShipmentFromShipsgo(target, token);
       if (result.success && result.data) {
         const { next } = mergeTrackIntoEntry(target, result.data);
-        saveShipping(next);
-        setEntries((prev) => prev.map((e) => (e.contractNo === next.contractNo ? next : e)));
+        saveShipping(next); // TRANSITIONAL DUAL-WRITE — remove in Batch 3 Step 7
+        const cid = idByNo[next.contractNo];
+        if (cid) {
+          try { await saveContractShipping({ contractId: cid, shipping: shippingEntryToInput(next) }); }
+          catch (err) { console.warn("[shipping bulk] Supabase write failed:", err); }
+        }
         ok++;
       } else {
         fail++;
@@ -184,10 +220,12 @@ export default function ShippingOverview() {
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
+    // Refresh the Supabase-backed list so the table reflects the new data.
+    qc.invalidateQueries({ queryKey: ["contract_shipping"] });
     setBulkState(null);
     setBulkResult((prev) => prev ?? `Refreshed ${ok} · failed ${fail}`);
     setTimeout(() => setBulkResult(null), 5000);
-  }, [trackableEntries]);
+  }, [trackableEntries, idByNo, qc]);
 
   const cancelBulk = useCallback(() => {
     cancelBulkRef.current = true;
@@ -349,6 +387,8 @@ export default function ShippingOverview() {
             <TableBody>
               {filtered.map(({ contract, entry, info }) => {
                 const snap = contract.masterSnapshot;
+                const loadingPort = snap?.shipping?.loadingPort ?? "—";
+                const dischargePort = snap?.shipping?.dischargePort ?? "—";
                 return (
                   <TableRow key={contract.id} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                     <TableCell className="py-4">
@@ -359,9 +399,9 @@ export default function ShippingOverview() {
                     <TableCell className="font-medium text-slate-700 dark:text-slate-300">{contract.buyer}</TableCell>
                     <TableCell className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        <span className="truncate max-w-[100px]">{snap.shipping.loadingPort}</span>
+                        <span className="truncate max-w-[100px]">{loadingPort}</span>
                         <span className="text-slate-300 dark:text-slate-600">→</span>
-                        <span className="truncate max-w-[100px]">{snap.shipping.dischargePort}</span>
+                        <span className="truncate max-w-[100px]">{dischargePort}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
