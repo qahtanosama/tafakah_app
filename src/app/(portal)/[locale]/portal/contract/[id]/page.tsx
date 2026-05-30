@@ -23,6 +23,7 @@ interface ContractRow {
   totals: { totalUSD?: number; totalCartons?: number; totalQtyMTS?: number } | null;
   bl_number: string | null;
   containers: Array<{ number?: string }> | null;
+  master_snapshot: { shipping?: { incoterm?: string } } | null;
   merged_pdf_path: string | null;
   merged_pdf_generated_at: string | null;
   merged_pdf_size_bytes: number | null;
@@ -76,7 +77,7 @@ export default async function ContractDetailPage({
   const impersonation = await getActiveImpersonation();
   let q = supabase
     .from("contracts")
-    .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals, bl_number, containers, merged_pdf_path, merged_pdf_generated_at, merged_pdf_size_bytes, merged_pdf_doc_count")
+    .select("id, contract_no, invoice_no, contract_date, current_stage, line_items, terms, totals, bl_number, containers, master_snapshot, merged_pdf_path, merged_pdf_generated_at, merged_pdf_size_bytes, merged_pdf_doc_count")
     .eq("id", id);
   if (impersonation?.targetBuyerId) {
     q = q.eq("buyer_id", impersonation.targetBuyerId);
@@ -270,16 +271,20 @@ export default async function ContractDetailPage({
       <section className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-lg font-semibold text-navy">{t("generatedDocuments", { defaultValue: "Official Documents" })}</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {([
+          {[
             { id: "sc", label: t("salesContract", { defaultValue: "Sales Contract" }) },
             { id: "ci", label: t("commercialInvoice", { defaultValue: "Commercial Invoice" }) },
             { id: "customs", label: t("customsInvoice", { defaultValue: "Customs Invoice" }) },
             { id: "pl", label: t("packingList", { defaultValue: "Packing List" }) },
-          ] as const).map((doc) => (
+            // Freight Invoice — visible to the client, FOB contracts only.
+            ...((contract.master_snapshot?.shipping?.incoterm ?? "").trim().toUpperCase().startsWith("FOB")
+              ? [{ id: "freight", label: t("freightInvoice", { defaultValue: "Freight Invoice" }) }]
+              : []),
+          ].map((doc) => (
             <GeneratedDocDownload
               key={doc.id}
               contractId={id}
-              docType={doc.id}
+              docType={doc.id as "sc" | "ci" | "customs" | "pl" | "freight"}
               label={doc.label}
               downloadLabel={t("downloadDoc")}
             />

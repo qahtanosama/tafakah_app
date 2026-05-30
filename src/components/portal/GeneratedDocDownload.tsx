@@ -5,7 +5,7 @@ import { Download, FileText, Loader2 } from "lucide-react";
 
 interface Props {
   contractId: string;
-  docType: "sc" | "ci" | "customs" | "pl";
+  docType: "sc" | "ci" | "customs" | "pl" | "freight";
   label: string;
   downloadLabel: string;
 }

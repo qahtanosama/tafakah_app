@@ -43,6 +43,11 @@ export interface ShippingRow {
   shipsgo_data: unknown;
   shipsgo_request_id: string | null;
   last_auto_fetch_at: string | null;
+  freight_base: number | null;
+  freight_additional: number | null;
+  freight_charge_label: string | null;
+  freight_invoice_date: string | null;
+  freight_notes: string | null;
   updated_at: string;
 }
 
@@ -87,6 +92,11 @@ export function shippingRowToEntry(contractNo: string, row: ShippingRow): Shippi
     updatedAt: row.updated_at ?? "",
     shipsgoRequestId: row.shipsgo_request_id ?? null,
     lastAutoFetchAt: row.last_auto_fetch_at ?? null,
+    freightBase: row.freight_base ?? null,
+    freightAdditional: row.freight_additional ?? null,
+    freightChargeLabel: row.freight_charge_label ?? "",
+    freightInvoiceDate: row.freight_invoice_date ?? "",
+    freightNotes: row.freight_notes ?? "",
   };
 }
 
@@ -113,6 +123,11 @@ export function shippingEntryToInput(e: ShippingEntry): ShippingInput {
     shipsgoData: undefined,
     shipsgoRequestId: e.shipsgoRequestId,
     lastAutoFetchAt: e.lastAutoFetchAt,
+    freightBase: e.freightBase,
+    freightAdditional: e.freightAdditional,
+    freightChargeLabel: e.freightChargeLabel || null,
+    freightInvoiceDate: e.freightInvoiceDate || null,
+    freightNotes: e.freightNotes || null,
   };
 }
 

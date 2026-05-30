@@ -66,6 +66,12 @@ export interface ShippingEntry {
   updatedAt: string;
   shipsgoRequestId: string | null;
   lastAutoFetchAt: string | null;
+  // Freight Invoice (FOB) — post-shipment sea-freight billing on contract_shipping.
+  freightBase: number | null;
+  freightAdditional: number | null;
+  freightChargeLabel: string;
+  freightInvoiceDate: string;
+  freightNotes: string;
 }
 
 export interface ShippingStatusInfo {

@@ -62,6 +62,11 @@ export function createEmptyShipping(contractNo: string, defaults?: { blNumber?: 
     updatedAt: new Date().toISOString(),
     shipsgoRequestId: null,
     lastAutoFetchAt: null,
+    freightBase: null,
+    freightAdditional: null,
+    freightChargeLabel: "",
+    freightInvoiceDate: "",
+    freightNotes: "",
   };
 }
 
@@ -73,6 +78,11 @@ export function ensureShippingFields(entry: ShippingEntry): ShippingEntry {
     portOfDischarge: entry.portOfDischarge ?? "",
     shipsgoRequestId: entry.shipsgoRequestId ?? null,
     lastAutoFetchAt: entry.lastAutoFetchAt ?? null,
+    freightBase: entry.freightBase ?? null,
+    freightAdditional: entry.freightAdditional ?? null,
+    freightChargeLabel: entry.freightChargeLabel ?? "",
+    freightInvoiceDate: entry.freightInvoiceDate ?? "",
+    freightNotes: entry.freightNotes ?? "",
   };
 }
 

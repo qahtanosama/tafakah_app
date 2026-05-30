@@ -4,13 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import SalesContractPDF from "@/components/sales-contract/SalesContractPDF";
 import CommercialInvoicePDF from "@/components/commercial-invoice/CommercialInvoicePDF";
 import PackingListPDF from "@/components/packing-list/PackingListPDF";
+import FreightInvoicePDF from "@/components/freight-invoice/FreightInvoicePDF";
 import { getDefaultContractData } from "@/lib/sales-contract";
 
 // react-pdf streams from Node, so this route must run on the Node.js runtime.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_DOC_TYPES = new Set(["sc", "ci", "customs", "pl"]);
+const VALID_DOC_TYPES = new Set(["sc", "ci", "customs", "pl", "freight"]);
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
   const { data: contract, error: contractError } = await supabase
     .from("contracts")
     .select(
-      "id, contract_no, invoice_no, contract_date, line_items, terms, totals, bl_number, containers, buyer:buyers(company_name, country)"
+      "id, contract_no, invoice_no, contract_date, line_items, terms, totals, bl_number, containers, master_snapshot, buyer:buyers(company_name, country)"
     )
     .eq("id", contractId)
     .maybeSingle();
@@ -117,6 +118,37 @@ export async function GET(request: Request) {
       invoiceNumber,
     });
     filename = `Packing_List_${invoiceNumber}.pdf`;
+  } else if (docType === "freight") {
+    // Freight Invoice — FOB only. Incoterm lives in master_snapshot.shipping.
+    const ms = (contract as { master_snapshot?: { shipping?: { incoterm?: string } } | null }).master_snapshot ?? null;
+    const incoterm = ms?.shipping?.incoterm ?? "";
+    if (!incoterm.trim().toUpperCase().startsWith("FOB")) {
+      return new Response("Freight invoice is only available for FOB contracts", { status: 404 });
+    }
+    const { data: ship } = await supabase
+      .from("contract_shipping")
+      .select("freight_base, freight_additional, freight_charge_label, freight_invoice_date, freight_notes, port_of_loading, port_of_discharge")
+      .eq("contract_id", contractId)
+      .maybeSingle();
+    const sh = (ship ?? {}) as {
+      freight_base?: number | null; freight_additional?: number | null;
+      freight_charge_label?: string | null; freight_invoice_date?: string | null;
+      freight_notes?: string | null; port_of_loading?: string | null; port_of_discharge?: string | null;
+    };
+    docElement = React.createElement(FreightInvoicePDF, {
+      data: data as never,
+      invoiceNumber: `${invoiceNumber}-FRT`,
+      contractNumber,
+      freightBase: Number(sh.freight_base ?? 0),
+      freightAdditional: Number(sh.freight_additional ?? 0),
+      freightChargeLabel: sh.freight_charge_label ?? "",
+      freightInvoiceDate: sh.freight_invoice_date ?? "",
+      freightNotes: sh.freight_notes ?? "",
+      loadingPort: sh.port_of_loading || data.shipping.loadingPort,
+      dischargePort: sh.port_of_discharge || data.shipping.dischargePort,
+      containers: data.containers as never,
+    });
+    filename = `Freight_${invoiceNumber}-FRT.pdf`;
   }
 
   if (!docElement) return new Response("Invalid document type", { status: 400 });

@@ -41,6 +41,12 @@ export interface ShippingInput {
   shipsgoData?: unknown;
   shipsgoRequestId?: string | null;
   lastAutoFetchAt?: string | null;
+  // Freight Invoice (FOB) — post-shipment sea-freight billing.
+  freightBase?: number | null;
+  freightAdditional?: number | null;
+  freightChargeLabel?: string | null;
+  freightInvoiceDate?: string | null;
+  freightNotes?: string | null;
 }
 
 /** Postgres `date` columns reject empty strings; coerce "" → null. */
@@ -106,6 +112,11 @@ export async function saveContractShipping(params: {
       shipsgo_data: s.shipsgoData ?? null,
       shipsgo_request_id: s.shipsgoRequestId || null,
       last_auto_fetch_at: s.lastAutoFetchAt || null,
+      freight_base: s.freightBase ?? null,
+      freight_additional: s.freightAdditional ?? null,
+      freight_charge_label: s.freightChargeLabel || null,
+      freight_invoice_date: normalizeDate(s.freightInvoiceDate),
+      freight_notes: s.freightNotes || null,
     },
     { onConflict: "contract_id" }
   );

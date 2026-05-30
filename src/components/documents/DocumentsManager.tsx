@@ -681,10 +681,13 @@ export default function DocumentsManager() {
             <h2 className="mb-3 text-lg font-bold">Your Generated Documents</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { label: "Sales Contract", href: "/sales-contract" },
-                { label: "Commercial Invoice", href: "/commercial-invoice" },
-                { label: "Customs Invoice", href: "/customs-invoice", note: "Internal use only" },
-                { label: "Packing List", href: "/packing-list" },
+                { label: "Sales Contract", href: `/sales-contract?id=${selectedContract?.id}` },
+                { label: "Commercial Invoice", href: `/commercial-invoice?id=${selectedContract?.id}` },
+                { label: "Customs Invoice", href: `/customs-invoice?id=${selectedContract?.id}`, note: "Internal use only" },
+                { label: "Packing List", href: `/packing-list?id=${selectedContract?.id}` },
+                ...((selectedContract?.master_snapshot?.shipping?.incoterm ?? "").trim().toUpperCase().startsWith("FOB")
+                  ? [{ label: "Freight Invoice", href: `/freight-invoice?id=${selectedContract?.id}`, note: "FOB only" }]
+                  : []),
               ].map((d) => (
                 <div key={d.label} className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 dark:bg-zinc-900">
                   <div className="flex items-center gap-2">

@@ -366,6 +366,7 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   const snap = snapshot;
   const statusInfo = getStatusInfo(entry);
   const trackingLinks = getTrackingLinks(entry);
+  const isFob = (snap.shipping?.incoterm ?? "").trim().toUpperCase().startsWith("FOB");
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-6 py-8">
@@ -583,6 +584,61 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
           </div>
         </CardContent>
       </Card>
+
+      {/* Freight Invoice (FOB only) — post-shipment sea-freight billing */}
+      {isFob && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Freight Invoice (FOB)</CardTitle>
+            <Link href={`/freight-invoice?id=${contractRow.id}`}>
+              <Button size="sm" variant="outline" className="gap-1"><Ship className="h-3.5 w-3.5" /> Generate Freight Invoice</Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label>Sea Freight (USD)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={entry.freightBase ?? ""}
+                onChange={(e) => update("freightBase", e.target.value === "" ? null : parseFloat(e.target.value))}
+                onBlur={commit}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <Label>Additional Charge (USD)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={entry.freightAdditional ?? ""}
+                onChange={(e) => update("freightAdditional", e.target.value === "" ? null : parseFloat(e.target.value))}
+                onBlur={commit}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <Label>Additional Charge Label</Label>
+              <Input value={entry.freightChargeLabel} onChange={(e) => update("freightChargeLabel", e.target.value)} onBlur={commit} placeholder="e.g. BAF / surcharge" />
+            </div>
+            <div>
+              <Label>Freight Invoice Date</Label>
+              <Input type="date" value={entry.freightInvoiceDate} onChange={(e) => update("freightInvoiceDate", e.target.value)} onBlur={commit} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Freight Notes</Label>
+              <textarea
+                value={entry.freightNotes}
+                onChange={(e) => update("freightNotes", e.target.value)}
+                onBlur={commit}
+                rows={2}
+                placeholder="Optional note shown on the Freight Invoice"
+                className="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-300 focus:ring-1 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex justify-end">
         <Button onClick={commit} className="gap-1"><Check className="h-4 w-4" /> Save</Button>
