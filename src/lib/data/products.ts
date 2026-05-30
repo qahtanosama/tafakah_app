@@ -4,15 +4,7 @@ import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ProductProfile } from "@/types/product";
 import { createClient } from "@/lib/supabase/client";
-import { useFeatureFlag } from "@/lib/feature-flags";
 import { withRetryQueue } from "@/lib/db/helpers";
-import {
-  getProducts as readLocal,
-  saveProducts as writeLocal,
-  addProduct as addLocal,
-  updateProduct as updateLocal,
-  deleteProduct as deleteLocal,
-} from "@/lib/products";
 
 interface DbProduct {
   id: string;
@@ -61,12 +53,10 @@ function localToDb(p: ProductProfile): Omit<DbProduct, "created_at" | "updated_a
 }
 
 export function useProducts() {
-  const [useDb] = useFeatureFlag("products-db");
-  useRealtimeProducts(useDb);
+  useRealtimeProducts();
   return useQuery<ProductProfile[]>({
-    queryKey: ["products", useDb ? "db" : "local"],
+    queryKey: ["products"],
     queryFn: async () => {
-      if (!useDb) return readLocal();
       const supabase = createClient();
       const { data, error } = await supabase.from("products").select("*").order("name");
       if (error) throw error;
@@ -75,10 +65,9 @@ export function useProducts() {
   });
 }
 
-function useRealtimeProducts(enabled: boolean) {
+function useRealtimeProducts() {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!enabled) return;
     const supabase = createClient();
     const ch = supabase.channel("public:products")
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
@@ -86,22 +75,15 @@ function useRealtimeProducts(enabled: boolean) {
       })
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
-  }, [enabled, qc]);
+  }, [qc]);
 }
 
 export function useSaveProduct() {
-  const [useDb] = useFeatureFlag("products-db");
   const qc = useQueryClient();
-  const key = ["products", useDb ? "db" : "local"] as const;
+  const key = ["products"] as const;
 
   return useMutation({
     mutationFn: async ({ payload: product, isUpdate }: { payload: ProductProfile; isUpdate: boolean }) => {
-
-      if (!useDb) {
-        if (isUpdate) updateLocal(product);
-        else addLocal(product);
-        return product;
-      }
       const supabase = createClient();
       const row = localToDb(product);
       const result = await withRetryQueue(async () => {
@@ -159,13 +141,11 @@ export function useSaveProduct() {
 }
 
 export function useDeleteProduct() {
-  const [useDb] = useFeatureFlag("products-db");
   const qc = useQueryClient();
-  const key = ["products", useDb ? "db" : "local"] as const;
+  const key = ["products"] as const;
 
   return useMutation({
     mutationFn: async (id: string) => {
-      if (!useDb) { deleteLocal(id); return id; }
       const supabase = createClient();
       await withRetryQueue(async () => {
         const { error } = await supabase.from("products").delete().eq("id", id);
@@ -195,12 +175,14 @@ export function useDeleteProduct() {
   });
 }
 
+/**
+ * Kept for API compatibility. Bulk persistence is now handled per-row by the
+ * individual save/delete hooks against Supabase, so this is a no-op.
+ */
 export function useSaveAllProducts() {
-  const [useDb] = useFeatureFlag("products-db");
   return useMutation({
-    mutationFn: async (all: ProductProfile[]) => {
-      if (!useDb) writeLocal(all);
-      // When DB-backed we do nothing here — the individual save/delete hooks handle it
+    mutationFn: async (_all: ProductProfile[]) => {
+      // no-op — individual save/delete hooks handle DB writes
     },
   });
 }

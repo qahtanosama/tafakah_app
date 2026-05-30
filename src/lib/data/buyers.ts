@@ -4,14 +4,7 @@ import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Buyer, BuyerLanguage, BuyerDocPreset, BuyerMessageTemplate } from "@/types/buyer";
 import { createClient } from "@/lib/supabase/client";
-import { useFeatureFlag } from "@/lib/feature-flags";
 import { withRetryQueue } from "@/lib/db/helpers";
-import {
-  getBuyers as readLocal,
-  addBuyer as addLocal,
-  updateBuyer as updateLocal,
-  deleteBuyer as deleteLocal,
-} from "@/lib/buyers";
 
 interface DbBuyer {
   id: string;
@@ -82,12 +75,10 @@ function localToDb(b: Buyer) {
 }
 
 export function useBuyers() {
-  const [useDb] = useFeatureFlag("buyers-db");
-  useRealtimeBuyers(useDb);
+  useRealtimeBuyers();
   return useQuery<Buyer[]>({
-    queryKey: ["buyers", useDb ? "db" : "local"],
+    queryKey: ["buyers"],
     queryFn: async () => {
-      if (!useDb) return readLocal();
       const supabase = createClient();
       const { data, error } = await supabase.from("buyers").select("*").order("company_name");
       if (error) throw error;
@@ -96,10 +87,9 @@ export function useBuyers() {
   });
 }
 
-function useRealtimeBuyers(enabled: boolean) {
+function useRealtimeBuyers() {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!enabled) return;
     const supabase = createClient();
     const ch = supabase.channel("public:buyers")
       .on("postgres_changes", { event: "*", schema: "public", table: "buyers" }, () => {
@@ -107,22 +97,15 @@ function useRealtimeBuyers(enabled: boolean) {
       })
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
-  }, [enabled, qc]);
+  }, [qc]);
 }
 
 export function useSaveBuyer() {
-  const [useDb] = useFeatureFlag("buyers-db");
   const qc = useQueryClient();
-  const key = ["buyers", useDb ? "db" : "local"] as const;
+  const key = ["buyers"] as const;
 
   return useMutation({
     mutationFn: async ({ payload: buyer, isUpdate }: { payload: Buyer; isUpdate: boolean }) => {
-
-      if (!useDb) {
-        if (isUpdate) updateLocal(buyer);
-        else addLocal(buyer);
-        return buyer;
-      }
       const supabase = createClient();
       const row = localToDb(buyer);
       const result = await withRetryQueue(async () => {
@@ -162,13 +145,11 @@ export function useSaveBuyer() {
 }
 
 export function useDeleteBuyer() {
-  const [useDb] = useFeatureFlag("buyers-db");
   const qc = useQueryClient();
-  const key = ["buyers", useDb ? "db" : "local"] as const;
+  const key = ["buyers"] as const;
 
   return useMutation({
     mutationFn: async (id: string) => {
-      if (!useDb) { deleteLocal(id); return id; }
       const supabase = createClient();
       await withRetryQueue(async () => {
         const { error } = await supabase.from("buyers").delete().eq("id", id);

@@ -5,13 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Seller, SellerLanguage, SellerDocPreset, SellerBankDetails, SellerMessageTemplate } from "@/types/seller";
 import type { ProductProfile } from "@/types/product";
 import { createClient } from "@/lib/supabase/client";
-import { useFeatureFlag } from "@/lib/feature-flags";
 import { withRetryQueue } from "@/lib/db/helpers";
-import {
-  getSellers as readLocal,
-  saveSeller as saveLocal,
-  deleteSeller as deleteLocal,
-} from "@/lib/sellers";
 
 interface DbSeller {
   id: string;
@@ -91,12 +85,10 @@ function localToDb(s: Seller) {
 }
 
 export function useSellers() {
-  const [useDb] = useFeatureFlag("sellers-db");
-  useRealtimeSellers(useDb);
+  useRealtimeSellers();
   return useQuery<Seller[]>({
-    queryKey: ["sellers", useDb ? "db" : "local"],
+    queryKey: ["sellers"],
     queryFn: async () => {
-      if (!useDb) return readLocal();
       const supabase = createClient();
       const { data, error } = await supabase.from("sellers").select("*").order("company_name");
       if (error) throw error;
@@ -105,10 +97,9 @@ export function useSellers() {
   });
 }
 
-function useRealtimeSellers(enabled: boolean) {
+function useRealtimeSellers() {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!enabled) return;
     const supabase = createClient();
     const ch = supabase.channel("public:sellers")
       .on("postgres_changes", { event: "*", schema: "public", table: "sellers" }, () => {
@@ -116,18 +107,15 @@ function useRealtimeSellers(enabled: boolean) {
       })
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
-  }, [enabled, qc]);
+  }, [qc]);
 }
 
 export function useSaveSeller() {
-  const [useDb] = useFeatureFlag("sellers-db");
   const qc = useQueryClient();
-  const key = ["sellers", useDb ? "db" : "local"] as const;
+  const key = ["sellers"] as const;
 
   return useMutation({
     mutationFn: async ({ payload: seller, isUpdate }: { payload: Seller; isUpdate: boolean }) => {
-
-      if (!useDb) { saveLocal(seller); return seller; }
       const supabase = createClient();
       const row = localToDb(seller);
       const result = await withRetryQueue(async () => {
@@ -167,13 +155,11 @@ export function useSaveSeller() {
 }
 
 export function useDeleteSeller() {
-  const [useDb] = useFeatureFlag("sellers-db");
   const qc = useQueryClient();
-  const key = ["sellers", useDb ? "db" : "local"] as const;
+  const key = ["sellers"] as const;
 
   return useMutation({
     mutationFn: async (id: string) => {
-      if (!useDb) { deleteLocal(id); return id; }
       const supabase = createClient();
       await withRetryQueue(async () => {
         const { error } = await supabase.from("sellers").delete().eq("id", id);
@@ -202,7 +188,7 @@ export function useDeleteSeller() {
 /**
  * Seller.products holds an array of either local product ids (e.g. "ginger") or UUIDs depending on
  * which store was canonical when the seller was saved. This helper normalizes to product rows
- * usable by the UI, supporting any combination of (sellers-db on/off, products-db on/off).
+ * usable by the UI.
  */
 export function resolveSellerProductIds(
   seller: Pick<Seller, "products">,
