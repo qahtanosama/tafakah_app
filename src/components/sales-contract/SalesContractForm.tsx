@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { FileX, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ActiveContract } from "@/types/sales-contract";
 import { calcTotals } from "@/lib/sales-contract";
-import { loadActiveContract } from "@/lib/master-data";
+import { useContract } from "@/lib/data/contracts";
 
 const SalesContractPDFDownload = dynamic(
   () => import("./SalesContractPDFDownload"),
@@ -47,13 +48,17 @@ function fmt(n: number, d = 2) {
 }
 
 export default function SalesContractForm() {
-  const [active, setActive] = useState<ActiveContract | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const id = useSearchParams().get("id");
+  const { data: row, isLoading } = useContract(id ?? undefined);
 
-  useEffect(() => {
-    setActive(loadActiveContract());
-    setLoaded(true);
-  }, []);
+  const active: ActiveContract | null = row && row.master_snapshot
+    ? {
+        data: row.master_snapshot,
+        contractNo: row.contract_no,
+        invoiceNo: row.invoice_no,
+        dateSubmitted: row.created_at,
+      }
+    : null;
 
   const data = active?.data ?? null;
 
@@ -62,7 +67,7 @@ export default function SalesContractForm() {
     [data]
   );
 
-  if (!loaded) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20 text-slate-500 font-medium">
         Loading document preview...

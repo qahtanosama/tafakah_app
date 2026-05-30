@@ -18,7 +18,7 @@ import type { ContractFinance, CostItem, PaymentItem, PaymentMethod } from "@/ty
 import { PAYMENT_METHODS } from "@/types/finance";
 import { getContractLog } from "@/lib/contract-log";
 import { calcTotals } from "@/lib/sales-contract";
-import { getFinance, saveFinance, createEmptyFinance, ensurePredefinedRows, calcSummary } from "@/lib/finance";
+import { getFinance, createEmptyFinance, ensurePredefinedRows, calcSummary } from "@/lib/finance";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
 import { useContractByNo } from "@/lib/data/contracts";
 import { useFinance, useSaveFinance } from "@/lib/data/finance";
@@ -186,11 +186,9 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
     savedTimeout.current = setTimeout(() => setSavedId(null), 1200);
   }, []);
 
-  /** Single write funnel: optimistic state + Supabase + TRANSITIONAL DUAL-WRITE localStorage. */
+  /** Single write funnel: optimistic state + Supabase (source of truth). */
   const persist = useCallback((next: ContractFinance) => {
     setFinance(next);
-    // TRANSITIONAL DUAL-WRITE — remove in Batch 3 Step 7 (once DocumentsManager + PDFs are off localStorage)
-    saveFinance(next);
     if (contractId) {
       saveFinanceMut.mutate({ costs: next.costs, payments: next.payments });
     }

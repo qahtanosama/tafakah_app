@@ -84,6 +84,35 @@ function localToDb(s: Seller) {
   };
 }
 
+/** Factory for a blank seller (moved here from the deleted localStorage lib). */
+export function createEmptySeller(): Seller {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    companyName: "",
+    companyNameCn: "",
+    contactName: "",
+    contactTitle: "",
+    whatsappNumber: "",
+    wechatId: "",
+    phoneNumber: "",
+    email: "",
+    preferredLanguage: "en",
+    country: "",
+    city: "",
+    address: "",
+    products: [],
+    paymentTerms: "",
+    leadTimeDays: undefined,
+    bankDetails: {},
+    customMessageTemplate: {},
+    defaultDocPreset: "factory",
+    notes: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 export function useSellers() {
   useRealtimeSellers();
   return useQuery<Seller[]>({
@@ -101,7 +130,9 @@ function useRealtimeSellers() {
   const qc = useQueryClient();
   useEffect(() => {
     const supabase = createClient();
-    const ch = supabase.channel("public:sellers")
+    // Unique channel name per mount — see note in data/buyers.ts (Strict Mode).
+    const channelName = `public:sellers:${Math.random().toString(36).slice(2, 9)}`;
+    const ch = supabase.channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "sellers" }, () => {
         qc.invalidateQueries({ queryKey: ["sellers"] });
       })

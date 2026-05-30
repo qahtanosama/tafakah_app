@@ -15,8 +15,6 @@ import {
   getContractIdByNo,
   updateContractContainers,
 } from "@/lib/contracts/update-shipping";
-import { updateContractLogEntry } from "@/lib/contract-log";
-import { loadActiveContract, saveActiveContract } from "@/lib/master-data";
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ContractContainer } from "@/types/contract";
 
@@ -74,31 +72,8 @@ export default function ShippingDocsSection({ contract, onSaved }: Props) {
           ? dataRes.containers.map((v) => newRow(v))
           : [newRow()],
       );
-
-      // Backfill local snapshots from the cloud — covers contracts where B/L
-      // and containers were saved before the local-mirror code existed, so the
-      // per-doc "Generate PDF" pages render the header on first visit.
-      const cloudContainers: ContractContainer[] = dataRes.containers.map(
-        (number) => ({ number }),
-      );
-      const hydratedSnapshot = {
-        ...contract.masterSnapshot,
-        blNumber: dataRes.blNumber,
-        containers: cloudContainers,
-      };
-      try {
-        updateContractLogEntry(contract.id, { masterSnapshot: hydratedSnapshot });
-      } catch {
-        // best-effort
-      }
-      try {
-        const active = loadActiveContract();
-        if (active?.contractNo === contract.contractNo) {
-          saveActiveContract({ ...active, data: hydratedSnapshot });
-        }
-      } catch {
-        // best-effort
-      }
+      // B/L + containers are read by the PDF generators directly from the
+      // contract row (Supabase) — no localStorage snapshot mirror needed.
 
       setLoading(false);
     })();
@@ -167,30 +142,8 @@ export default function ShippingDocsSection({ contract, onSaved }: Props) {
     }
     const unique = Array.from(new Set(normalized));
     const containerObjs: ContractContainer[] = unique.map((number) => ({ number }));
-
-    // Mirror into local ContractLogEntry so PDF generation has the data.
-    const nextSnapshot = {
-      ...contract.masterSnapshot,
-      blNumber: trimmedBl,
-      containers: containerObjs,
-    };
-    try {
-      updateContractLogEntry(contract.id, { masterSnapshot: nextSnapshot });
-    } catch {
-      // localStorage update is best-effort; cloud state is the source of truth.
-    }
-    // The per-doc "Generate PDF" pages (commercial-invoice, packing-list,
-    // customs-invoice) read from the active contract — a SEPARATE localStorage
-    // key — so we have to mirror there too, or the individual downloads will
-    // ship without the header.
-    try {
-      const active = loadActiveContract();
-      if (active?.contractNo === contract.contractNo) {
-        saveActiveContract({ ...active, data: nextSnapshot });
-      }
-    } catch {
-      // best-effort
-    }
+    // B/L + containers are persisted on the contract row via updateContractContainers;
+    // the PDF generators read them straight from Supabase by ?id. No localStorage mirror.
 
     // Reset row state to the canonical de-duped values.
     setRows(unique.length > 0 ? unique.map((v) => newRow(v)) : [newRow()]);

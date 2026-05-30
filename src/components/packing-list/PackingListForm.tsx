@@ -1,17 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { FileX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ActiveContract } from "@/types/sales-contract";
 import { calcTotals } from "@/lib/sales-contract";
-import { loadActiveContract } from "@/lib/master-data";
-import {
-  getContractContainers,
-  getContractIdByNo,
-} from "@/lib/contracts/update-shipping";
+import { useContract } from "@/lib/data/contracts";
 
 const PackingListPDFDownload = dynamic(
   () => import("./PackingListPDFDownload"),
@@ -27,49 +24,26 @@ function formatDateTime(iso: string): string {
 }
 
 export default function PackingListForm() {
-  const [active, setActive] = useState<ActiveContract | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const id = useSearchParams().get("id");
+  const { data: row, isLoading } = useContract(id ?? undefined);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const local = loadActiveContract();
-      if (!local) {
-        if (!cancelled) {
-          setActive(null);
-          setLoaded(true);
-        }
-        return;
+  const active: ActiveContract | null = row && row.master_snapshot
+    ? {
+        data: {
+          ...row.master_snapshot,
+          blNumber: row.bl_number,
+          containers: row.containers ?? [],
+        },
+        contractNo: row.contract_no,
+        invoiceNo: row.invoice_no,
+        dateSubmitted: row.created_at,
       }
-      try {
-        const idRes = await getContractIdByNo({ contractNo: local.contractNo });
-        if (idRes.ok) {
-          const data = await getContractContainers({ contractId: idRes.contractId });
-          if (data.ok) {
-            local.data = {
-              ...local.data,
-              blNumber: data.blNumber,
-              containers: data.containers.map((number) => ({ number })),
-            };
-          }
-        }
-      } catch {
-        // best-effort
-      }
-      if (!cancelled) {
-        setActive(local);
-        setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    : null;
 
   const data = active?.data ?? null;
   const totals = useMemo(() => (data ? calcTotals(data.lineItems, data.terms?.numberOfContainers) : null), [data]);
 
-  if (!loaded) {
+  if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
   }
 

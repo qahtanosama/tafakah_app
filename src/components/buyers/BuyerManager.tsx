@@ -15,10 +15,10 @@ import {
 import { Plus, Pencil, Trash2, Search, X, Save, ChevronDown, ChevronUp, MessageCircle, Users } from "lucide-react";
 import type { Buyer, BuyerLanguage, BuyerDocPreset } from "@/types/buyer";
 import { BUYER_COUNTRIES, isValidE164 } from "@/types/buyer";
-import { createEmptyBuyer } from "@/lib/buyers";
-import { getContractLog } from "@/lib/contract-log";
 import BuyerPortalAccess from "./BuyerPortalAccess";
-import { useBuyers, useSaveBuyer, useDeleteBuyer } from "@/lib/data/buyers";
+import { useBuyers, useSaveBuyer, useDeleteBuyer, createEmptyBuyer } from "@/lib/data/buyers";
+import { useContracts } from "@/lib/data/contracts";
+import { contractCountsByBuyer } from "@/lib/data/contract-analytics";
 
 export default function BuyerManager() {
   const { data: buyersData, isLoading, isError, error, refetch } = useBuyers();
@@ -47,15 +47,11 @@ export default function BuyerManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, !!buyersData]);
 
-  const contractCounts = useMemo(() => {
-    const log = getContractLog();
-    const counts: Record<string, number> = {};
-    for (const c of log) {
-      const key = c.buyer.toLowerCase();
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return counts;
-  }, []);
+  const { data: contractsData } = useContracts();
+  const contractCounts = useMemo(
+    () => contractCountsByBuyer(contractsData ?? []),
+    [contractsData]
+  );
 
   const filtered = useMemo(() => {
     if (!search) return buyers;

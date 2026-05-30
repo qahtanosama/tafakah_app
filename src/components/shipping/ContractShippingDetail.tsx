@@ -13,9 +13,9 @@ import { ArrowLeft, ExternalLink, Ship, Check, RefreshCw, Loader2, AlertTriangle
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ShippingEntry, ShippingLine, ShippingStatusOverride } from "@/types/shipping";
 import { SHIPPING_LINES } from "@/types/shipping";
-import { getContractLog } from "@/lib/contract-log";
+import { getContractLog } from "@/lib/contract-log"; // RETAINED FOR WORKFLOW ENGINE — remove in Step 7B
 import {
-  getShipping, saveShipping, createEmptyShipping, ensureShippingFields,
+  getShipping, createEmptyShipping, ensureShippingFields,
   getStatusInfo, calcTransitProgress, getTrackingLinks, calcAutoStatus,
 } from "@/lib/shipping";
 import { useShipping, useSaveShipping, shippingRowToEntry, shippingEntryToInput } from "@/lib/data/shipping";
@@ -223,8 +223,6 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   }, []);
 
   const persist = useCallback((next: ShippingEntry) => {
-    // TRANSITIONAL DUAL-WRITE — remove in Batch 3 Step 7
-    saveShipping(next);
     if (contractId) saveShippingMut.mutate(shippingEntryToInput(next));
     setEntry({ ...next });
     flashSaved();

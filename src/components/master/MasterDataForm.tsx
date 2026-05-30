@@ -58,23 +58,22 @@ import {
   saveMasterData,
   loadMasterData,
   resetMasterData,
-  saveActiveContract,
 } from "@/lib/master-data";
+// RETAINED FOR WORKFLOW ENGINE — remove in Step 7B (the localStorage workflow
+// engine reads this contract-log entry; submit still mirrors here until 7B).
 import {
   contractNoExists,
   addContractLogEntry,
 } from "@/lib/contract-log";
-import { findBuyerByCompany, addBuyer, createEmptyBuyer } from "@/lib/buyers";
 import { useProducts } from "@/lib/data/products";
-import { useBuyers, useSaveBuyer } from "@/lib/data/buyers";
-import { useSellers, useSaveSeller } from "@/lib/data/sellers";
+import { useBuyers, useSaveBuyer, createEmptyBuyer } from "@/lib/data/buyers";
+import { useSellers, useSaveSeller, createEmptySeller } from "@/lib/data/sellers";
 import { useSaveContract, useNextSequence } from "@/lib/data/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Buyer } from "@/types/buyer";
 import type { Seller } from "@/types/seller";
-import { createEmptySeller, saveSeller } from "@/lib/sellers";
 import SellerEditForm from "@/components/sellers/SellerEditForm";
-import { initializeWorkflowOnSubmit } from "@/lib/workflow";
+import { initializeWorkflowOnSubmit } from "@/lib/workflow"; // RETAINED FOR WORKFLOW ENGINE — 7B
 import StageStrip from "@/components/workflow/StageStrip";
 
 function NumInput({
@@ -345,6 +344,10 @@ export default function MasterDataForm() {
     snapshot.workflow = workflow;
 
     const generatedId = crypto.randomUUID();
+    // RETAINED FOR WORKFLOW ENGINE — remove in Step 7B. The localStorage workflow
+    // engine (StageStrip / ATD-ATA auto-advance / cert refs) reads this entry.
+    // It no longer propagates to Supabase (background sync is a no-op), so it
+    // does not recreate empty contract shells.
     addContractLogEntry({
       id: generatedId,
       contractNo,
@@ -358,16 +361,7 @@ export default function MasterDataForm() {
       workflow,
     });
 
-    saveActiveContract({
-      data: snapshot,
-      contractNo,
-      invoiceNo,
-      dateSubmitted,
-    });
-
-    // Supabase — the new source of truth. Transitional dual-write alongside the
-    // localStorage writes above, which still feed the not-yet-migrated PDF
-    // generators + Finance/Shipping/Documents pages (removed in the final cleanup).
+    // Supabase — the source of truth.
     saveContractMut.mutate(
       { ...snapshot },
       {
@@ -398,8 +392,7 @@ export default function MasterDataForm() {
     if (!isUuid && trimmedCompany) {
       const norm = trimmedCompany.toLowerCase();
       const matchInList = buyersList.find((b) => (b.company ?? "").trim().toLowerCase() === norm);
-      const matchInLocal = findBuyerByCompany(trimmedCompany);
-      if (!matchInList && !matchInLocal) {
+      if (!matchInList) {
         const newBuyer = createEmptyBuyer();
         newBuyer.company = trimmedCompany;
         newBuyer.address = data.buyer.address;
@@ -408,8 +401,7 @@ export default function MasterDataForm() {
         newBuyer.country = data.buyer.country ?? "";
         newBuyer.email = data.buyer.email;
         newBuyer.ccEmail = data.buyer.ccEmail;
-        addBuyer(newBuyer); // localStorage mirror (keeps QuickShare's findBuyerByCompany working)
-        saveBuyerMut.mutate({ payload: newBuyer, isUpdate: false }); // Supabase
+        saveBuyerMut.mutate({ payload: newBuyer, isUpdate: false }); // Supabase (source of truth)
       }
     } else if (!isUuid && formBuyerId) {
       // Form had a buyer.id but it isn't a UUID — likely a legacy local id that
@@ -1210,8 +1202,7 @@ export default function MasterDataForm() {
           existingIds={sellers.map((s) => s.id)}
           onSave={async (s) => {
             // Supabase generates its own UUID on insert — use the returned row's
-            // id so selection + the localStorage mirror stay consistent
-            // (QuickShare resolves the seller by contract.sellerId).
+            // id so the contract's sellerId matches the persisted seller.
             let persisted = s;
             try {
               const saved = await saveSellerMut.mutateAsync({ payload: s, isUpdate: false });
@@ -1219,7 +1210,6 @@ export default function MasterDataForm() {
             } catch (err) {
               showToast("error", `⚠ Cloud save failed: ${(err as Error).message}`);
             }
-            saveSeller(persisted); // localStorage mirror with the persisted id
             setData((prev) => ({ ...prev, sellerId: persisted.id }));
             setSellerEditing(null);
           }}

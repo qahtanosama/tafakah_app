@@ -69,7 +69,9 @@ function useRealtimeProducts() {
   const qc = useQueryClient();
   useEffect(() => {
     const supabase = createClient();
-    const ch = supabase.channel("public:products")
+    // Unique channel name per mount — see note in data/buyers.ts (Strict Mode).
+    const channelName = `public:products:${Math.random().toString(36).slice(2, 9)}`;
+    const ch = supabase.channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
         qc.invalidateQueries({ queryKey: ["products"] });
       })

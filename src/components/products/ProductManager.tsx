@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Save, X, TrendingUp, Calculator, Package } from "lucide-react";
 import type { ProductProfile, PriceHistoryEntry } from "@/types/product";
-import { getProductUsageCount, getPriceHistory } from "@/lib/products";
 import { useProducts, useSaveProduct, useDeleteProduct } from "@/lib/data/products";
+import { useContracts } from "@/lib/data/contracts";
+import { priceHistoryFor, productUsageCount } from "@/lib/data/contract-analytics";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
@@ -74,6 +75,7 @@ export default function ProductManager() {
   const products = productsData ?? [];
   const saveProductMut = useSaveProduct();
   const deleteProductMut = useDeleteProduct();
+  const { data: contractsData } = useContracts();
 
   const [histories, setHistories] = useState<Record<string, PriceHistoryEntry[]>>({});
   const [editing, setEditing] = useState<ProductProfile | null>(null);
@@ -83,10 +85,11 @@ export default function ProductManager() {
 
   useEffect(() => {
     if (!productsData) return;
+    const contracts = contractsData ?? [];
     const h: Record<string, PriceHistoryEntry[]> = {};
-    for (const p of productsData) h[p.name] = getPriceHistory(p.name);
+    for (const p of productsData) h[p.name] = priceHistoryFor(contracts, p.name);
     setHistories(h);
-  }, [productsData]);
+  }, [productsData, contractsData]);
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
 
@@ -106,7 +109,7 @@ export default function ProductManager() {
   }, []);
 
   const handleDelete = useCallback((p: ProductProfile) => {
-    const usage = getProductUsageCount(p.name);
+    const usage = productUsageCount(contractsData ?? [], p.name);
     const msg = usage > 0
       ? `"${p.name}" is used in ${usage} contract(s). It won't affect existing records but will no longer be available for new contracts. Delete?`
       : `Delete "${p.name}"?`;
@@ -115,7 +118,7 @@ export default function ProductManager() {
       onSuccess: () => showToast(`${p.name} deleted`),
       onError: (e) => showToast(`Delete failed: ${(e as Error).message}`),
     });
-  }, [deleteProductMut, showToast]);
+  }, [deleteProductMut, showToast, contractsData]);
 
   const handleSave = useCallback(() => {
     if (!editing || !editing.name.trim() || !editing.prefix.trim()) return;

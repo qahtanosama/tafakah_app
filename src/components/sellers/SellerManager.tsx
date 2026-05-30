@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, MessageCircle, Factory, MapPin, MessageSquare } from "lucide-react";
 import type { Seller } from "@/types/seller";
 import type { ProductProfile } from "@/types/product";
-import { createEmptySeller } from "@/lib/sellers";
-import { useSellers, useSaveSeller, useDeleteSeller } from "@/lib/data/sellers";
+import { useSellers, useSaveSeller, useDeleteSeller, createEmptySeller } from "@/lib/data/sellers";
 import { useProducts } from "@/lib/data/products";
 import SellerEditForm from "./SellerEditForm";
 

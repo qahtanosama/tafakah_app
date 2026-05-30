@@ -10,11 +10,12 @@ import type { Buyer, BuyerDocPreset } from "@/types/buyer";
 import { readBuyerMessaging } from "@/types/buyer";
 import type { Seller, SellerLanguage } from "@/types/seller";
 import { readSellerMessaging } from "@/types/seller";
-import { findBuyerByCompany } from "@/lib/buyers";
-import { getSellerById } from "@/lib/sellers";
+import { useBuyers } from "@/lib/data/buyers";
+import { useSellers } from "@/lib/data/sellers";
+import { useContractByNo } from "@/lib/data/contracts";
+import { useShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import { isWechatHandoffEnabled } from "@/lib/settings";
 import { calcTotals } from "@/lib/sales-contract";
-import { getShipping } from "@/lib/shipping";
 import { DOC_LABELS, DOC_ORDER, PRESET_DOCS, downloadContractPdfs, type QuickShareDoc } from "@/lib/quick-share/download";
 import {
   renderTemplate,
@@ -80,6 +81,12 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
 
   const [buyer, setBuyer] = useState<Buyer | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
+
+  // Supabase lookups (replace the old localStorage findBuyerByCompany/getSellerById/getShipping).
+  const { data: buyersData } = useBuyers();
+  const { data: sellersData } = useSellers();
+  const contractRow = useContractByNo(open ? contract.contractNo : undefined).data;
+  const { data: shippingRow } = useShipping(open ? (contractRow?.id ?? undefined) : undefined);
   const [lang, setLang] = useState<TemplateLanguage>("en");
   const [selected, setSelected] = useState<QuickShareDoc[]>(PRESET_DOCS.buyer);
   const [message, setMessage] = useState("");
@@ -101,14 +108,16 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
     if (!open) return;
     if (isFactory) {
       const sellerId = contract.masterSnapshot.sellerId ?? contract.sellerId;
-      const s = sellerId ? getSellerById(sellerId) ?? null : null;
+      const s = sellerId ? (sellersData ?? []).find((x) => x.id === sellerId) ?? null : null;
       setSeller(s);
       const msgs = readSellerMessaging(s);
       setLang(msgs.preferredLanguage);
       const preset = msgs.defaultDocPreset === "all" ? FACTORY_PRESET.all : FACTORY_PRESET.factory;
       setSelected(initialDocs && initialDocs.length > 0 ? [...initialDocs] : preset);
     } else {
-      const found = findBuyerByCompany(contract.buyer) ?? findBuyerByCompany(contract.masterSnapshot.buyer.company) ?? null;
+      const norm = (v: string) => (v ?? "").trim().toLowerCase();
+      const targets = [norm(contract.buyer), norm(contract.masterSnapshot.buyer.company)];
+      const found = (buyersData ?? []).find((b) => targets.includes(norm(b.company))) ?? null;
       setBuyer(found);
       const msgs = readBuyerMessaging(found);
       setLang(msgs.preferredLanguage);
@@ -118,7 +127,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
     setMessageDirty(false);
     setWechatHandoff(null);
     setWechatEnabled(isWechatHandoffEnabled());
-  }, [open, contract, isFactory, initialDocs]);
+  }, [open, contract, isFactory, initialDocs, buyersData, sellersData]);
 
   // Close on Escape
   useEffect(() => {
@@ -133,7 +142,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
   const templateVars = useMemo(() => {
     const snap = contract.masterSnapshot;
     const products = Array.from(new Set(snap.lineItems.map((i) => i.product).filter(Boolean) as string[]));
-    const shipping = open && typeof window !== "undefined" ? getShipping(contract.contractNo) : null;
+    const shipping = shippingRow ? shippingRowToEntry(contract.contractNo, shippingRow) : null;
     const etd = shipping?.atd || shipping?.etd || snap.identifiers.contractDate || "";
 
     const buyerName = buyer?.contactPerson?.trim() || buyer?.shortName?.trim() || contract.buyer;
@@ -150,7 +159,7 @@ export default function QuickShareDialog({ open, onClose, contract, recipientTyp
       etd,
       docList: buildDocList(selected),
     };
-  }, [buyer, seller, contract, selected, totals, open]);
+  }, [buyer, seller, contract, selected, totals, open, shippingRow]);
 
   const rendered = useMemo(() => {
     if (isFactory) {

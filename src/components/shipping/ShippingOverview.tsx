@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Search, Ship, Calendar, Anchor, AlertTriangle, RefreshCw, Loader2, Navigation } from "lucide-react";
 import type { ShippingEntry, ShippingStatus } from "@/types/shipping";
-import { getStatusInfo, resolveStatus, saveShipping, ensureShippingFields } from "@/lib/shipping";
+import { getStatusInfo, resolveStatus, ensureShippingFields } from "@/lib/shipping";
 import { useContracts } from "@/lib/data/contracts";
 import { useAllShipping, shippingRowToEntry, shippingEntryToInput } from "@/lib/data/shipping";
 import { saveContractShipping } from "@/lib/contracts/save-shipping";
@@ -202,7 +202,6 @@ export default function ShippingOverview() {
       const result = await fetchShipmentFromShipsgo(target, token);
       if (result.success && result.data) {
         const { next } = mergeTrackIntoEntry(target, result.data);
-        saveShipping(next); // TRANSITIONAL DUAL-WRITE — remove in Batch 3 Step 7
         const cid = idByNo[next.contractNo];
         if (cid) {
           try { await saveContractShipping({ contractId: cid, shipping: shippingEntryToInput(next) }); }

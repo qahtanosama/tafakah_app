@@ -74,6 +74,21 @@ function localToDb(b: Buyer) {
   };
 }
 
+/** Factory for a blank buyer (moved here from the deleted localStorage lib). */
+export function createEmptyBuyer(): Buyer {
+  return {
+    id: crypto.randomUUID(),
+    company: "", shortName: "", address: "", additionalNumber: "",
+    cityPostal: "", country: "", email: "", ccEmail: "",
+    phone: "", contactPerson: "", notes: "",
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    whatsappNumber: "",
+    preferredLanguage: "en",
+    defaultDocPreset: "buyer",
+    customMessageTemplate: {},
+  };
+}
+
 export function useBuyers() {
   useRealtimeBuyers();
   return useQuery<Buyer[]>({
@@ -91,7 +106,11 @@ function useRealtimeBuyers() {
   const qc = useQueryClient();
   useEffect(() => {
     const supabase = createClient();
-    const ch = supabase.channel("public:buyers")
+    // Unique channel name per mount — Strict Mode double-mounts in dev, and a
+    // static name lets the 2nd mount add a listener to an already-subscribed
+    // channel ("cannot add postgres_changes callbacks after subscribe()").
+    const channelName = `public:buyers:${Math.random().toString(36).slice(2, 9)}`;
+    const ch = supabase.channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "buyers" }, () => {
         qc.invalidateQueries({ queryKey: ["buyers"] });
       })

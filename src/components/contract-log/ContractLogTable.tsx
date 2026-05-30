@@ -21,6 +21,8 @@ import { Trash2, Pencil, Eye, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { ContractStatus, SalesContractData } from "@/types/sales-contract";
 import { useContracts, useDeleteContract, useSetContractStatus, type ContractRow } from "@/lib/data/contracts";
+// RETAINED FOR WORKFLOW ENGINE — remove in Step 7B. The local mirror keeps the
+// workflow engine's contract-log in sync with Supabase deletes/status changes.
 import { getContractLog, deleteContractLogEntry, updateContractLogEntryStatus } from "@/lib/contract-log";
 import { saveMasterData, saveActiveContract } from "@/lib/master-data";
 import { calcTotals } from "@/lib/sales-contract";
@@ -153,12 +155,10 @@ export default function ContractLogTable() {
 
   const handleLoadActive = useCallback(
     (row: ContractRow) => {
-      const active = toActive(row);
-      if (!active) return;
-      saveActiveContract(active);
-      router.push("/sales-contract");
+      // PDF generators read the contract from Supabase by ?id (no localStorage handoff).
+      router.push(`/sales-contract?id=${row.id}`);
     },
-    [router, toActive]
+    [router]
   );
 
   // Finance + shipping summaries still come from localStorage (deferred domains),
@@ -253,6 +253,9 @@ export default function ContractLogTable() {
                 <button
                   type="button"
                   onClick={() => {
+                    // RETAINED FOR DOCS/WORKFLOW — remove in Step 7B. DocumentsManager
+                    // still selects the active contract from localStorage; migrate to
+                    // ?id when DocumentsManager moves to Supabase.
                     const active = toActive(row);
                     if (!active) return;
                     saveActiveContract(active);

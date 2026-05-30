@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/select";
 import { Copy, Save, Check, Plus, X, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import type { ProductProfile } from "@/types/product";
-import { getPriceHistory } from "@/lib/products";
 import { useProducts } from "@/lib/data/products";
+import { useContracts } from "@/lib/data/contracts";
+import { priceHistoryFor } from "@/lib/data/contract-analytics";
 import { toArabicNum, toArabicFormatted } from "@/lib/arabic";
 
 /* ── Types ─────────────────────────────────────── */
@@ -126,6 +127,7 @@ function CostRowInput({ line, unitOptions, onChange, onDelete, usdEquiv }: {
 export default function QuoteCalculator() {
   const { data: productsData } = useProducts();
   const products = useMemo(() => productsData ?? [], [productsData]);
+  const { data: contractsData } = useContracts();
 
   const [selectedId, setSelectedId] = useState("");
   const [numContainers, setNumContainers] = useState(1);
@@ -219,13 +221,13 @@ export default function QuoteCalculator() {
 
   const priceComparisons = useMemo(() => {
     if (!product) return [];
-    const history = getPriceHistory(product.name);
+    const history = priceHistoryFor(contractsData ?? [], product.name);
     const byBuyer: Record<string, { priceMT: number; date: string }> = {};
     for (const h of history) { if (!byBuyer[h.buyer]) byBuyer[h.buyer] = { priceMT: h.priceMT, date: h.date }; }
     return Object.entries(byBuyer).slice(0, 5).map(([buyer, d]) => ({
       buyer, priceMT: d.priceMT, date: d.date, diff: sellPerMT > 0 ? ((sellPerMT - d.priceMT) / d.priceMT) * 100 : 0,
     }));
-  }, [product, sellPerMT]);
+  }, [product, sellPerMT, contractsData]);
 
   // Generate quote text
   const generateQuote = useCallback((lang: "en" | "ar"): string => {
