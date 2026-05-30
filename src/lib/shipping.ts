@@ -4,7 +4,6 @@ import type {
   ShippingStatusInfo,
   ShippingLine,
 } from "@/types/shipping";
-import { triggerBackgroundSync } from "@/lib/sync";
 
 const STORAGE_KEY = "shipping-tracker";
 
@@ -20,7 +19,6 @@ export function getAllShipping(): ShippingEntry[] {
 
 function saveAll(data: ShippingEntry[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  triggerBackgroundSync();
 }
 
 export function getShipping(contractNo: string): ShippingEntry | null {

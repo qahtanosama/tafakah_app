@@ -137,9 +137,6 @@ export default async function SuperAdminDashboard() {
 
       <div className="flex justify-between text-xs text-zinc-400">
         <span>Logged in as super admin: {guard.email}</span>
-        <Link href="/admin/migrate" className="flex items-center gap-1 hover:text-zinc-600">
-          <UserCog className="h-3 w-3" /> Data migration tools
-        </Link>
       </div>
     </div>
   );

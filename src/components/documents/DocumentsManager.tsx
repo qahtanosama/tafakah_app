@@ -632,7 +632,7 @@ export default function DocumentsManager() {
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <strong>Cloud sync needed:</strong> {docsError}. Open <Link href="/admin/migrate" className="underline">Admin → Migrate</Link> and run sync, then return.
+            <strong>Couldn&rsquo;t load documents:</strong> {docsError}
           </div>
         </div>
       )}

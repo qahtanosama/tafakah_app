@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KeyRound, Loader2, AlertTriangle, CheckCircle, Copy, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { isUuid } from "@/lib/migration/relink-client";
 import {
   getBuyerPortalStatus,
   disableClientUserForBuyer,
@@ -15,6 +14,11 @@ import {
   createClientUserForBuyer,
   type BuyerPortalStatus,
 } from "@/app/(team)/admin/users/actions";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID_RE.test(v);
+}
 
 interface Props {
   localBuyerId: string;
@@ -126,24 +130,8 @@ export default function BuyerPortalAccess({ localBuyerId, buyerEmail, buyerCompa
       )}
 
       {existsQuery.isSuccess && !existsInDb && (
-        <div className="space-y-2 text-xs text-zinc-500">
-          <p>This buyer isn&rsquo;t in the cloud database yet.</p>
-          <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
-            startTransition(async () => {
-              const { runMigration } = await import("@/lib/migration/migrate");
-              await runMigration({ dryRun: false });
-              window.location.reload();
-            });
-          }}>
-            {isPending ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : null}
-            {isPending ? "Syncing..." : "Sync Buyer to Database"}
-          </Button>
-        </div>
-      )}
-
-      {loaded && buyerUuid && status && !status.buyerExists && (
         <p className="text-xs text-amber-600">
-          Buyer id {buyerUuid.slice(0, 8)}&hellip; not found in DB. Re-run migration to sync, then reload.
+          This buyer isn&rsquo;t in the cloud database. Re-save it from the Buyers page, then reload.
         </p>
       )}
 

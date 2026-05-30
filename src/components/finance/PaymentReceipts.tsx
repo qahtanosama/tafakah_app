@@ -76,7 +76,7 @@ export default function PaymentReceipts({ contractId, paymentId, isClient = fals
         title="This payment has no stable id yet."
       >
         <AlertTriangle className="h-3 w-3" />
-        Run /admin/migrate &rarr; Backfill payment ids
+        Re-save this payment to attach receipts
       </span>
     );
   }
