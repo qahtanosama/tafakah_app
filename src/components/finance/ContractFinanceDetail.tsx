@@ -16,7 +16,6 @@ import { Plus, Trash2, X, ArrowLeft, Check } from "lucide-react";
 import type { SalesContractData } from "@/types/sales-contract";
 import type { ContractFinance, CostItem, PaymentItem, PaymentMethod } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
-import { getContractLog } from "@/lib/contract-log";
 import { calcTotals } from "@/lib/sales-contract";
 import { getFinance, createEmptyFinance, ensurePredefinedRows, calcSummary } from "@/lib/finance";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
@@ -140,22 +139,9 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   const savedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initedRef = useRef<string | null>(null);
 
-  // The contract snapshot — prefer Supabase, fall back to the localStorage mirror
-  // for any not-yet-synced contract.
-  const snapshot: SalesContractData | null = useMemo(() => {
-    if (contractRow?.master_snapshot) return contractRow.master_snapshot;
-    const local = getContractLog().find((e) => e.contractNo === contractNo);
-    return local?.masterSnapshot ?? null;
-  }, [contractRow, contractNo]);
-
-  const buyer = useMemo(() => {
-    if (contractRow) return contractRow.master_snapshot?.buyer?.company?.trim() || "—";
-    return getContractLog().find((e) => e.contractNo === contractNo)?.buyer ?? "—";
-  }, [contractRow, contractNo]);
-
-  const dateSubmitted = contractRow?.created_at
-    ?? getContractLog().find((e) => e.contractNo === contractNo)?.dateSubmitted
-    ?? "";
+  const snapshot: SalesContractData | null = contractRow?.master_snapshot ?? null;
+  const buyer = contractRow?.master_snapshot?.buyer?.company?.trim() || "—";
+  const dateSubmitted = contractRow?.created_at ?? "";
 
   // Initialize the editable finance state once, preferring the Supabase row.
   useEffect(() => {

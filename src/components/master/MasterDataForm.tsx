@@ -59,12 +59,6 @@ import {
   loadMasterData,
   resetMasterData,
 } from "@/lib/master-data";
-// RETAINED FOR WORKFLOW ENGINE — remove in Step 7B (the localStorage workflow
-// engine reads this contract-log entry; submit still mirrors here until 7B).
-import {
-  contractNoExists,
-  addContractLogEntry,
-} from "@/lib/contract-log";
 import { useProducts } from "@/lib/data/products";
 import { useBuyers, useSaveBuyer, createEmptyBuyer } from "@/lib/data/buyers";
 import { useSellers, useSaveSeller, createEmptySeller } from "@/lib/data/sellers";
@@ -73,7 +67,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Buyer } from "@/types/buyer";
 import type { Seller } from "@/types/seller";
 import SellerEditForm from "@/components/sellers/SellerEditForm";
-import { initializeWorkflowOnSubmit } from "@/lib/workflow"; // RETAINED FOR WORKFLOW ENGINE — 7B
 import StageStrip from "@/components/workflow/StageStrip";
 
 function NumInput({
@@ -130,7 +123,7 @@ export default function MasterDataForm() {
     message: string;
   } | null>(null);
   const [lastSubmit, setLastSubmit] = useState<{
-    id: string;
+    contractId: string;
     data: SalesContractData;
     totals: ContractTotals;
     contractNo: string;
@@ -325,53 +318,26 @@ export default function MasterDataForm() {
     year > 0 &&
     sequence > 0;
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!canSubmit || !contractNo || !invoiceNo) return;
-
-    if (contractNoExists(contractNo)) {
-      showToast(
-        "error",
-        "\u26a0 Contract number already exists. Please refresh."
-      );
-      return;
-    }
 
     const snapshot = structuredClone(data);
     const dateSubmitted = new Date().toISOString();
 
-    // Initialize workflow — starts at "docs-generated"; backfills "costed" if finance has cost lines
-    const workflow = initializeWorkflowOnSubmit(contractNo, dateSubmitted);
-    snapshot.workflow = workflow;
-
-    const generatedId = crypto.randomUUID();
-    // RETAINED FOR WORKFLOW ENGINE — remove in Step 7B. The localStorage workflow
-    // engine (StageStrip / ATD-ATA auto-advance / cert refs) reads this entry.
-    // It no longer propagates to Supabase (background sync is a no-op), so it
-    // does not recreate empty contract shells.
-    addContractLogEntry({
-      id: generatedId,
-      contractNo,
-      invoiceNo,
-      dateSubmitted,
-      buyer: data.buyer.company,
-      product: firstProduct,
-      status: "Active",
-      masterSnapshot: snapshot,
-      sellerId: snapshot.sellerId,
-      workflow,
-    });
-
-    // Supabase — the source of truth.
-    saveContractMut.mutate(
-      { ...snapshot },
-      {
-        onSuccess: () => qc.invalidateQueries({ queryKey: ["next-contract-sequence"] }),
-        onError: (err) => showToast("error", `⚠ Cloud save failed: ${(err as Error).message}`),
-      }
-    );
+    // Supabase is the source of truth. saveContract owns the initial workflow
+    // stage (docs-generated) and returns the canonical contract id.
+    let contractId: string;
+    try {
+      const res = await saveContractMut.mutateAsync({ ...snapshot });
+      contractId = res.contractId;
+      qc.invalidateQueries({ queryKey: ["next-contract-sequence"] });
+    } catch (err) {
+      showToast("error", `⚠ Cloud save failed: ${(err as Error).message}`);
+      return;
+    }
 
     setLastSubmit({
-      id: generatedId,
+      contractId,
       data: snapshot,
       totals: calcTotals(snapshot.lineItems, snapshot.terms?.numberOfContainers),
       contractNo,
@@ -425,7 +391,9 @@ export default function MasterDataForm() {
   ]);
 
   const fmt = (n: number, d = 2) => n.toFixed(d);
-  const isDuplicate = contractNo ? contractNoExists(contractNo) : false;
+  // Contract-number uniqueness is enforced by the DB (unique constraint) and the
+  // race-safe next_contract_sequence RPC, so no client-side duplicate check.
+  const isDuplicate = false;
 
   if (!loaded) {
     return (
@@ -1156,20 +1124,7 @@ export default function MasterDataForm() {
             {/* Workflow stage tracker */}
             <div className="w-full max-w-5xl rounded-lg border bg-white p-4 dark:bg-zinc-900">
               <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
-              <StageStrip
-                contract={{
-                  id: lastSubmit.id,
-                  contractNo: lastSubmit.contractNo,
-                  invoiceNo: lastSubmit.invoiceNo,
-                  dateSubmitted: lastSubmit.dateSubmitted,
-                  buyer: lastSubmit.data.buyer.company,
-                  product: lastSubmit.data.lineItems[0]?.product || "",
-                  status: "Active",
-                  masterSnapshot: lastSubmit.data,
-                  sellerId: lastSubmit.data.sellerId,
-                  workflow: lastSubmit.data.workflow,
-                }}
-              />
+              <StageStrip contractId={lastSubmit.contractId} />
             </div>
           </>
         )}
@@ -1180,7 +1135,7 @@ export default function MasterDataForm() {
           open={quickShareOpen}
           onClose={() => setQuickShareOpen(false)}
           contract={({
-            id: lastSubmit.id,
+            id: lastSubmit.contractId,
             contractNo: lastSubmit.contractNo,
             invoiceNo: lastSubmit.invoiceNo,
             dateSubmitted: lastSubmit.dateSubmitted,

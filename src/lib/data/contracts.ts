@@ -16,17 +16,27 @@ import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { SalesContractData } from "@/types/sales-contract";
-import type { WorkflowStage, StageCompletion } from "@/types/workflow";
+import type {
+  WorkflowStage,
+  StageCompletion,
+  WorkflowHistory,
+  ContractCertRef,
+  RequiredCert,
+} from "@/types/workflow";
 import type { ContractContainer } from "@/types/contract";
 import {
   saveContract,
   deleteContract,
   advanceStage,
+  skipStage,
+  backfillStage,
+  setContractCertRef,
+  clearContractCertRef,
   getNextSequence,
   setContractStatus,
 } from "@/app/(team)/contract-log/actions";
 
-/** Row shape of public.contracts (post-migration B). */
+/** Row shape of public.contracts. `workflow_history` jsonb = { history, certs }. */
 export interface ContractRow {
   id: string;
   contract_no: string;
@@ -38,7 +48,7 @@ export interface ContractRow {
   terms: unknown;
   totals: unknown;
   current_stage: WorkflowStage;
-  workflow_history: Partial<Record<WorkflowStage, StageCompletion>>;
+  workflow_history: WorkflowHistory;
   bl_number: string | null;
   containers: ContractContainer[];
   master_snapshot: SalesContractData | null;
@@ -52,8 +62,10 @@ function useRealtimeContracts() {
   const qc = useQueryClient();
   useEffect(() => {
     const supabase = createClient();
+    // Unique channel name per mount — see note in data/buyers.ts (Strict Mode).
+    const channelName = `public:contracts:${Math.random().toString(36).slice(2, 9)}`;
     const ch = supabase
-      .channel("public:contracts")
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "contracts" }, () => {
         qc.invalidateQueries({ queryKey: ["contracts"] });
       })
@@ -175,10 +187,61 @@ export function useAdvanceStage() {
       if (!res.ok) throw new Error(res.error);
       return res;
     },
-    onSettled: (_data, _err, vars) => {
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["contracts"] });
-      qc.invalidateQueries({ queryKey: ["contracts", vars.contractId] });
     },
+  });
+}
+
+/** Skip to a target stage (marks intermediate stages skipped). */
+export function useSkipStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { contractId: string; targetStage: WorkflowStage; skipNotes?: string }) => {
+      const res = await skipStage(params);
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ["contracts"] }); },
+  });
+}
+
+/** Backfill a completed stage without changing the current stage. */
+export function useBackfillStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { contractId: string; stage: WorkflowStage; completion?: Omit<StageCompletion, "completedAt"> & { completedAt?: string } }) => {
+      const res = await backfillStage(params);
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ["contracts"] }); },
+  });
+}
+
+/** Attach a certificate reference (co/health/phyto). */
+export function useSetCertRef() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { contractId: string; certType: RequiredCert; ref: ContractCertRef }) => {
+      const res = await setContractCertRef(params);
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ["contracts"] }); },
+  });
+}
+
+/** Remove a certificate reference. */
+export function useClearCertRef() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { contractId: string; certType: RequiredCert }) => {
+      const res = await clearContractCertRef(params);
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ["contracts"] }); },
   });
 }
 

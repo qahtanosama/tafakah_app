@@ -1,28 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, Lock, Factory, MessageCircle, Upload, Wallet, Send, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ContractLogEntry } from "@/types/sales-contract";
-import { STAGE_ORDER, STAGE_LABELS, type WorkflowStage } from "@/types/workflow";
 import {
-  getWorkflow,
-  getStageStatus,
-  advanceStage,
-  skipStageTo,
-  backfillStage,
-  missingCertsForStage6,
-  findContractById,
-} from "@/lib/workflow";
+  STAGE_ORDER, STAGE_LABELS, type WorkflowStage,
+  type WorkflowHistory, type ContractCerts,
+  normalizeWorkflowHistory, getStageStatusFor, missingCerts,
+} from "@/types/workflow";
+import {
+  useContract, useAdvanceStage, useSkipStage, useBackfillStage,
+  type ContractRow,
+} from "@/lib/data/contracts";
 import QuickShareDialog, { type QuickShareRecipientType } from "@/components/quick-share/QuickShareDialog";
 import type { QuickShareDoc } from "@/lib/quick-share/download";
 import FinalPackagePanel from "@/components/workflow/FinalPackagePanel";
 import { generateMergedPdfForContract } from "@/lib/contracts/generate-merged-pdf";
-import { syncWorkflowByContractNo } from "@/app/(team)/contract-log/actions";
 
 interface Props {
-  contract: ContractLogEntry;
+  contractId: string;
   compact?: boolean;
 }
 
@@ -43,48 +41,28 @@ const STAGE_ICON: Record<WorkflowStage, React.ComponentType<{ className?: string
   "delivered": Archive,
 };
 
-export default function StageStrip({ contract: initialContract, compact = false }: Props) {
-  // Local refresh — re-read the contract from storage when workflow updates elsewhere
-  const [version, setVersion] = useState(0);
-  const contract = useMemo(() => {
-    // Re-read to pick up any mutation; fall back to prop if not found in log
-    return findContractById(initialContract.id) ?? initialContract;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialContract, version]);
+/** Adapt a Supabase ContractRow into the ContractLogEntry shape QuickShareDialog expects. */
+function toLegacyContract(row: ContractRow, wf: WorkflowHistory): ContractLogEntry | null {
+  if (!row.master_snapshot) return null;
+  return {
+    id: row.id,
+    contractNo: row.contract_no,
+    invoiceNo: row.invoice_no,
+    dateSubmitted: row.created_at,
+    buyer: row.master_snapshot.buyer?.company ?? "",
+    product: row.product_label ?? "",
+    status: row.status,
+    masterSnapshot: row.master_snapshot,
+    sellerId: row.master_snapshot.sellerId,
+    workflow: { currentStage: row.current_stage, history: wf.history, certs: wf.certs },
+  };
+}
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    // Transitional dual-write: the localStorage workflow is the live model, but
-    // every mutation (advance / skip / backfill / cert change) dispatches
-    // "workflow-updated", so this single listener mirrors the fresh workflow to
-    // Supabase — no need to touch each mutation call site.
-    const pushToSupabase = () => {
-      try {
-        const fresh = findContractById(initialContract.id);
-        if (!fresh) return;
-        const wf = getWorkflow(fresh);
-        void syncWorkflowByContractNo({
-          contractNo: fresh.contractNo,
-          currentStage: wf.currentStage,
-          workflowHistory: wf.history,
-        }).then((res) => {
-          if (!res.ok) console.warn("[StageStrip] workflow sync failed:", res.error);
-        }).catch((err) => console.warn("[StageStrip] workflow sync error:", err));
-      } catch {
-        /* ignore */
-      }
-    };
-    const refresh = () => { setVersion((v) => v + 1); pushToSupabase(); };
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "contract-log" || e.key === "active-contract") refresh();
-    };
-    window.addEventListener("workflow-updated", refresh as EventListener);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("workflow-updated", refresh as EventListener);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, [initialContract.id]);
+export default function StageStrip({ contractId, compact = false }: Props) {
+  const { data: contract } = useContract(contractId);
+  const advance = useAdvanceStage();
+  const skip = useSkipStage();
+  const backfill = useBackfillStage();
 
   const [quickShare, setQuickShare] = useState<{
     open: boolean;
@@ -94,15 +72,17 @@ export default function StageStrip({ contract: initialContract, compact = false 
   } | null>(null);
   const [stage6Modal, setStage6Modal] = useState(false);
 
-  const wf = getWorkflow(contract);
-  const currentStage = wf.currentStage;
+  const wf = useMemo(() => normalizeWorkflowHistory(contract?.workflow_history), [contract?.workflow_history]);
 
-  // Keep prop-reads consistent — derive state per pill
+  if (!contract) return null;
+  const currentStage = contract.current_stage;
+  const legacyContract = toLegacyContract(contract, wf);
+
   return (
     <div className="w-full">
       <div className={`flex ${compact ? "gap-1" : "gap-2"} overflow-x-auto pb-2`}>
         {STAGE_ORDER.map((stage) => {
-          const status = getStageStatus(contract, stage);
+          const status = getStageStatusFor(currentStage, wf.history, stage);
           const completion = wf.history[stage];
           const Icon = STAGE_ICON[stage];
           const base = `flex shrink-0 items-center gap-1.5 rounded-full border ${compact ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm"} font-medium transition-colors`;
@@ -127,7 +107,7 @@ export default function StageStrip({ contract: initialContract, compact = false 
           }
 
           return (
-            <div key={stage} className={`${base} ${cls}`} title={titleParts.join(" \u2014 ")}>
+            <div key={stage} className={`${base} ${cls}`} title={titleParts.join(" — ")}>
               {status === "completed" ? <Check className="h-3.5 w-3.5" /> :
                status === "blocked" ? <Lock className="h-3 w-3" /> :
                <Icon className="h-3.5 w-3.5" />}
@@ -139,17 +119,23 @@ export default function StageStrip({ contract: initialContract, compact = false 
 
       {!compact && (
         <StageActions
-          contract={contract}
+          row={contract}
+          currentStage={currentStage}
+          history={wf.history}
+          certs={wf.certs}
+          advance={advance}
+          skip={skip}
+          backfill={backfill}
           onOpenQuickShare={(cfg) => setQuickShare({ open: true, ...cfg })}
           onOpenStage6={() => setStage6Modal(true)}
         />
       )}
 
-      {quickShare && (
+      {quickShare && legacyContract && (
         <QuickShareDialog
           open={quickShare.open}
           onClose={() => setQuickShare(null)}
-          contract={contract}
+          contract={legacyContract}
           recipientType={quickShare.recipientType}
           initialDocs={quickShare.initialDocs}
           onSent={quickShare.onSent}
@@ -160,14 +146,12 @@ export default function StageStrip({ contract: initialContract, compact = false 
         <Stage6Modal
           onClose={() => setStage6Modal(false)}
           onMarkSent={() => {
-            advanceStage(contract.id, "delivered", { by: "manual", notes: "marked sent outside app" });
+            advance.mutate({ contractId, newStage: "delivered", completion: { by: "manual", notes: "marked sent outside app" } });
             setStage6Modal(false);
           }}
-          contractNo={contract.contractNo}
+          contractNo={contract.contract_no}
         />
       )}
-
-      {currentStage === "costed" && null /* handled inside StageActions */}
     </div>
   );
 }
@@ -175,52 +159,67 @@ export default function StageStrip({ contract: initialContract, compact = false 
 /* ──────────────────────────────────────────────────────── */
 /*                     Action panel per stage              */
 /* ──────────────────────────────────────────────────────── */
+type Mutation<T> = { mutate: (vars: T) => void };
+
 function StageActions({
-  contract,
+  row,
+  currentStage,
+  history,
+  certs,
+  advance,
+  skip,
+  backfill,
   onOpenQuickShare,
   onOpenStage6,
 }: {
-  contract: ContractLogEntry;
+  row: ContractRow;
+  currentStage: WorkflowStage;
+  history: WorkflowHistory["history"];
+  certs: ContractCerts;
+  advance: Mutation<{ contractId: string; newStage: WorkflowStage; completion?: { by: "auto" | "manual"; docsSent?: QuickShareDoc[]; sellerId?: string; notes?: string } }>;
+  skip: Mutation<{ contractId: string; targetStage: WorkflowStage; skipNotes?: string }>;
+  backfill: Mutation<{ contractId: string; stage: WorkflowStage; completion?: { by: "auto" | "manual" } }>;
   onOpenQuickShare: (cfg: { recipientType: QuickShareRecipientType; initialDocs?: QuickShareDoc[]; onSent?: (docs: QuickShareDoc[]) => void }) => void;
   onOpenStage6: () => void;
 }) {
-  const wf = getWorkflow(contract);
-  const current = wf.currentStage;
-  const costedHistory = wf.history["costed"];
-  const stageSent = wf.history["sent-to-factory"];
-  const stageSC = wf.history["sc-sent-to-buyer"];
-  const stageShipped = wf.history["shipped"];
-  const stageDelivered = wf.history["delivered"];
+  const contractId = row.id;
+  const contractNo = row.contract_no;
+  const current = currentStage;
+  const costedHistory = history["costed"];
+  const stageSent = history["sent-to-factory"];
+  const stageSC = history["sc-sent-to-buyer"];
+  const stageShipped = history["shipped"];
+  const stageDelivered = history["delivered"];
 
-  const missing = missingCertsForStage6(contract);
-  const sellerId = contract.masterSnapshot.sellerId ?? contract.sellerId;
+  const missing = missingCerts(certs);
+  const sellerId = row.master_snapshot?.sellerId;
 
   const handleBackfillCosted = useCallback(() => {
-    backfillStage(contract.id, "costed", { by: "manual" });
-  }, [contract.id]);
+    backfill.mutate({ contractId, stage: "costed", completion: { by: "manual" } });
+  }, [backfill, contractId]);
 
   const handleSkipToBuyer = useCallback(() => {
-    skipStageTo(contract.id, "sc-sent-to-buyer", { skipNotes: "skipped" });
-  }, [contract.id]);
+    skip.mutate({ contractId, targetStage: "sc-sent-to-buyer", skipNotes: "skipped" });
+  }, [skip, contractId]);
 
   const handleMarkSentToFactory = useCallback(() => {
     onOpenQuickShare({
       recipientType: "factory",
       onSent: (docs) => {
-        advanceStage(contract.id, "sent-to-factory", { by: "manual", docsSent: docs, sellerId });
+        advance.mutate({ contractId, newStage: "sent-to-factory", completion: { by: "manual", docsSent: docs, sellerId } });
       },
     });
-  }, [contract.id, onOpenQuickShare, sellerId]);
+  }, [advance, contractId, onOpenQuickShare, sellerId]);
 
   const handleMarkSCToBuyer = useCallback(() => {
     onOpenQuickShare({
       recipientType: "buyer",
       initialDocs: ["sc"],
       onSent: (docs) => {
-        advanceStage(contract.id, "sc-sent-to-buyer", { by: "manual", docsSent: docs });
+        advance.mutate({ contractId, newStage: "sc-sent-to-buyer", completion: { by: "manual", docsSent: docs } });
       },
     });
-  }, [contract.id, onOpenQuickShare]);
+  }, [advance, contractId, onOpenQuickShare]);
 
   // === COSTED ===
   if (current === "costed") {
@@ -228,7 +227,7 @@ function StageActions({
       <div className="mt-3 rounded-lg border bg-white p-4 text-sm dark:bg-zinc-900">
         <p className="mb-2 font-medium">Stage: Costed</p>
         <p className="mb-3 text-xs text-zinc-500">Finalize costs to move on. Docs can be generated from Master Data afterwards.</p>
-        <Button size="sm" onClick={() => advanceStage(contract.id, "docs-generated", { by: "manual" })}>
+        <Button size="sm" onClick={() => advance.mutate({ contractId, newStage: "docs-generated", completion: { by: "manual" } })}>
           <Check className="mr-1 h-3.5 w-3.5" /> Mark Costs Complete
         </Button>
       </div>
@@ -299,7 +298,7 @@ function StageActions({
         <p className="text-xs text-zinc-500">
           Waiting for shipment. The stage will auto-advance to <span className="font-medium">Shipped</span> when you set ATD on the Shipping Tracker.
         </p>
-        <Link href={`/shipping/${encodeURIComponent(contract.contractNo)}`} className="inline-block">
+        <Link href={`/shipping/${encodeURIComponent(contractNo)}`} className="inline-block">
           <Button size="sm" variant="outline" className="gap-1">Go to Shipping Tracker</Button>
         </Link>
       </div>
@@ -308,9 +307,9 @@ function StageActions({
 
   // === SHIPPED ===
   if (current === "shipped") {
-    const coChecked = !!wf.certs?.co;
-    const healthChecked = !!wf.certs?.health;
-    const phytoChecked = !!wf.certs?.phyto;
+    const coChecked = !!certs?.co;
+    const healthChecked = !!certs?.health;
+    const phytoChecked = !!certs?.phyto;
     const uploadedCount = [coChecked, healthChecked, phytoChecked].filter(Boolean).length;
     const allReady = uploadedCount === 3;
     const shippedAt = stageShipped ? fmtDate(stageShipped.completedAt) : "";
@@ -321,26 +320,26 @@ function StageActions({
           {costedBackfill}
         </div>
         <p className="text-xs text-zinc-500">
-          Goods in transit{shippedAt ? ` \u2014 auto-advanced from ATD on ${shippedAt}` : ""}.
+          Goods in transit{shippedAt ? ` — auto-advanced from ATD on ${shippedAt}` : ""}.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-md border bg-zinc-50 px-2 py-1 text-xs dark:bg-zinc-800">
-            CO {coChecked ? "\u2713" : "\u25cb"} &middot; Health {healthChecked ? "\u2713" : "\u25cb"} &middot; Phyto {phytoChecked ? "\u2713" : "\u25cb"}{" "}
+            CO {coChecked ? "✓" : "○"} &middot; Health {healthChecked ? "✓" : "○"} &middot; Phyto {phytoChecked ? "✓" : "○"}{" "}
             <span className="text-zinc-400">({uploadedCount}/3 uploaded)</span>
           </span>
-          <Link href={`/documents?contract=${encodeURIComponent(contract.contractNo)}`}>
+          <Link href={`/documents?contract=${encodeURIComponent(contractNo)}`}>
             <Button size="sm" variant="outline" className="gap-1"><Upload className="h-3.5 w-3.5" /> Upload Certs</Button>
           </Link>
           {allReady && (
             <Button
               size="sm"
               onClick={() => {
-                advanceStage(contract.id, "certs-ready", { by: "manual", notes: "all 3 certs uploaded" });
-                // Contracts + cert metadata are now native Supabase (the workflow
-                // mirror above syncs stage state), so the merge action can find
-                // everything it needs. Fire the merge in the background; failures
-                // aren't fatal — the user can retry from the Final Package panel.
-                generateMergedPdfForContract({ contractNo: contract.contractNo }).catch((err) => {
+                advance.mutate(
+                  { contractId, newStage: "certs-ready", completion: { by: "manual", notes: "all 3 certs uploaded" } },
+                );
+                // Fire the merge in the background; failures aren't fatal — the
+                // user can retry from the Final Package panel below.
+                generateMergedPdfForContract({ contractNo }).catch((err) => {
                   console.error("[stage-advance] merged PDF generation failed:", err);
                 });
               }}
@@ -370,14 +369,14 @@ function StageActions({
           <p className="text-xs text-zinc-500">All certificates uploaded. Finalize and send the merged package to the buyer.</p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Link href={`/documents?contract=${encodeURIComponent(contract.contractNo)}`}>
+          <Link href={`/documents?contract=${encodeURIComponent(contractNo)}`}>
             <Button size="sm" variant="outline" className="gap-1"><Upload className="h-3.5 w-3.5" /> Open Trade Documents</Button>
           </Link>
           <Button size="sm" onClick={onOpenStage6} disabled={blocked} className="gap-1">
             <Send className="h-3.5 w-3.5" /> Finalize &amp; Send to Buyer
           </Button>
         </div>
-        <FinalPackagePanel contractNo={contract.contractNo} />
+        <FinalPackagePanel contractNo={contractNo} />
       </div>
     );
   }
@@ -391,14 +390,14 @@ function StageActions({
           {costedBackfill}
         </div>
         <p className="mt-1 text-xs text-zinc-500">
-          Delivered on {stageDelivered ? fmtDate(stageDelivered.completedAt) : "\u2014"}.
+          Delivered on {stageDelivered ? fmtDate(stageDelivered.completedAt) : "—"}.
         </p>
         <div className="mt-3 text-xs text-zinc-400">
-          History: Sent to factory {stageSent ? fmtDate(stageSent.completedAt) : "\u2014"} &middot;
-          {" "}SC sent {stageSC ? fmtDate(stageSC.completedAt) : "\u2014"} &middot;
-          {" "}Shipped {stageShipped ? fmtDate(stageShipped.completedAt) : "\u2014"}
+          History: Sent to factory {stageSent ? fmtDate(stageSent.completedAt) : "—"} &middot;
+          {" "}SC sent {stageSC ? fmtDate(stageSC.completedAt) : "—"} &middot;
+          {" "}Shipped {stageShipped ? fmtDate(stageShipped.completedAt) : "—"}
         </div>
-        <FinalPackagePanel contractNo={contract.contractNo} />
+        <FinalPackagePanel contractNo={contractNo} />
       </div>
     );
   }

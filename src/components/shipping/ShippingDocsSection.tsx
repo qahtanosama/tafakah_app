@@ -15,13 +15,12 @@ import {
   getContractIdByNo,
   updateContractContainers,
 } from "@/lib/contracts/update-shipping";
-import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ContractContainer } from "@/types/contract";
 
 type Toast = { type: "success" | "error" | "info"; msg: string };
 
 interface Props {
-  contract: ContractLogEntry;
+  contractNo: string;
   onSaved?: (next: { blNumber: string | null; containers: ContractContainer[] }) => void;
 }
 
@@ -37,7 +36,7 @@ function newRow(value = ""): ContainerRow {
   return { id: `c-${rowSeq}`, value, error: null };
 }
 
-export default function ShippingDocsSection({ contract, onSaved }: Props) {
+export default function ShippingDocsSection({ contractNo, onSaved }: Props) {
   const [contractId, setContractId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -51,7 +50,7 @@ export default function ShippingDocsSection({ contract, onSaved }: Props) {
     (async () => {
       setLoading(true);
       setLoadError(null);
-      const idRes = await getContractIdByNo({ contractNo: contract.contractNo });
+      const idRes = await getContractIdByNo({ contractNo });
       if (cancelled) return;
       if (!idRes.ok) {
         setLoadError(idRes.error);
@@ -80,7 +79,7 @@ export default function ShippingDocsSection({ contract, onSaved }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [contract.contractNo]);
+  }, [contractNo]);
 
   const showToast = useCallback((type: Toast["type"], msg: string) => {
     setToast({ type, msg });
@@ -151,7 +150,7 @@ export default function ShippingDocsSection({ contract, onSaved }: Props) {
 
     onSaved?.({ blNumber: trimmedBl, containers: containerObjs });
     showToast("success", "✓ Shipping documents saved");
-  }, [contractId, rows, blNumber, contract, onSaved, showToast]);
+  }, [contractId, rows, blNumber, onSaved, showToast]);
 
   if (loading) {
     return (

@@ -2,10 +2,16 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, Search } from "lucide-react";
-import type { ContractLogEntry } from "@/types/sales-contract";
+
+export interface ContractOption {
+  contractNo: string;
+  invoiceNo: string;
+  buyer: string;
+  status: "Active" | "Completed" | "Cancelled";
+}
 
 interface Props {
-  contracts: ContractLogEntry[];
+  contracts: ContractOption[];
   value: string;
   onChange: (contractNo: string) => void;
 }

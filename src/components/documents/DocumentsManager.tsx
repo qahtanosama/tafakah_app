@@ -9,21 +9,21 @@ import {
   FileX, Loader2, Settings, Upload, Trash2, Eye,
   CheckCircle, Clock, AlertTriangle, Package, X, ClipboardList,
 } from "lucide-react";
-import type { SalesContractData, ContractLogEntry, ContractTotals } from "@/types/sales-contract";
+import { useSearchParams } from "next/navigation";
+import type { SalesContractData, ContractLogEntry } from "@/types/sales-contract";
 import type { TradeDocument, AnalyzeRequest, AnalyzeResponse, DocSlot, DocumentCategory, ExtractedFields, ValidationResult } from "@/types/document";
 import { RECEIVED_SLOTS, SLOT_LABELS, CATEGORY_LABELS, categoryToSlot } from "@/types/document";
 import { calcTotals } from "@/lib/sales-contract";
-import { loadActiveContract, saveActiveContract } from "@/lib/master-data";
-import { getContractLog } from "@/lib/contract-log";
 import { compressImage } from "@/lib/documents";
 import { uploadCertificate, deleteCertificate } from "@/lib/contracts/upload-cert";
 import { listCertsForContract, type CertRow } from "@/lib/contracts/list-certs";
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
-import { getShipping, getStatusInfo } from "@/lib/shipping";
+import { getStatusInfo } from "@/lib/shipping";
+import { useContracts, useSetCertRef, useClearCertRef } from "@/lib/data/contracts";
+import { useShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import { saveBlobWithDownload } from "@/lib/quick-share/save-file";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
-import { setCertRef, clearCertRef } from "@/lib/workflow";
 import type { RequiredCert } from "@/types/workflow";
 import StageStrip from "@/components/workflow/StageStrip";
 import UploadZone from "./UploadZone";
@@ -189,12 +189,16 @@ function ReceivedSlotCard({ slot, doc, onUpload, onRemove }: {
 /*  MAIN COMPONENT                                     */
 /* ════════════════════════════════════════════════════ */
 export default function DocumentsManager() {
-  const [contracts, setContracts] = useState<ContractLogEntry[]>([]);
+  const { data: contractsData } = useContracts();
+  const contracts = useMemo(() => contractsData ?? [], [contractsData]);
+  const loaded = contractsData !== undefined;
+  const setCertMut = useSetCertRef();
+  const clearCertMut = useClearCertRef();
+  const searchParams = useSearchParams();
   const [selectedContractNo, setSelectedContractNo] = useState<string>("");
   const [dbContractId, setDbContractId] = useState<string | null>(null);
   const [docs, setDocs] = useState<TradeDocument[]>([]);
   const [docsError, setDocsError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [merging, setMerging] = useState(false);
   const [mergeProgress, setMergeProgress] = useState("");
   const [showMergeModal, setShowMergeModal] = useState(false);
@@ -207,12 +211,13 @@ export default function DocumentsManager() {
 
   // Derived: selected contract entry
   const selectedContract = useMemo(
-    () => contracts.find((c) => c.contractNo === selectedContractNo),
+    () => contracts.find((c) => c.contract_no === selectedContractNo),
     [contracts, selectedContractNo]
   );
-  const contractData = selectedContract?.masterSnapshot;
-  const contractNo = selectedContract?.contractNo ?? "";
-  const invoiceNo = selectedContract?.invoiceNo ?? "";
+  const contractData = selectedContract?.master_snapshot ?? undefined;
+  const contractNo = selectedContract?.contract_no ?? "";
+  const invoiceNo = selectedContract?.invoice_no ?? "";
+  const { data: shippingRow } = useShipping(dbContractId ?? undefined);
   const totals = useMemo(() => contractData ? calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers) : null, [contractData]);
 
   // Reload the cert list for a given contract from Supabase. Stores the
@@ -236,41 +241,31 @@ export default function DocumentsManager() {
     setDocsError(null);
   }, []);
 
-  // Init
+  // Provider info (once).
   useEffect(() => {
-    async function init() {
-      const log = getContractLog();
-      setContracts(log);
-      const ac = loadActiveContract();
-      const initial = ac?.contractNo && log.some((c) => c.contractNo === ac.contractNo)
-        ? ac.contractNo
-        : log[log.length - 1]?.contractNo ?? "";
-      setSelectedContractNo(initial);
-      const pk = getActiveProviderKey();
-      setProviderInfo({ provider: pk.provider, hasKey: !!pk.apiKey });
-      if (initial) await refetchDocs(initial);
-      setLoaded(true);
-    }
-    init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const pk = getActiveProviderKey();
+    setProviderInfo({ provider: pk.provider, hasKey: !!pk.apiKey });
   }, []);
 
-  // When selected contract changes, reload docs from Supabase
+  // Pick the initial contract once contracts load — from ?id (deep-link from
+  // Contract Log) or the most recent contract.
+  useEffect(() => {
+    if (contracts.length === 0 || selectedContractNo) return;
+    const idParam = searchParams?.get("id");
+    const byId = idParam ? contracts.find((c) => c.id === idParam) : undefined;
+    setSelectedContractNo(byId?.contract_no ?? contracts[0]?.contract_no ?? "");
+  }, [contracts, selectedContractNo, searchParams]);
+
+  // Reload the cert list whenever the selection changes.
+  useEffect(() => {
+    if (selectedContractNo) void refetchDocs(selectedContractNo);
+  }, [selectedContractNo, refetchDocs]);
+
+  // When selected contract changes via the picker, reload docs from Supabase.
   const switchContract = useCallback((newContractNo: string) => {
     setSelectedContractNo(newContractNo);
     void refetchDocs(newContractNo);
   }, [refetchDocs]);
-
-  const handleSetActive = useCallback(() => {
-    if (!selectedContract) return;
-    saveActiveContract({
-      data: selectedContract.masterSnapshot,
-      contractNo: selectedContract.contractNo,
-      invoiceNo: selectedContract.invoiceNo,
-      dateSubmitted: selectedContract.dateSubmitted,
-    });
-    showToastMsg("success", `${selectedContract.contractNo} is now the active contract`);
-  }, [selectedContract]);
 
   const showToastMsg = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -358,12 +353,16 @@ export default function DocumentsManager() {
       }
 
       const certType = certTypeForSlot(finalSlot);
-      if (certType && selectedContract) {
-        setCertRef(selectedContract.id, certType, {
-          docId: upload.documentId,
-          uploadedAt: new Date().toISOString(),
-          fileName: file.name,
-          fileSize: file.size,
+      if (certType && dbContractId) {
+        setCertMut.mutate({
+          contractId: dbContractId,
+          certType,
+          ref: {
+            docId: upload.documentId,
+            uploadedAt: new Date().toISOString(),
+            fileName: file.name,
+            fileSize: file.size,
+          },
         });
       }
     } catch (err) {
@@ -371,7 +370,7 @@ export default function DocumentsManager() {
       setDocs((prev) => prev.map((d) => (d.id === tempId ? { ...d, status: "error", error: message } : d)));
       showToastMsg("error", message);
     }
-  }, [contractData, contractNo, dbContractId, docsError, refetchDocs, selectedContract, showToastMsg]);
+  }, [contractData, contractNo, dbContractId, docsError, refetchDocs, setCertMut, showToastMsg]);
 
   const handleGeneralDrop = useCallback((files: File[]) => { for (const file of files) processFile(file); }, [processFile]);
   const handleSlotUpload = useCallback((slot: DocSlot) => { pendingSlotRef.current = slot; fileInputRef.current?.click(); }, []);
@@ -390,11 +389,11 @@ export default function DocumentsManager() {
       await refetchDocs(contractNo);
       return;
     }
-    if (removed && selectedContract) {
+    if (removed && dbContractId) {
       const certType = certTypeForSlot(removed.slot);
-      if (certType) clearCertRef(selectedContract.id, certType);
+      if (certType) clearCertMut.mutate({ contractId: dbContractId, certType });
     }
-  }, [contractNo, docs, refetchDocs, selectedContract, showToastMsg]);
+  }, [contractNo, docs, refetchDocs, dbContractId, clearCertMut, showToastMsg]);
 
   // ── Merge items ──
   const slotMap = useMemo(() => {
@@ -599,20 +598,26 @@ export default function DocumentsManager() {
         <ClipboardList className="h-5 w-5 text-zinc-400" />
         <span className="text-sm font-medium text-zinc-600">Working on:</span>
         <ContractCombobox
-          contracts={contracts.slice().reverse()}
+          contracts={contracts
+            .map((c) => ({
+              contractNo: c.contract_no,
+              invoiceNo: c.invoice_no,
+              buyer: c.master_snapshot?.buyer?.company ?? "—",
+              status: c.status,
+            }))
+            .reverse()}
           value={selectedContractNo}
           onChange={switchContract}
         />
-        <Button variant="outline" size="sm" onClick={handleSetActive}>Set as Active</Button>
         {selectedContract && (
           <QuickShareButton size="sm" label="Quick Share" onClick={() => setQuickShareOpen(true)} />
         )}
         {selectedContract && (() => {
-          const sh = getShipping(selectedContract.contractNo);
+          const sh = shippingRow ? shippingRowToEntry(selectedContract.contract_no, shippingRow) : null;
           const info = getStatusInfo(sh);
           return (
             <Link
-              href={`/shipping/${encodeURIComponent(selectedContract.contractNo)}`}
+              href={`/shipping/${encodeURIComponent(selectedContract.contract_no)}`}
               className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium hover:opacity-80 ${info.badgeColor}`}
               title="Shipping details"
             >
@@ -639,7 +644,7 @@ export default function DocumentsManager() {
           {selectedContract && (
             <div className="rounded-lg border bg-white p-4 dark:bg-zinc-900">
               <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
-              <StageStrip contract={selectedContract} />
+              <StageStrip contractId={selectedContract.id} />
             </div>
           )}
 
@@ -795,11 +800,21 @@ export default function DocumentsManager() {
         </div>
       )}
 
-      {selectedContract && (
+      {selectedContract && selectedContract.master_snapshot && (
         <QuickShareDialog
           open={quickShareOpen}
           onClose={() => setQuickShareOpen(false)}
-          contract={selectedContract}
+          contract={{
+            id: selectedContract.id,
+            contractNo: selectedContract.contract_no,
+            invoiceNo: selectedContract.invoice_no,
+            dateSubmitted: selectedContract.created_at,
+            buyer: selectedContract.master_snapshot.buyer?.company ?? "",
+            product: selectedContract.product_label ?? "",
+            status: selectedContract.status,
+            masterSnapshot: selectedContract.master_snapshot,
+            sellerId: selectedContract.master_snapshot.sellerId,
+          } as ContractLogEntry}
         />
       )}
     </div>

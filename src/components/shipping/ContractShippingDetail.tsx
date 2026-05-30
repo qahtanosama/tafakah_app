@@ -10,21 +10,18 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, ExternalLink, Ship, Check, RefreshCw, Loader2, AlertTriangle } from "lucide-react";
-import type { ContractLogEntry } from "@/types/sales-contract";
 import type { ShippingEntry, ShippingLine, ShippingStatusOverride } from "@/types/shipping";
 import { SHIPPING_LINES } from "@/types/shipping";
-import { getContractLog } from "@/lib/contract-log"; // RETAINED FOR WORKFLOW ENGINE — remove in Step 7B
 import {
-  getShipping, createEmptyShipping, ensureShippingFields,
+  createEmptyShipping, ensureShippingFields,
   getStatusInfo, calcTransitProgress, getTrackingLinks, calcAutoStatus,
 } from "@/lib/shipping";
 import { useShipping, useSaveShipping, shippingRowToEntry, shippingEntryToInput } from "@/lib/data/shipping";
-import { useContractByNo } from "@/lib/data/contracts";
+import { useContractByNo, useAdvanceStage } from "@/lib/data/contracts";
 import { calcTotals } from "@/lib/sales-contract";
 import { getShipsgoToken } from "@/lib/settings";
 import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, formatRelativeTime, isStale } from "@/lib/shipsgo";
 import { useRouter } from "next/navigation";
-import { findContractByNo, getWorkflow, advanceStage } from "@/lib/workflow";
 import StageStrip from "@/components/workflow/StageStrip";
 import ShippingDocsSection from "@/components/shipping/ShippingDocsSection";
 
@@ -149,7 +146,6 @@ function TransitProgress({ entry }: { entry: ShippingEntry }) {
 
 /* ── Main component ───────────────────────────────────── */
 export default function ContractShippingDetail({ contractNo }: { contractNo: string }) {
-  const [contract, setContract] = useState<ContractLogEntry | null>(null);
   const [entry, setEntry] = useState<ShippingEntry | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -173,6 +169,7 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   const contractId = contractRow?.id ?? null;
   const { data: shippingRow, isLoading: shippingLoading } = useShipping(contractId ?? undefined);
   const saveShippingMut = useSaveShipping(contractId ?? "");
+  const advance = useAdvanceStage();
 
   const showToast = useCallback((type: "success" | "error" | "info", msg: string) => {
     setToast({ type, msg });
@@ -180,38 +177,27 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
     toastTimeout.current = setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Keep the localStorage ContractLogEntry for StageStrip + workflow auto-advance
-  // (those remain localStorage-backed, mirrored to Supabase via StageStrip).
   useEffect(() => {
-    const log = getContractLog();
-    setContract(log.find((e) => e.contractNo === contractNo) ?? null);
     setHasToken(!!getShipsgoToken());
-  }, [contractNo]);
+  }, []);
 
-  // Initialize the editable shipping entry once — Supabase first, localStorage fallback.
+  // Initialize the editable shipping entry once from Supabase.
   useEffect(() => {
     if (contractQuery.isLoading) return;
     if (contractId && shippingLoading) return; // wait for the shipping fetch
     if (initedRef.current === contractNo) return;
     initedRef.current = contractNo;
 
-    const localC = getContractLog().find((e) => e.contractNo === contractNo) ?? null;
-    const snap = contractRow?.master_snapshot ?? localC?.masterSnapshot;
-    let e: ShippingEntry;
-    if (shippingRow) {
-      e = ensureShippingFields(shippingRowToEntry(contractNo, shippingRow));
-    } else {
-      const local = getShipping(contractNo);
-      e = local
-        ? ensureShippingFields(local)
-        : createEmptyShipping(contractNo, {
-            blNumber: snap?.identifiers.blNumber ?? "",
-            containerNumber: snap?.identifiers.containerNumber ?? "",
-            sealNumber: snap?.identifiers.sealNumber ?? "",
-            portOfLoading: snap?.shipping.loadingPort ?? "",
-            portOfDischarge: snap?.shipping.dischargePort ?? "",
-          });
-    }
+    const snap = contractRow?.master_snapshot;
+    const e: ShippingEntry = shippingRow
+      ? ensureShippingFields(shippingRowToEntry(contractNo, shippingRow))
+      : createEmptyShipping(contractNo, {
+          blNumber: snap?.identifiers.blNumber ?? "",
+          containerNumber: snap?.identifiers.containerNumber ?? "",
+          sealNumber: snap?.identifiers.sealNumber ?? "",
+          portOfLoading: snap?.shipping.loadingPort ?? "",
+          portOfDischarge: snap?.shipping.dischargePort ?? "",
+        });
     setEntry(e);
     setLoaded(true);
   }, [contractNo, contractId, contractQuery.isLoading, shippingLoading, shippingRow, contractRow]);
@@ -245,20 +231,20 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
 
     if (!newAtd) return; // cleared — no workflow action
 
-    const c = findContractByNo(contractNo);
-    if (!c) return;
-    const wf = getWorkflow(c);
-    if (wf.currentStage === "sc-sent-to-buyer") {
-      try {
-        advanceStage(c.id, "shipped", { by: "auto", triggeredBy: "ATD" });
-        showToast("success", "\u2713 ATD saved. Stage advanced to Shipped.");
-      } catch (e) {
-        showToast("error", (e as Error).message);
-      }
+    if (!contractId || !contractRow) return;
+    const stage = contractRow.current_stage;
+    if (stage === "sc-sent-to-buyer") {
+      advance.mutate(
+        { contractId, newStage: "shipped", completion: { by: "auto", triggeredBy: "ATD" } },
+        {
+          onSuccess: () => showToast("success", "\u2713 ATD saved. Stage advanced to Shipped."),
+          onError: (e) => showToast("error", (e as Error).message),
+        }
+      );
       return;
     }
-    const earlyStages = ["costed", "docs-generated", "sent-to-factory"] as const;
-    if (earlyStages.includes(wf.currentStage as (typeof earlyStages)[number])) {
+    const earlyStages = ["costed", "docs-generated", "sent-to-factory"];
+    if (earlyStages.includes(stage)) {
       const proceed = confirm(
         "This contract hasn't reached 'SC Sent to Buyer' yet. Advance ATD anyway?\n\n" +
         "ATD will be saved but the workflow stage will NOT auto-advance. You'll need to catch up the workflow manually."
@@ -270,8 +256,8 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
         showToast("info", "ATD reverted.");
       }
     }
-    // Else (shipped/certs-ready/delivered): already past ATD, just saved — no further action
-  }, [entry, contractNo, persist, showToast]);
+    // Else (shipped/certs-ready/delivered): already past ATD, just saved.
+  }, [entry, contractId, contractRow, persist, advance, showToast]);
 
   /** Save ATA + apply workflow auto-advance per spec. */
   const commitAta = useCallback(() => {
@@ -279,20 +265,20 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
     persist(entry);
     if (!entry.ata) return;
 
-    const c = findContractByNo(contractNo);
-    if (!c) return;
-    const wf = getWorkflow(c);
-    if (wf.currentStage === "certs-ready") {
-      try {
-        advanceStage(c.id, "delivered", { by: "auto", triggeredBy: "ATA" });
-        showToast("success", "\u2713 ATA saved. Stage advanced to Delivered.");
-      } catch (e) {
-        showToast("error", (e as Error).message);
-      }
-    } else if (wf.currentStage === "shipped") {
+    if (!contractId || !contractRow) return;
+    const stage = contractRow.current_stage;
+    if (stage === "certs-ready") {
+      advance.mutate(
+        { contractId, newStage: "delivered", completion: { by: "auto", triggeredBy: "ATA" } },
+        {
+          onSuccess: () => showToast("success", "\u2713 ATA saved. Stage advanced to Delivered."),
+          onError: (e) => showToast("error", (e as Error).message),
+        }
+      );
+    } else if (stage === "shipped") {
       showToast("info", "ATA saved. Complete 'Certs Ready' stage to finalize delivery.");
     }
-  }, [entry, contractNo, persist, showToast]);
+  }, [entry, contractId, contractRow, persist, advance, showToast]);
 
   const runFetch = useCallback(async (target: ShippingEntry, opts: { silent?: boolean } = {}) => {
     const token = getShipsgoToken();
@@ -363,10 +349,11 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, hasToken]);
 
-  const totals = useMemo(() => contract ? calcTotals(contract.masterSnapshot.lineItems, contract.masterSnapshot.terms?.numberOfContainers) : null, [contract]);
+  const snapshot = contractRow?.master_snapshot ?? null;
+  const totals = useMemo(() => snapshot ? calcTotals(snapshot.lineItems, snapshot.terms?.numberOfContainers) : null, [snapshot]);
 
-  if (!loaded) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
-  if (!contract) {
+  if (!loaded || contractQuery.isLoading) return <div className="flex items-center justify-center py-20 text-zinc-500">Loading...</div>;
+  if (!contractRow || !snapshot) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-16 text-center">
         <p className="text-zinc-500">Contract &ldquo;{contractNo}&rdquo; not found.</p>
@@ -376,7 +363,7 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
   }
   if (!entry) return null;
 
-  const snap = contract.masterSnapshot;
+  const snap = snapshot;
   const statusInfo = getStatusInfo(entry);
   const trackingLinks = getTrackingLinks(entry);
 
@@ -435,12 +422,10 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
       )}
 
       {/* Workflow stage tracker */}
-      {contract && (
-        <div className="rounded-lg border bg-white p-4 dark:bg-zinc-900">
-          <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
-          <StageStrip contract={contract} />
-        </div>
-      )}
+      <div className="rounded-lg border bg-white p-4 dark:bg-zinc-900">
+        <p className="mb-3 text-sm font-semibold text-zinc-600">Workflow</p>
+        <StageStrip contractId={contractRow.id} />
+      </div>
 
       {/* Contract summary */}
       <div className="grid gap-3 rounded-lg border bg-white p-4 sm:grid-cols-4 dark:bg-zinc-900">
@@ -562,7 +547,7 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
       </Card>
 
       {/* B/L + Containers (canonical, persisted on contracts row) */}
-      <ShippingDocsSection contract={contract} />
+      <ShippingDocsSection contractNo={contractNo} />
 
       {/* Status & notes */}
       <Card>

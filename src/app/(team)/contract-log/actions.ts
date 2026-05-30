@@ -21,7 +21,16 @@ import {
   CONTRACT_PREFIXES,
 } from "@/lib/sales-contract";
 import type { SalesContractData } from "@/types/sales-contract";
-import type { WorkflowStage, StageCompletion, ContractWorkflow } from "@/types/workflow";
+import type {
+  WorkflowStage,
+  StageCompletion,
+  ContractWorkflow,
+  WorkflowHistory,
+  ContractCerts,
+  ContractCertRef,
+  RequiredCert,
+} from "@/types/workflow";
+import { STAGE_ORDER, normalizeWorkflowHistory } from "@/types/workflow";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUuid(v: unknown): v is string {
@@ -97,6 +106,8 @@ export async function saveContract(
   const buyerId = isUuid(input.buyer?.id) ? input.buyer.id! : null;
   const sellerId = isUuid(input.sellerId) ? input.sellerId : null;
 
+  // saveContract owns the initial workflow stage. New contracts start at
+  // "docs-generated"; the costed/etc. stages advance via the StageStrip UI.
   const workflow: ContractWorkflow = input.workflow ?? {
     currentStage: "docs-generated",
     history: { "docs-generated": { completedAt: new Date().toISOString(), by: "auto" } },
@@ -119,7 +130,8 @@ export async function saveContract(
     terms: input.terms ?? null,
     totals,
     current_stage: workflow.currentStage,
-    workflow_history: workflow.history ?? {},
+    // workflow_history holds BOTH the stage history and the cert refs.
+    workflow_history: { history: workflow.history ?? {}, certs: workflow.certs ?? {} },
     bl_number: input.blNumber ?? null,
     containers: input.containers ?? [],
     master_snapshot: snapshot,
@@ -195,10 +207,49 @@ export async function setContractStatus(params: {
   return { ok: true };
 }
 
-/**
- * Advance (or set) a contract's workflow stage and append a completion entry
- * to workflow_history. Server-side mirror of src/lib/workflow.ts advanceStage.
- */
+/* ═════════════════════════ WORKFLOW (Supabase) ═════════════════════════ */
+//
+// All workflow state lives on the contracts row: `current_stage` column +
+// `workflow_history` jsonb (`{ history, certs }`). These actions read-modify-write
+// it. Pure stage logic lives in src/types/workflow.ts.
+
+type WorkflowState = { currentStage: WorkflowStage; history: WorkflowHistory["history"]; certs: ContractCerts };
+
+async function readWorkflow(
+  admin: Admin,
+  contractId: string
+): Promise<WorkflowState | null> {
+  const { data, error } = await admin
+    .from("contracts")
+    .select("current_stage, workflow_history")
+    .eq("id", contractId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const wh = normalizeWorkflowHistory((data as { workflow_history?: unknown }).workflow_history);
+  return {
+    currentStage: (data as { current_stage: WorkflowStage }).current_stage,
+    history: wh.history,
+    certs: wh.certs,
+  };
+}
+
+async function writeWorkflow(
+  admin: Admin,
+  contractId: string,
+  currentStage: WorkflowStage,
+  history: WorkflowHistory["history"],
+  certs: ContractCerts
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await admin
+    .from("contracts")
+    .update({ current_stage: currentStage, workflow_history: { history, certs } })
+    .eq("id", contractId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Advance a contract to a new stage, recording the completion in history. */
 export async function advanceStage(params: {
   contractId: string;
   newStage: WorkflowStage;
@@ -207,66 +258,100 @@ export async function advanceStage(params: {
   const guard = await requireTeamUser();
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
+  const wf = await readWorkflow(admin, params.contractId);
+  if (!wf) return { ok: false, error: "Contract not found" };
 
-  const { data: existing, error: selErr } = await admin
-    .from("contracts")
-    .select("workflow_history")
-    .eq("id", params.contractId)
-    .maybeSingle();
-  if (selErr) return { ok: false, error: `Load failed: ${selErr.message}` };
-  if (!existing) return { ok: false, error: "Contract not found" };
-
-  const history = ((existing as { workflow_history?: unknown }).workflow_history ?? {}) as Partial<
-    Record<WorkflowStage, StageCompletion>
-  >;
   const entry: StageCompletion = {
     ...(params.completion ?? { by: "manual" as const }),
     completedAt: new Date().toISOString(),
   };
-  const nextHistory = { ...history, [params.newStage]: entry };
-
-  const { error } = await admin
-    .from("contracts")
-    .update({ current_stage: params.newStage, workflow_history: nextHistory })
-    .eq("id", params.contractId);
-  if (error) return { ok: false, error: `Advance failed: ${error.message}` };
-  return { ok: true };
+  const history = { ...wf.history, [params.newStage]: entry };
+  const res = await writeWorkflow(admin, params.contractId, params.newStage, history, wf.certs);
+  return res.ok ? { ok: true } : { ok: false, error: `Advance failed: ${res.error}` };
 }
 
-/**
- * Mirror a contract's full workflow (current stage + history) to Supabase,
- * keyed by the human contract_no. Used by StageStrip for transitional
- * dual-write: the localStorage workflow remains the live model, and every
- * mutation (advance / skip / backfill / cert change) is pushed here via the
- * "workflow-updated" event. No-ops gracefully if the contract isn't in
- * Supabase yet (older localStorage-only contracts).
- */
-export async function syncWorkflowByContractNo(params: {
-  contractNo: string;
-  currentStage: WorkflowStage;
-  workflowHistory: Partial<Record<WorkflowStage, StageCompletion>>;
-}): Promise<{ ok: true; synced: boolean } | { ok: false; error: string }> {
+/** Skip to a target stage, marking intermediate stages as skipped. */
+export async function skipStage(params: {
+  contractId: string;
+  targetStage: WorkflowStage;
+  skipNotes?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const guard = await requireTeamUser();
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
+  const wf = await readWorkflow(admin, params.contractId);
+  if (!wf) return { ok: false, error: "Contract not found" };
 
-  const { data: existing, error: selErr } = await admin
-    .from("contracts")
-    .select("id")
-    .eq("contract_no", params.contractNo)
-    .maybeSingle();
-  if (selErr) return { ok: false, error: `Lookup failed: ${selErr.message}` };
-  if (!existing) return { ok: true, synced: false }; // not in Supabase yet — skip
+  const currentIdx = STAGE_ORDER.indexOf(wf.currentStage);
+  const targetIdx = STAGE_ORDER.indexOf(params.targetStage);
+  if (targetIdx === -1) return { ok: false, error: "Unknown stage" };
+  if (targetIdx <= currentIdx) return { ok: false, error: "Cannot skip backwards" };
 
-  const { error } = await admin
-    .from("contracts")
-    .update({
-      current_stage: params.currentStage,
-      workflow_history: params.workflowHistory ?? {},
-    })
-    .eq("id", (existing as { id: string }).id);
-  if (error) return { ok: false, error: `Sync failed: ${error.message}` };
-  return { ok: true, synced: true };
+  const now = new Date().toISOString();
+  const history = { ...wf.history };
+  for (let i = currentIdx + 1; i < targetIdx; i++) {
+    const s = STAGE_ORDER[i];
+    if (!history[s]) history[s] = { completedAt: now, by: "manual", notes: params.skipNotes ?? "skipped" };
+  }
+  history[params.targetStage] = { completedAt: now, by: "manual" };
+  const res = await writeWorkflow(admin, params.contractId, params.targetStage, history, wf.certs);
+  return res.ok ? { ok: true } : { ok: false, error: `Skip failed: ${res.error}` };
+}
+
+/** Backfill a completed stage's history without changing the current stage. */
+export async function backfillStage(params: {
+  contractId: string;
+  stage: WorkflowStage;
+  completion?: Omit<StageCompletion, "completedAt"> & { completedAt?: string };
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const wf = await readWorkflow(admin, params.contractId);
+  if (!wf) return { ok: false, error: "Contract not found" };
+  if (wf.history[params.stage]) return { ok: true }; // already recorded
+
+  const entry: StageCompletion = {
+    by: "manual",
+    ...(params.completion ?? {}),
+    completedAt: params.completion?.completedAt ?? new Date().toISOString(),
+  };
+  const history = { ...wf.history, [params.stage]: entry };
+  const res = await writeWorkflow(admin, params.contractId, wf.currentStage, history, wf.certs);
+  return res.ok ? { ok: true } : { ok: false, error: `Backfill failed: ${res.error}` };
+}
+
+/** Attach a certificate reference (co/health/phyto) to a contract. */
+export async function setContractCertRef(params: {
+  contractId: string;
+  certType: RequiredCert;
+  ref: ContractCertRef;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const wf = await readWorkflow(admin, params.contractId);
+  if (!wf) return { ok: false, error: "Contract not found" };
+  const certs = { ...wf.certs, [params.certType]: params.ref };
+  const res = await writeWorkflow(admin, params.contractId, wf.currentStage, wf.history, certs);
+  return res.ok ? { ok: true } : { ok: false, error: `Cert update failed: ${res.error}` };
+}
+
+/** Remove a certificate reference from a contract. */
+export async function clearContractCertRef(params: {
+  contractId: string;
+  certType: RequiredCert;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const wf = await readWorkflow(admin, params.contractId);
+  if (!wf) return { ok: false, error: "Contract not found" };
+  if (!wf.certs[params.certType]) return { ok: true };
+  const certs = { ...wf.certs };
+  delete certs[params.certType];
+  const res = await writeWorkflow(admin, params.contractId, wf.currentStage, wf.history, certs);
+  return res.ok ? { ok: true } : { ok: false, error: `Cert clear failed: ${res.error}` };
 }
 
 /** Compute the next contract sequence for (year, prefix) via the DB RPC. */

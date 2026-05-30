@@ -1,8 +1,9 @@
-import type { SalesContractData, ActiveContract } from "@/types/sales-contract";
+// Master Data form DRAFT only — transient per-machine working state (intentional
+// localStorage). Contracts themselves live in Supabase (src/lib/data/contracts.ts).
+import type { SalesContractData } from "@/types/sales-contract";
 import { getDefaultContractData } from "@/lib/sales-contract";
 
 const STORAGE_KEY = "tafakah-master-data";
-const ACTIVE_KEY = "active-submitted-contract";
 
 export function saveMasterData(data: SalesContractData): void {
   try {
@@ -57,23 +58,5 @@ export function hasMasterData(): boolean {
     return localStorage.getItem(STORAGE_KEY) !== null;
   } catch {
     return false;
-  }
-}
-
-export function saveActiveContract(active: ActiveContract): void {
-  try {
-    localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
-  } catch {
-    // localStorage full or unavailable
-  }
-}
-
-export function loadActiveContract(): ActiveContract | null {
-  try {
-    const raw = localStorage.getItem(ACTIVE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as ActiveContract;
-  } catch {
-    return null;
   }
 }

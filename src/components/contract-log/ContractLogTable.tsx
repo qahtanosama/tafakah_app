@@ -19,15 +19,15 @@ import {
 } from "@/components/ui/table";
 import { Trash2, Pencil, Eye, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { ContractStatus, SalesContractData } from "@/types/sales-contract";
+import type { ContractStatus } from "@/types/sales-contract";
+import type { ContractFinance } from "@/types/finance";
 import { useContracts, useDeleteContract, useSetContractStatus, type ContractRow } from "@/lib/data/contracts";
-// RETAINED FOR WORKFLOW ENGINE — remove in Step 7B. The local mirror keeps the
-// workflow engine's contract-log in sync with Supabase deletes/status changes.
-import { getContractLog, deleteContractLogEntry, updateContractLogEntryStatus } from "@/lib/contract-log";
-import { saveMasterData, saveActiveContract } from "@/lib/master-data";
+import { useAllFinance, type FinanceRow } from "@/lib/data/finance";
+import { useAllShipping, shippingRowToEntry } from "@/lib/data/shipping";
+import { saveMasterData } from "@/lib/master-data";
 import { calcTotals } from "@/lib/sales-contract";
-import { getAllFinance, calcSummary } from "@/lib/finance";
-import { getAllShipping, getStatusInfo } from "@/lib/shipping";
+import { calcSummary } from "@/lib/finance";
+import { getStatusInfo } from "@/lib/shipping";
 import type { ShippingEntry } from "@/types/shipping";
 import { STAGE_ORDER, STAGE_LABELS, type WorkflowStage } from "@/types/workflow";
 import Link from "next/link";
@@ -61,28 +61,17 @@ function productName(row: ContractRow): string {
   return row.product_label || row.master_snapshot?.lineItems?.[0]?.product || "—";
 }
 
-/** Remove the transitional localStorage mirror entry for a contract, by contract_no. */
-function deleteLocalMirror(contractNo: string) {
-  try {
-    const local = getContractLog().find((e) => e.contractNo === contractNo);
-    if (local) deleteContractLogEntry(local.id);
-  } catch {
-    /* ignore */
-  }
-}
-
-function setLocalStatusMirror(contractNo: string, status: ContractStatus) {
-  try {
-    const local = getContractLog().find((e) => e.contractNo === contractNo);
-    if (local) updateContractLogEntryStatus(local.id, status);
-  } catch {
-    /* ignore */
-  }
+/** Adapt a Supabase finance row to the ContractFinance shape calcSummary expects. */
+function rowToFinance(row: FinanceRow | undefined): ContractFinance | null {
+  if (!row) return null;
+  return { contractNo: "", costs: row.cost_items ?? [], payments: row.payments_received ?? [], updatedAt: row.updated_at ?? "" };
 }
 
 export default function ContractLogTable() {
   const { data: contractsData, isLoading } = useContracts();
   const contracts = useMemo(() => contractsData ?? [], [contractsData]);
+  const { data: financeByCid } = useAllFinance();
+  const { data: shippingByCid } = useAllShipping();
   const deleteContract = useDeleteContract();
   const setStatus = useSetContractStatus();
 
@@ -117,10 +106,8 @@ export default function ContractLogTable() {
 
   const handleDelete = useCallback(
     (row: ContractRow) => {
-      // Hard delete in Supabase (cascades finance/shipping/documents) + clear the
-      // transitional localStorage mirror so the not-yet-migrated pages stay in sync.
+      // Hard delete in Supabase (cascades finance/shipping/documents).
       deleteContract.mutate({ id: row.id, hard: true });
-      deleteLocalMirror(row.contract_no);
     },
     [deleteContract]
   );
@@ -128,25 +115,14 @@ export default function ContractLogTable() {
   const handleStatusChange = useCallback(
     (row: ContractRow, status: ContractStatus) => {
       setStatus.mutate({ id: row.id, status });
-      setLocalStatusMirror(row.contract_no, status);
     },
     [setStatus]
   );
 
-  /** Reconstruct the ActiveContract handoff (localStorage) from the snapshot, for the PDF generators. */
-  const toActive = useCallback((row: ContractRow): { data: SalesContractData; contractNo: string; invoiceNo: string; dateSubmitted: string } | null => {
-    if (!row.master_snapshot) return null;
-    return {
-      data: row.master_snapshot,
-      contractNo: row.contract_no,
-      invoiceNo: row.invoice_no,
-      dateSubmitted: row.created_at,
-    };
-  }, []);
-
   const handleEdit = useCallback(
     (row: ContractRow) => {
       if (!row.master_snapshot) return;
+      // Load the snapshot into the Master Data draft (localStorage UI state) and edit.
       saveMasterData(row.master_snapshot);
       router.push("/master");
     },
@@ -155,34 +131,30 @@ export default function ContractLogTable() {
 
   const handleLoadActive = useCallback(
     (row: ContractRow) => {
-      // PDF generators read the contract from Supabase by ?id (no localStorage handoff).
       router.push(`/sales-contract?id=${row.id}`);
     },
     [router]
   );
 
-  // Finance + shipping summaries still come from localStorage (deferred domains),
-  // keyed by contract_no. Transitional until Steps 5–6 migrate them to Supabase.
+  // Finance + shipping summaries from Supabase, keyed by contract id.
   const financeMap = useMemo(() => {
-    const all = getAllFinance();
     const map: Record<string, ReturnType<typeof calcSummary>> = {};
     for (const c of contracts) {
       const snap = c.master_snapshot;
       const t = snap ? calcTotals(snap.lineItems, snap.terms?.numberOfContainers) : { totalUSD: 0 } as ReturnType<typeof calcTotals>;
-      const f = all.find((fi) => fi.contractNo === c.contract_no) ?? null;
-      map[c.contract_no] = calcSummary(t.totalUSD, f);
+      map[c.contract_no] = calcSummary(t.totalUSD, rowToFinance(financeByCid?.[c.id]));
     }
     return map;
-  }, [contracts]);
+  }, [contracts, financeByCid]);
 
   const shippingMap = useMemo(() => {
-    const all = getAllShipping();
     const map: Record<string, ShippingEntry | null> = {};
     for (const c of contracts) {
-      map[c.contract_no] = all.find((s) => s.contractNo === c.contract_no) ?? null;
+      const row = shippingByCid?.[c.id];
+      map[c.contract_no] = row ? shippingRowToEntry(c.contract_no, row) : null;
     }
     return map;
-  }, [contracts]);
+  }, [contracts, shippingByCid]);
 
   if (isLoading) {
     return (
@@ -252,15 +224,7 @@ export default function ContractLogTable() {
               <TableCell className="font-mono font-medium">
                 <button
                   type="button"
-                  onClick={() => {
-                    // RETAINED FOR DOCS/WORKFLOW — remove in Step 7B. DocumentsManager
-                    // still selects the active contract from localStorage; migrate to
-                    // ?id when DocumentsManager moves to Supabase.
-                    const active = toActive(row);
-                    if (!active) return;
-                    saveActiveContract(active);
-                    router.push("/documents");
-                  }}
+                  onClick={() => router.push(`/documents?id=${row.id}`)}
                   className="text-emerald-600 hover:underline"
                   title="Open this contract in Trade Documents"
                 >
