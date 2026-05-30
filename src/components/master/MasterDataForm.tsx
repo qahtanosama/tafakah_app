@@ -61,17 +61,18 @@ import {
   saveActiveContract,
 } from "@/lib/master-data";
 import {
-  getNextSequence,
   contractNoExists,
   addContractLogEntry,
 } from "@/lib/contract-log";
 import { findBuyerByCompany, addBuyer, createEmptyBuyer } from "@/lib/buyers";
-import { getLastPriceToBuyer } from "@/lib/products";
 import { useProducts } from "@/lib/data/products";
-import { useBuyers } from "@/lib/data/buyers";
+import { useBuyers, useSaveBuyer } from "@/lib/data/buyers";
+import { useSellers, useSaveSeller } from "@/lib/data/sellers";
+import { useSaveContract, useNextSequence } from "@/lib/data/contracts";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Buyer } from "@/types/buyer";
 import type { Seller } from "@/types/seller";
-import { getSellers, getSellersByProduct, createEmptySeller, saveSeller } from "@/lib/sellers";
+import { createEmptySeller, saveSeller } from "@/lib/sellers";
 import SellerEditForm from "@/components/sellers/SellerEditForm";
 import { initializeWorkflowOnSubmit } from "@/lib/workflow";
 import StageStrip from "@/components/workflow/StageStrip";
@@ -116,6 +117,12 @@ export default function MasterDataForm() {
   const productsList = productsData ?? [];
   const { data: buyersData } = useBuyers();
   const buyersList = buyersData ?? [];
+  const { data: sellersData } = useSellers();
+  const sellers = sellersData ?? [];
+  const saveContractMut = useSaveContract();
+  const saveBuyerMut = useSaveBuyer();
+  const saveSellerMut = useSaveSeller();
+  const qc = useQueryClient();
   const [data, setData] = useState<SalesContractData>(getDefaultContractData);
   const [loaded, setLoaded] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -132,7 +139,6 @@ export default function MasterDataForm() {
     dateSubmitted: string;
   } | null>(null);
   const [quickShareOpen, setQuickShareOpen] = useState(false);
-  const [sellers, setSellers] = useState<Seller[]>([]);
   const [sellerEditing, setSellerEditing] = useState<Seller | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,26 +165,25 @@ export default function MasterDataForm() {
     [year, sequence, prefix]
   );
 
-  const computeSequence = useCallback(() => {
-    if (!prefix || !year) return;
-    const next = getNextSequence(year, prefix);
-    setData((prev) => ({
-      ...prev,
-      identifiers: { ...prev.identifiers, sequenceNumber: next },
-    }));
-  }, [year, prefix]);
+  // Race-safe next sequence from Supabase (next_contract_sequence RPC).
+  const { data: nextSeqData } = useNextSequence(year, prefix);
 
   useEffect(() => {
     const stored = loadMasterData();
     if (stored) setData(stored);
-    setSellers(getSellers());
     setLoaded(true);
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
-    computeSequence();
-  }, [loaded, computeSequence]);
+    if (typeof nextSeqData === "number" && nextSeqData > 0) {
+      setData((prev) =>
+        prev.identifiers.sequenceNumber === nextSeqData
+          ? prev
+          : { ...prev, identifiers: { ...prev.identifiers, sequenceNumber: nextSeqData } }
+      );
+    }
+  }, [loaded, nextSeqData]);
 
   useEffect(() => {
     if (!loaded || productsList.length === 0) return;
@@ -360,6 +365,17 @@ export default function MasterDataForm() {
       dateSubmitted,
     });
 
+    // Supabase — the new source of truth. Transitional dual-write alongside the
+    // localStorage writes above, which still feed the not-yet-migrated PDF
+    // generators + Finance/Shipping/Documents pages (removed in the final cleanup).
+    saveContractMut.mutate(
+      { ...snapshot },
+      {
+        onSuccess: () => qc.invalidateQueries({ queryKey: ["next-contract-sequence"] }),
+        onError: (err) => showToast("error", `⚠ Cloud save failed: ${(err as Error).message}`),
+      }
+    );
+
     setLastSubmit({
       id: generatedId,
       data: snapshot,
@@ -392,7 +408,8 @@ export default function MasterDataForm() {
         newBuyer.country = data.buyer.country ?? "";
         newBuyer.email = data.buyer.email;
         newBuyer.ccEmail = data.buyer.ccEmail;
-        addBuyer(newBuyer);
+        addBuyer(newBuyer); // localStorage mirror (keeps QuickShare's findBuyerByCompany working)
+        saveBuyerMut.mutate({ payload: newBuyer, isUpdate: false }); // Supabase
       }
     } else if (!isUuid && formBuyerId) {
       // Form had a buyer.id but it isn't a UUID — likely a legacy local id that
@@ -400,7 +417,8 @@ export default function MasterDataForm() {
       console.warn("[MasterDataForm] buyer.id is not a UUID; auto-create skipped to prevent duplicates", formBuyerId);
     }
 
-    computeSequence();
+    // Bump the displayed sequence after a successful cloud save (refetches RPC).
+    qc.invalidateQueries({ queryKey: ["next-contract-sequence"] });
   }, [
     canSubmit,
     contractNo,
@@ -408,8 +426,10 @@ export default function MasterDataForm() {
     data,
     firstProduct,
     showToast,
-    computeSequence,
     buyersList,
+    saveContractMut,
+    saveBuyerMut,
+    qc,
   ]);
 
   const fmt = (n: number, d = 2) => n.toFixed(d);
@@ -1188,11 +1208,19 @@ export default function MasterDataForm() {
           initial={sellerEditing}
           products={productsList}
           existingIds={sellers.map((s) => s.id)}
-          onSave={(s) => {
-            saveSeller(s);
-            setSellers(getSellers());
-            // Auto-select the new seller on the contract
-            setData((prev) => ({ ...prev, sellerId: s.id }));
+          onSave={async (s) => {
+            // Supabase generates its own UUID on insert — use the returned row's
+            // id so selection + the localStorage mirror stay consistent
+            // (QuickShare resolves the seller by contract.sellerId).
+            let persisted = s;
+            try {
+              const saved = await saveSellerMut.mutateAsync({ payload: s, isUpdate: false });
+              if (saved && typeof saved === "object" && "id" in saved) persisted = saved as Seller;
+            } catch (err) {
+              showToast("error", `⚠ Cloud save failed: ${(err as Error).message}`);
+            }
+            saveSeller(persisted); // localStorage mirror with the persisted id
+            setData((prev) => ({ ...prev, sellerId: persisted.id }));
             setSellerEditing(null);
           }}
           onCancel={() => setSellerEditing(null)}

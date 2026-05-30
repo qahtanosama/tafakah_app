@@ -179,6 +179,22 @@ export async function deleteContract(
   return { ok: true };
 }
 
+/** Set a contract's business status (Active / Completed / Cancelled). */
+export async function setContractStatus(params: {
+  id: string;
+  status: "Active" | "Completed" | "Cancelled";
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("contracts")
+    .update({ status: params.status })
+    .eq("id", params.id);
+  if (error) return { ok: false, error: `Status update failed: ${error.message}` };
+  return { ok: true };
+}
+
 /**
  * Advance (or set) a contract's workflow stage and append a completion entry
  * to workflow_history. Server-side mirror of src/lib/workflow.ts advanceStage.
@@ -215,6 +231,42 @@ export async function advanceStage(params: {
     .eq("id", params.contractId);
   if (error) return { ok: false, error: `Advance failed: ${error.message}` };
   return { ok: true };
+}
+
+/**
+ * Mirror a contract's full workflow (current stage + history) to Supabase,
+ * keyed by the human contract_no. Used by StageStrip for transitional
+ * dual-write: the localStorage workflow remains the live model, and every
+ * mutation (advance / skip / backfill / cert change) is pushed here via the
+ * "workflow-updated" event. No-ops gracefully if the contract isn't in
+ * Supabase yet (older localStorage-only contracts).
+ */
+export async function syncWorkflowByContractNo(params: {
+  contractNo: string;
+  currentStage: WorkflowStage;
+  workflowHistory: Partial<Record<WorkflowStage, StageCompletion>>;
+}): Promise<{ ok: true; synced: boolean } | { ok: false; error: string }> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = createAdminClient();
+
+  const { data: existing, error: selErr } = await admin
+    .from("contracts")
+    .select("id")
+    .eq("contract_no", params.contractNo)
+    .maybeSingle();
+  if (selErr) return { ok: false, error: `Lookup failed: ${selErr.message}` };
+  if (!existing) return { ok: true, synced: false }; // not in Supabase yet — skip
+
+  const { error } = await admin
+    .from("contracts")
+    .update({
+      current_stage: params.currentStage,
+      workflow_history: params.workflowHistory ?? {},
+    })
+    .eq("id", (existing as { id: string }).id);
+  if (error) return { ok: false, error: `Sync failed: ${error.message}` };
+  return { ok: true, synced: true };
 }
 
 /** Compute the next contract sequence for (year, prefix) via the DB RPC. */

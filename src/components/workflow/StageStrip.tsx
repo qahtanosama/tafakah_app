@@ -19,6 +19,7 @@ import QuickShareDialog, { type QuickShareRecipientType } from "@/components/qui
 import type { QuickShareDoc } from "@/lib/quick-share/download";
 import FinalPackagePanel from "@/components/workflow/FinalPackagePanel";
 import { generateMergedPdfForContract } from "@/lib/contracts/generate-merged-pdf";
+import { syncWorkflowByContractNo } from "@/app/(team)/contract-log/actions";
 
 interface Props {
   contract: ContractLogEntry;
@@ -53,7 +54,27 @@ export default function StageStrip({ contract: initialContract, compact = false 
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const refresh = () => setVersion((v) => v + 1);
+    // Transitional dual-write: the localStorage workflow is the live model, but
+    // every mutation (advance / skip / backfill / cert change) dispatches
+    // "workflow-updated", so this single listener mirrors the fresh workflow to
+    // Supabase — no need to touch each mutation call site.
+    const pushToSupabase = () => {
+      try {
+        const fresh = findContractById(initialContract.id);
+        if (!fresh) return;
+        const wf = getWorkflow(fresh);
+        void syncWorkflowByContractNo({
+          contractNo: fresh.contractNo,
+          currentStage: wf.currentStage,
+          workflowHistory: wf.history,
+        }).then((res) => {
+          if (!res.ok) console.warn("[StageStrip] workflow sync failed:", res.error);
+        }).catch((err) => console.warn("[StageStrip] workflow sync error:", err));
+      } catch {
+        /* ignore */
+      }
+    };
+    const refresh = () => { setVersion((v) => v + 1); pushToSupabase(); };
     const onStorage = (e: StorageEvent) => {
       if (e.key === "contract-log" || e.key === "active-contract") refresh();
     };
@@ -63,7 +84,7 @@ export default function StageStrip({ contract: initialContract, compact = false 
       window.removeEventListener("workflow-updated", refresh as EventListener);
       window.removeEventListener("storage", onStorage);
     };
-  }, []);
+  }, [initialContract.id]);
 
   const [quickShare, setQuickShare] = useState<{
     open: boolean;
@@ -313,18 +334,12 @@ function StageActions({
           {allReady && (
             <Button
               size="sm"
-              onClick={async () => {
+              onClick={() => {
                 advanceStage(contract.id, "certs-ready", { by: "manual", notes: "all 3 certs uploaded" });
-                // Push local state to DB so the merge action can find the
-                // contract + its uploaded certificate metadata, then fire the
-                // merge in the background. Failures aren't fatal — the user
-                // can retry manually from the Final Package panel below.
-                try {
-                  const { runMigration } = await import("@/lib/migration/migrate");
-                  await runMigration({ dryRun: false });
-                } catch (err) {
-                  console.warn("[stage-advance] sync before merge failed:", err);
-                }
+                // Contracts + cert metadata are now native Supabase (the workflow
+                // mirror above syncs stage state), so the merge action can find
+                // everything it needs. Fire the merge in the background; failures
+                // aren't fatal — the user can retry from the Final Package panel.
                 generateMergedPdfForContract({ contractNo: contract.contractNo }).catch((err) => {
                   console.error("[stage-advance] merged PDF generation failed:", err);
                 });

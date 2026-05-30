@@ -23,6 +23,7 @@ import {
   deleteContract,
   advanceStage,
   getNextSequence,
+  setContractStatus,
 } from "@/app/(team)/contract-log/actions";
 
 /** Row shape of public.contracts (post-migration B). */
@@ -119,6 +120,21 @@ export function useDeleteContract() {
   return useMutation({
     mutationFn: async (params: { id: string; hard?: boolean }) => {
       const res = await deleteContract(params);
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+    },
+  });
+}
+
+/** Set a contract's business status (Active / Completed / Cancelled). */
+export function useSetContractStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { id: string; status: "Active" | "Completed" | "Cancelled" }) => {
+      const res = await setContractStatus(params);
       if (!res.ok) throw new Error(res.error);
       return res;
     },

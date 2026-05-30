@@ -1,39 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getContractLog } from "@/lib/contract-log";
-import { getWorkflow } from "@/lib/workflow";
+import { useContracts } from "@/lib/data/contracts";
 import { STAGE_ORDER, STAGE_LABELS, type WorkflowStage } from "@/types/workflow";
 
 export default function HomeStageWidget() {
-  const [counts, setCounts] = useState<Record<WorkflowStage, number> | null>(null);
+  const { data: contracts } = useContracts();
 
-  useEffect(() => {
-    function load() {
-      const log = getContractLog();
-      const c: Record<WorkflowStage, number> = {
-        "costed": 0, "docs-generated": 0, "sent-to-factory": 0, "sc-sent-to-buyer": 0,
-        "shipped": 0, "certs-ready": 0, "delivered": 0,
-      };
-      for (const entry of log) {
-        c[getWorkflow(entry).currentStage]++;
-      }
-      setCounts(c);
-    }
-    load();
-    const refresh = () => load();
-    if (typeof window !== "undefined") {
-      window.addEventListener("workflow-updated", refresh as EventListener);
-      window.addEventListener("storage", refresh);
-      return () => {
-        window.removeEventListener("workflow-updated", refresh as EventListener);
-        window.removeEventListener("storage", refresh);
-      };
-    }
-  }, []);
+  if (!contracts) return null;
 
-  if (!counts) return null;
+  const counts: Record<WorkflowStage, number> = {
+    "costed": 0, "docs-generated": 0, "sent-to-factory": 0, "sc-sent-to-buyer": 0,
+    "shipped": 0, "certs-ready": 0, "delivered": 0,
+  };
+  for (const c of contracts) {
+    // Cancelled contracts shouldn't count toward active-stage tallies.
+    if (c.status === "Cancelled") continue;
+    const stage = c.current_stage;
+    if (stage in counts) counts[stage as WorkflowStage]++;
+  }
+
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   if (total === 0) return null;
 

@@ -19,18 +19,14 @@ import {
 } from "@/components/ui/table";
 import { Trash2, Pencil, Eye, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { ContractLogEntry, ContractStatus } from "@/types/sales-contract";
-import {
-  getContractLog,
-  deleteContractLogEntry,
-  updateContractLogEntryStatus,
-} from "@/lib/contract-log";
+import type { ContractStatus, SalesContractData } from "@/types/sales-contract";
+import { useContracts, useDeleteContract, useSetContractStatus, type ContractRow } from "@/lib/data/contracts";
+import { getContractLog, deleteContractLogEntry, updateContractLogEntryStatus } from "@/lib/contract-log";
 import { saveMasterData, saveActiveContract } from "@/lib/master-data";
 import { calcTotals } from "@/lib/sales-contract";
 import { getAllFinance, calcSummary } from "@/lib/finance";
 import { getAllShipping, getStatusInfo } from "@/lib/shipping";
 import type { ShippingEntry } from "@/types/shipping";
-import { getWorkflow } from "@/lib/workflow";
 import { STAGE_ORDER, STAGE_LABELS, type WorkflowStage } from "@/types/workflow";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -44,8 +40,9 @@ const STATUS_COLORS: Record<ContractStatus, string> = {
 };
 
 function formatDate(iso: string): string {
-  if (!iso) return "\u2014";
+  if (!iso) return "—";
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
@@ -53,97 +50,141 @@ function formatDate(iso: string): string {
   });
 }
 
+/** Derive a display buyer name from the frozen snapshot. */
+function buyerName(row: ContractRow): string {
+  return row.master_snapshot?.buyer?.company?.trim() || "—";
+}
+
+function productName(row: ContractRow): string {
+  return row.product_label || row.master_snapshot?.lineItems?.[0]?.product || "—";
+}
+
+/** Remove the transitional localStorage mirror entry for a contract, by contract_no. */
+function deleteLocalMirror(contractNo: string) {
+  try {
+    const local = getContractLog().find((e) => e.contractNo === contractNo);
+    if (local) deleteContractLogEntry(local.id);
+  } catch {
+    /* ignore */
+  }
+}
+
+function setLocalStatusMirror(contractNo: string, status: ContractStatus) {
+  try {
+    const local = getContractLog().find((e) => e.contractNo === contractNo);
+    if (local) updateContractLogEntryStatus(local.id, status);
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function ContractLogTable() {
-  const [log, setLog] = useState<ContractLogEntry[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { data: contractsData, isLoading } = useContracts();
+  const contracts = useMemo(() => contractsData ?? [], [contractsData]);
+  const deleteContract = useDeleteContract();
+  const setStatus = useSetContractStatus();
+
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<"all" | WorkflowStage>("all");
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    setLog(getContractLog());
-    setLoaded(true);
     const stageParam = searchParams?.get("stage");
     if (stageParam && (STAGE_ORDER as string[]).includes(stageParam)) {
       setStageFilter(stageParam as WorkflowStage);
     }
-    const refresh = () => setLog(getContractLog());
-    if (typeof window !== "undefined") {
-      window.addEventListener("workflow-updated", refresh as EventListener);
-      return () => window.removeEventListener("workflow-updated", refresh as EventListener);
-    }
   }, [searchParams]);
 
   const filtered = useMemo(() => {
-    let list = log;
+    let list = contracts;
     if (stageFilter !== "all") {
-      list = list.filter((e) => getWorkflow(e).currentStage === stageFilter);
+      list = list.filter((c) => c.current_stage === stageFilter);
     }
     if (!search) return list;
     const q = search.toLowerCase();
     return list.filter(
-      (e) =>
-        e.contractNo.toLowerCase().includes(q) ||
-        e.invoiceNo.toLowerCase().includes(q) ||
-        e.buyer.toLowerCase().includes(q) ||
-        e.product.toLowerCase().includes(q) ||
-        STAGE_LABELS[getWorkflow(e).currentStage].toLowerCase().includes(q)
+      (c) =>
+        c.contract_no.toLowerCase().includes(q) ||
+        c.invoice_no.toLowerCase().includes(q) ||
+        buyerName(c).toLowerCase().includes(q) ||
+        productName(c).toLowerCase().includes(q) ||
+        (STAGE_LABELS[c.current_stage as WorkflowStage] ?? "").toLowerCase().includes(q)
     );
-  }, [log, search, stageFilter]);
+  }, [contracts, search, stageFilter]);
 
-  const handleDelete = useCallback((id: string) => {
-    deleteContractLogEntry(id);
-    setLog(getContractLog());
-  }, []);
+  const handleDelete = useCallback(
+    (row: ContractRow) => {
+      // Hard delete in Supabase (cascades finance/shipping/documents) + clear the
+      // transitional localStorage mirror so the not-yet-migrated pages stay in sync.
+      deleteContract.mutate({ id: row.id, hard: true });
+      deleteLocalMirror(row.contract_no);
+    },
+    [deleteContract]
+  );
 
-  const handleStatusChange = useCallback((id: string, status: ContractStatus) => {
-    updateContractLogEntryStatus(id, status);
-    setLog(getContractLog());
+  const handleStatusChange = useCallback(
+    (row: ContractRow, status: ContractStatus) => {
+      setStatus.mutate({ id: row.id, status });
+      setLocalStatusMirror(row.contract_no, status);
+    },
+    [setStatus]
+  );
+
+  /** Reconstruct the ActiveContract handoff (localStorage) from the snapshot, for the PDF generators. */
+  const toActive = useCallback((row: ContractRow): { data: SalesContractData; contractNo: string; invoiceNo: string; dateSubmitted: string } | null => {
+    if (!row.master_snapshot) return null;
+    return {
+      data: row.master_snapshot,
+      contractNo: row.contract_no,
+      invoiceNo: row.invoice_no,
+      dateSubmitted: row.created_at,
+    };
   }, []);
 
   const handleEdit = useCallback(
-    (entry: ContractLogEntry) => {
-      saveMasterData(entry.masterSnapshot);
+    (row: ContractRow) => {
+      if (!row.master_snapshot) return;
+      saveMasterData(row.master_snapshot);
       router.push("/master");
     },
     [router]
   );
 
   const handleLoadActive = useCallback(
-    (entry: ContractLogEntry) => {
-      saveActiveContract({
-        data: entry.masterSnapshot,
-        contractNo: entry.contractNo,
-        invoiceNo: entry.invoiceNo,
-        dateSubmitted: entry.dateSubmitted,
-      });
+    (row: ContractRow) => {
+      const active = toActive(row);
+      if (!active) return;
+      saveActiveContract(active);
       router.push("/sales-contract");
     },
-    [router]
+    [router, toActive]
   );
 
+  // Finance + shipping summaries still come from localStorage (deferred domains),
+  // keyed by contract_no. Transitional until Steps 5–6 migrate them to Supabase.
   const financeMap = useMemo(() => {
     const all = getAllFinance();
     const map: Record<string, ReturnType<typeof calcSummary>> = {};
-    for (const e of log) {
-      const t = calcTotals(e.masterSnapshot.lineItems, e.masterSnapshot.terms?.numberOfContainers);
-      const f = all.find((fi) => fi.contractNo === e.contractNo) ?? null;
-      map[e.contractNo] = calcSummary(t.totalUSD, f);
+    for (const c of contracts) {
+      const snap = c.master_snapshot;
+      const t = snap ? calcTotals(snap.lineItems, snap.terms?.numberOfContainers) : { totalUSD: 0 } as ReturnType<typeof calcTotals>;
+      const f = all.find((fi) => fi.contractNo === c.contract_no) ?? null;
+      map[c.contract_no] = calcSummary(t.totalUSD, f);
     }
     return map;
-  }, [log]);
+  }, [contracts]);
 
   const shippingMap = useMemo(() => {
     const all = getAllShipping();
     const map: Record<string, ShippingEntry | null> = {};
-    for (const e of log) {
-      map[e.contractNo] = all.find((s) => s.contractNo === e.contractNo) ?? null;
+    for (const c of contracts) {
+      map[c.contract_no] = all.find((s) => s.contractNo === c.contract_no) ?? null;
     }
     return map;
-  }, [log]);
+  }, [contracts]);
 
-  if (!loaded) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
         Loading...
@@ -151,7 +192,7 @@ export default function ContractLogTable() {
     );
   }
 
-  if (log.length === 0) {
+  if (contracts.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
         <p className="text-lg font-medium text-zinc-500">No contracts submitted yet</p>
@@ -205,46 +246,43 @@ export default function ContractLogTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map((entry, i) => (
-            <TableRow key={entry.id}>
+          {filtered.map((row, i) => (
+            <TableRow key={row.id}>
               <TableCell className="font-medium">{i + 1}</TableCell>
               <TableCell className="font-mono font-medium">
                 <button
                   type="button"
                   onClick={() => {
-                    saveActiveContract({
-                      data: entry.masterSnapshot,
-                      contractNo: entry.contractNo,
-                      invoiceNo: entry.invoiceNo,
-                      dateSubmitted: entry.dateSubmitted,
-                    });
+                    const active = toActive(row);
+                    if (!active) return;
+                    saveActiveContract(active);
                     router.push("/documents");
                   }}
                   className="text-emerald-600 hover:underline"
                   title="Open this contract in Trade Documents"
                 >
-                  {entry.contractNo}
+                  {row.contract_no}
                 </button>
               </TableCell>
-              <TableCell className="font-mono text-sm">{entry.invoiceNo}</TableCell>
-              <TableCell className="text-sm">{formatDate(entry.dateSubmitted)}</TableCell>
-              <TableCell className="text-sm">{entry.buyer}</TableCell>
-              <TableCell className="text-sm">{entry.product}</TableCell>
+              <TableCell className="font-mono text-sm">{row.invoice_no}</TableCell>
+              <TableCell className="text-sm">{formatDate(row.created_at)}</TableCell>
+              <TableCell className="text-sm">{buyerName(row)}</TableCell>
+              <TableCell className="text-sm">{productName(row)}</TableCell>
               <TableCell>
                 {(() => {
-                  const s = financeMap[entry.contractNo];
-                  if (!s || s.totalCost === 0) return <Link href={`/finance/${encodeURIComponent(entry.contractNo)}`} className="text-xs text-zinc-400 hover:underline">Add costs</Link>;
+                  const s = financeMap[row.contract_no];
+                  if (!s || s.totalCost === 0) return <Link href={`/finance/${encodeURIComponent(row.contract_no)}`} className="text-xs text-zinc-400 hover:underline">Add costs</Link>;
                   const color = s.grossProfit >= 0 ? (s.paymentStatus === "paid" ? "text-emerald-600" : "text-amber-600") : "text-red-600";
-                  return <Link href={`/finance/${encodeURIComponent(entry.contractNo)}`} className={`text-xs font-medium hover:underline ${color}`}>${Math.round(s.grossProfit / 1000)}k {s.paymentStatus === "paid" ? "\u2713" : s.paymentStatus === "partial" ? "\u26a0" : ""}</Link>;
+                  return <Link href={`/finance/${encodeURIComponent(row.contract_no)}`} className={`text-xs font-medium hover:underline ${color}`}>${Math.round(s.grossProfit / 1000)}k {s.paymentStatus === "paid" ? "✓" : s.paymentStatus === "partial" ? "⚠" : ""}</Link>;
                 })()}
               </TableCell>
               <TableCell>
                 {(() => {
-                  const sh = shippingMap[entry.contractNo];
+                  const sh = shippingMap[row.contract_no];
                   const info = getStatusInfo(sh);
                   return (
                     <Link
-                      href={`/shipping/${encodeURIComponent(entry.contractNo)}`}
+                      href={`/shipping/${encodeURIComponent(row.contract_no)}`}
                       className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap hover:opacity-80 ${info.badgeColor}`}
                       title={info.daysLabel}
                     >
@@ -255,10 +293,10 @@ export default function ContractLogTable() {
               </TableCell>
               <TableCell>
                 {(() => {
-                  const wf = getWorkflow(entry);
-                  const stageLabel = STAGE_LABELS[wf.currentStage];
-                  const idx = STAGE_ORDER.indexOf(wf.currentStage);
-                  const isFinal = wf.currentStage === "delivered";
+                  const stage = row.current_stage as WorkflowStage;
+                  const stageLabel = STAGE_LABELS[stage] ?? stage;
+                  const idx = STAGE_ORDER.indexOf(stage);
+                  const isFinal = stage === "delivered";
                   const color = isFinal
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : idx >= 4
@@ -275,10 +313,10 @@ export default function ContractLogTable() {
               </TableCell>
               <TableCell>
                 <Select
-                  value={entry.status}
-                  onValueChange={(v) => handleStatusChange(entry.id, v as ContractStatus)}
+                  value={row.status}
+                  onValueChange={(v) => handleStatusChange(row, v as ContractStatus)}
                 >
-                  <SelectTrigger className={`h-8 w-full border text-xs font-medium ${STATUS_COLORS[entry.status]}`}>
+                  <SelectTrigger className={`h-8 w-full border text-xs font-medium ${STATUS_COLORS[row.status]}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -295,7 +333,7 @@ export default function ContractLogTable() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleLoadActive(entry)}
+                    onClick={() => handleLoadActive(row)}
                     title="View / Load as Active"
                   >
                     <Eye className="h-4 w-4" />
@@ -303,7 +341,7 @@ export default function ContractLogTable() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleEdit(entry)}
+                    onClick={() => handleEdit(row)}
                     title="Edit in Master"
                   >
                     <Pencil className="h-4 w-4" />
@@ -311,7 +349,7 @@ export default function ContractLogTable() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDelete(entry.id)}
+                    onClick={() => handleDelete(row)}
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
