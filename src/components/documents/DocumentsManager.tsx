@@ -22,6 +22,7 @@ import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
 import { getStatusInfo } from "@/lib/shipping";
 import { useContracts, useSetCertRef, useClearCertRef } from "@/lib/data/contracts";
+import { buildContractDocumentData } from "@/lib/contracts/document-data";
 import { useShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import { saveBlobWithDownload } from "@/lib/quick-share/save-file";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
@@ -222,18 +223,17 @@ export default function DocumentsManager() {
     () => contracts.find((c) => c.contract_no === selectedContractNo),
     [contracts, selectedContractNo]
   );
-  const contractData = useMemo(() => {
-    if (!selectedContract || !selectedContract.master_snapshot) return undefined;
-    return {
-      ...selectedContract.master_snapshot,
-      blNumber: selectedContract.bl_number,
-      containers: selectedContract.containers ?? [],
-    };
-  }, [selectedContract]);
+  // Shared builder — the SAME data/totals the portal route feeds the PDFs, so
+  // the team download/merge and the portal copy are byte-identical.
+  const built = useMemo(
+    () => (selectedContract ? buildContractDocumentData(selectedContract) : null),
+    [selectedContract]
+  );
+  const contractData = built?.data;
+  const totals = built?.totals ?? null;
   const contractNo = selectedContract?.contract_no ?? "";
   const invoiceNo = selectedContract?.invoice_no ?? "";
   const { data: shippingRow } = useShipping(dbContractId ?? undefined);
-  const totals = useMemo(() => contractData ? calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers) : null, [contractData]);
 
   // Reload the cert list for a given contract from Supabase. Stores the
   // resolved DB UUID so subsequent uploads/deletes can address the row.

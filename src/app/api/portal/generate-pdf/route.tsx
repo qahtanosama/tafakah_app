@@ -5,7 +5,7 @@ import SalesContractPDF from "@/components/sales-contract/SalesContractPDF";
 import CommercialInvoicePDF from "@/components/commercial-invoice/CommercialInvoicePDF";
 import PackingListPDF from "@/components/packing-list/PackingListPDF";
 import FreightInvoicePDF from "@/components/freight-invoice/FreightInvoicePDF";
-import { getDefaultContractData } from "@/lib/sales-contract";
+import { buildContractDocumentData, type ContractDocSource } from "@/lib/contracts/document-data";
 
 // react-pdf streams from Node, so this route must run on the Node.js runtime.
 export const runtime = "nodejs";
@@ -31,12 +31,12 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // RLS scopes contracts to the caller (team or owning client).
+  // RLS scopes contracts to the caller (team or owning client). A client passing
+  // another contract's id is filtered out by RLS → null → 404 below. The frozen
+  // master_snapshot + live B/L/containers are all the shared builder needs.
   const { data: contract, error: contractError } = await supabase
     .from("contracts")
-    .select(
-      "id, contract_no, invoice_no, contract_date, line_items, terms, totals, bl_number, containers, master_snapshot, buyer:buyers(company_name, country)"
-    )
+    .select("id, contract_no, invoice_no, bl_number, containers, master_snapshot")
     .eq("id", contractId)
     .maybeSingle();
 
@@ -44,42 +44,13 @@ export async function GET(request: Request) {
     return new Response("Contract not found or access denied", { status: 404 });
   }
 
-  const lineItems = (contract.line_items as Array<Record<string, unknown>>) ?? [];
-  const firstLineMeta = (lineItems[0] ?? {}) as { loadingPort?: string; dischargePort?: string };
-
-  const defaults = getDefaultContractData();
-  const buyerJoined = Array.isArray(contract.buyer) ? contract.buyer[0] : contract.buyer;
-  const containers = ((contract.containers as Array<{ number?: unknown }> | null) ?? [])
-    .map((c) => (typeof c?.number === "string" ? c.number : ""))
-    .filter((n) => n.length > 0)
-    .map((number) => ({ number }));
-  const data = {
-    identifiers: {
-      ...defaults.identifiers,
-      contractDate: contract.contract_date ?? "",
-      invoiceDate: contract.contract_date ?? "",
-      numberOfContainers: (contract.terms as { numberOfContainers?: number | "" } | null)?.numberOfContainers ?? "",
-    },
-    seller: defaults.seller,
-    buyer: {
-      ...defaults.buyer,
-      company: (buyerJoined as { company_name?: string } | null)?.company_name ?? "",
-    },
-    bank: defaults.bank,
-    shipping: {
-      ...defaults.shipping,
-      origin: (contract.terms as { origin?: string } | null)?.origin ?? defaults.shipping.origin,
-      loadingPort: firstLineMeta.loadingPort ?? defaults.shipping.loadingPort,
-      dischargePort: firstLineMeta.dischargePort ?? defaults.shipping.dischargePort,
-      incoterm: (contract.terms as { incoterm?: string } | null)?.incoterm ?? defaults.shipping.incoterm,
-    },
-    terms: contract.terms ?? defaults.terms,
-    lineItems: contract.line_items ?? defaults.lineItems,
-    blNumber: (contract.bl_number as string | null) ?? null,
-    containers,
-  };
-
-  const totals = contract.totals;
+  // IDENTICAL data + totals to the team forms (see lib/contracts/document-data).
+  // No master_snapshot → 404 (parity with the team's empty state).
+  const built = buildContractDocumentData(contract as unknown as ContractDocSource);
+  if (!built) {
+    return new Response("Document not available for this contract", { status: 404 });
+  }
+  const { data, totals } = built;
   const contractNumber = contract.contract_no;
   const invoiceNumber = contract.invoice_no;
 
@@ -119,9 +90,9 @@ export async function GET(request: Request) {
     });
     filename = `Packing_List_${invoiceNumber}.pdf`;
   } else if (docType === "freight") {
-    // Freight Invoice — FOB only. Incoterm lives in master_snapshot.shipping.
-    const ms = (contract as { master_snapshot?: { shipping?: { incoterm?: string } } | null }).master_snapshot ?? null;
-    const incoterm = ms?.shipping?.incoterm ?? "";
+    // Freight Invoice — FOB only. Incoterm comes from the shared builder's
+    // data.shipping (sourced from master_snapshot) — same gate as the team form.
+    const incoterm = data.shipping?.incoterm ?? "";
     if (!incoterm.trim().toUpperCase().startsWith("FOB")) {
       return new Response("Freight invoice is only available for FOB contracts", { status: 404 });
     }

@@ -6,6 +6,7 @@ import { FileX, Ship } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useContract } from "@/lib/data/contracts";
 import { useShipping } from "@/lib/data/shipping";
+import { buildContractDocumentData } from "@/lib/contracts/document-data";
 import FreightInvoicePDFDownload from "./FreightInvoicePDFDownload";
 
 /** FOB gate — incoterm is free text (e.g. "FOB SHEKOU"), so prefix-match. */
@@ -75,8 +76,10 @@ export default function FreightInvoiceForm() {
   const containers = row.containers ?? [];
   const invoiceNumber = `${row.invoice_no}-FRT`;
 
-  // Fold B/L + containers into the snapshot so the PDF header renders them.
-  const data = { ...snapshot, blNumber: row.bl_number, containers };
+  // Shared builder — the SAME data the portal route feeds the Freight PDF
+  // (folds B/L + containers over the snapshot so the header renders them).
+  // Non-null here: the `!row || !snapshot` guard above has already returned.
+  const data = buildContractDocumentData(row)!.data;
   const total = (freightBase ?? 0) + (freightAdditional ?? 0);
 
   return (

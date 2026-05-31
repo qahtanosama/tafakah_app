@@ -7,8 +7,8 @@ import Link from "next/link";
 import { FileX, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ActiveContract } from "@/types/sales-contract";
-import { calcTotals } from "@/lib/sales-contract";
 import { useContract } from "@/lib/data/contracts";
+import { buildContractDocumentData } from "@/lib/contracts/document-data";
 
 const CommercialInvoicePDFDownload = dynamic(
   () => import("./CommercialInvoicePDFDownload"),
@@ -35,14 +35,12 @@ export default function InvoiceForm({ variant }: Props) {
   const id = useSearchParams().get("id");
   const { data: row, isLoading } = useContract(id ?? undefined);
 
-  // B/L + containers live on the contract row — fold them into the snapshot.
-  const active: ActiveContract | null = row && row.master_snapshot
+  // Shared builder: folds B/L + containers over master_snapshot + computes
+  // totals — the SAME data the portal route feeds the PDF (see document-data.ts).
+  const built = useMemo(() => (row ? buildContractDocumentData(row) : null), [row]);
+  const active: ActiveContract | null = row && built
     ? {
-        data: {
-          ...row.master_snapshot,
-          blNumber: row.bl_number,
-          containers: row.containers ?? [],
-        },
+        data: built.data,
         contractNo: row.contract_no,
         invoiceNo: row.invoice_no,
         dateSubmitted: row.created_at,
@@ -50,7 +48,7 @@ export default function InvoiceForm({ variant }: Props) {
     : null;
 
   const data = active?.data ?? null;
-  const totals = useMemo(() => (data ? calcTotals(data.lineItems, data.terms?.numberOfContainers) : null), [data]);
+  const totals = built?.totals ?? null;
   const loaded = !isLoading;
 
   const isCustoms = variant === "customs";

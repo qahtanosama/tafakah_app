@@ -9,8 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { FileX, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ActiveContract } from "@/types/sales-contract";
-import { calcTotals } from "@/lib/sales-contract";
 import { useContract } from "@/lib/data/contracts";
+import { buildContractDocumentData } from "@/lib/contracts/document-data";
 
 const SalesContractPDFDownload = dynamic(
   () => import("./SalesContractPDFDownload"),
@@ -51,11 +51,13 @@ export default function SalesContractForm() {
   const id = useSearchParams().get("id");
   const { data: row, isLoading } = useContract(id ?? undefined);
 
-  const active: ActiveContract | null = row && row.master_snapshot
+  // Shared builder: folds the live B/L + containers over the frozen snapshot and
+  // computes totals — the SAME data the portal route feeds the PDF. The SC then
+  // shows containers once shipping assigns them. See document-data.ts.
+  const built = useMemo(() => (row ? buildContractDocumentData(row) : null), [row]);
+  const active: ActiveContract | null = row && built
     ? {
-        // Fold the live B/L + containers (contracts row) over the frozen snapshot,
-        // so the SC shows containers once shipping assigns them. Mirrors InvoiceForm.
-        data: { ...row.master_snapshot, blNumber: row.bl_number, containers: row.containers ?? [] },
+        data: built.data,
         contractNo: row.contract_no,
         invoiceNo: row.invoice_no,
         dateSubmitted: row.created_at,
@@ -63,11 +65,7 @@ export default function SalesContractForm() {
     : null;
 
   const data = active?.data ?? null;
-
-  const totals = useMemo(
-    () => (data ? calcTotals(data.lineItems, data.terms?.numberOfContainers) : null),
-    [data]
-  );
+  const totals = built?.totals ?? null;
 
   if (isLoading) {
     return (
