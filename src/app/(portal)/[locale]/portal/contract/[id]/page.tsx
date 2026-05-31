@@ -9,6 +9,7 @@ import ShippingTimeline, { type ShippingData } from "@/components/portal/Shippin
 import DocumentRow, { type DocumentRowData } from "@/components/portal/DocumentRow";
 import PaymentsTable, { type PortalPayment } from "@/components/portal/PaymentsTable";
 import GeneratedDocDownload from "@/components/portal/GeneratedDocDownload";
+import MergeDocumentsDialog from "@/components/portal/MergeDocumentsDialog";
 import FinalPackageCard from "@/components/portal/FinalPackageCard";
 import { formatCurrency, formatDate, formatNumber, type AppLocale } from "@/lib/i18n/format";
 
@@ -65,6 +66,7 @@ export default async function ContractDetailPage({
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "portal.contractDetail" });
   const tShip = await getTranslations({ locale, namespace: "portal.shipping" });
+  const tDocTypes = await getTranslations({ locale, namespace: "portal.documentTypes" });
   const loc = locale as AppLocale;
 
   const supabase = await createClient();
@@ -110,6 +112,14 @@ export default async function ContractDetailPage({
   const shipping = shippingRaw as ShippingRow | null;
   const finance = financeRaw as FinanceRow | null;
   const documents = (documentsRaw as DocumentRow[] | null) ?? [];
+
+  // Uploaded certificates the client may add to a merge — PDFs only (pdf-lib
+  // can't merge images), ordered to match the team's Stage-6 package.
+  const CERT_TYPES = ["co", "health", "phyto", "bl", "other"];
+  const mergeableCertDocs = documents
+    .filter((d) => CERT_TYPES.includes(d.doc_type) && /\.pdf$/i.test(d.file_name))
+    .sort((a, b) => CERT_TYPES.indexOf(a.doc_type) - CERT_TYPES.indexOf(b.doc_type))
+    .map((d) => ({ id: d.id, label: `${tDocTypes(d.doc_type as never)} · ${d.file_name}` }));
 
   const totalAmount = Number(contract.totals?.totalUSD ?? 0);
 
@@ -269,7 +279,29 @@ export default async function ContractDetailPage({
 
       {/* Generated Documents */}
       <section className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="text-lg font-semibold text-navy">{t("generatedDocuments", { defaultValue: "Official Documents" })}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-navy">{t("generatedDocuments", { defaultValue: "Official Documents" })}</h2>
+          <MergeDocumentsDialog
+            contractId={id}
+            isFob={(contract.master_snapshot?.shipping?.incoterm ?? "").trim().toUpperCase().startsWith("FOB")}
+            certDocs={mergeableCertDocs}
+            labels={{
+              trigger: t("mergeDocuments", { defaultValue: "Merge Documents" }),
+              title: t("mergeDocuments", { defaultValue: "Merge Documents" }),
+              description: t("mergeDescription", { defaultValue: "Select the documents to combine into a single PDF." }),
+              generatedHeading: t("generatedDocuments", { defaultValue: "Official Documents" }),
+              uploadedHeading: t("documents", { defaultValue: "Uploaded Documents" }),
+              sc: t("salesContract", { defaultValue: "Sales Contract" }),
+              ci: t("commercialInvoice", { defaultValue: "Commercial Invoice" }),
+              customs: t("customsInvoice", { defaultValue: "Customs Invoice" }),
+              pl: t("packingList", { defaultValue: "Packing List" }),
+              freight: t("freightInvoice", { defaultValue: "Freight Invoice" }),
+              download: t("downloadMerged", { defaultValue: "Download merged PDF" }),
+              cancel: t("cancel", { defaultValue: "Cancel" }),
+              selectAtLeastOne: t("selectAtLeastOne", { defaultValue: "Select at least one document." }),
+            }}
+          />
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { id: "sc", label: t("salesContract", { defaultValue: "Sales Contract" }) },
