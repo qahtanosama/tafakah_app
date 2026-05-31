@@ -98,6 +98,10 @@ export function useContractByNo(contractNo: string | undefined) {
   return useQuery<ContractRow | null>({
     queryKey: ["contracts", "by-no", contractNo],
     enabled: !!contractNo,
+    // Always refetch on mount — B/L + containers are saved on a different page
+    // (Shipping Docs), so the doc generators must read the latest contract row.
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -116,6 +120,10 @@ export function useContract(id: string | undefined) {
   return useQuery<ContractRow | null>({
     queryKey: ["contracts", id],
     enabled: !!id,
+    // Always refetch on mount — the PDF generators (CI/PL/SC/Freight) rely on
+    // the freshest B/L + containers, which are saved on the Shipping Docs page.
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const supabase = createClient();
       const { data, error } = await supabase

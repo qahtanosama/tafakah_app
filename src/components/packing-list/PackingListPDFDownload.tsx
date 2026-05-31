@@ -13,9 +13,11 @@ interface Props {
   totals: ContractTotals;
   contractNumber: string;
   invoiceNumber: string;
+  /** Compact icon-only button (used in the Documents list rows). */
+  compact?: boolean;
 }
 
-export default function PackingListPDFDownload({ data, totals, contractNumber, invoiceNumber }: Props) {
+export default function PackingListPDFDownload({ data, totals, contractNumber, invoiceNumber, compact = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -39,6 +41,22 @@ export default function PackingListPDFDownload({ data, totals, contractNumber, i
       setBusy(false);
     }
   }, [data, totals, contractNumber, invoiceNumber, filename]);
+
+  if (compact) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        onClick={onClick}
+        title="Download PDF"
+        aria-label="Download PDF"
+        className="gap-1"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+      </Button>
+    );
+  }
 
   return (
     <div className="flex flex-col items-start gap-1">

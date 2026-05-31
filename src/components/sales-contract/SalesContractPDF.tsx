@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 import type { SalesContractData, ContractTotals } from "@/types/sales-contract";
 import SellerSignatureBlock from "@/components/pdf/SellerSignatureBlock";
+import ShippingDocsHeader from "@/components/pdf/ShippingDocsHeader";
 import { Letterhead, Footer, s, formatDate, fmt, fmtUSD } from "@/components/pdf/shared";
 
 interface Props {
@@ -12,9 +13,15 @@ interface Props {
 export default function SalesContractPDF({ data, totals, contractNumber }: Props) {
   const filledItems = data.lineItems.filter((item) => item.product);
 
+  // SC-local compaction overrides — keep everything on ONE A4 page after the
+  // ShippingDocsHeader box was added. These layer on top of the SHARED `s`
+  // styles via style arrays, so they affect ONLY the Sales Contract and never
+  // the CI / PL / Customs / Freight docs (which reuse the same `s` styles).
+  const sectionTitle = [s.sectionTitle, { marginTop: 3, marginBottom: 2, paddingTop: 2.5, paddingBottom: 2.5 }];
+
   return (
     <Document>
-      <Page size="A4" style={s.page} wrap>
+      <Page size="A4" style={[s.page, { paddingBottom: 42 }]} wrap>
         <Letterhead />
         <Footer />
 
@@ -35,30 +42,35 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
           </Text>
         </View>
 
-        {(data.identifiers.sealNumber || data.identifiers.containerNumber || data.identifiers.blNumber) && (
+        {/* Legacy seal line only — B/L + container moved to ShippingDocsHeader
+            below (single render, frozen-or-live), mirroring CI / PL / Customs CI. */}
+        {data.identifiers.sealNumber ? (
           <View style={s.contractInfoRowNoBorder}>
-            {data.identifiers.sealNumber ? (
-              <Text><Text style={s.contractInfoLabel}>Seal No: </Text><Text style={s.contractInfoValue}>{data.identifiers.sealNumber}</Text></Text>
-            ) : null}
-            {data.identifiers.containerNumber ? (
-              <Text><Text style={s.contractInfoLabel}>Container No: </Text><Text style={s.contractInfoValue}>{data.identifiers.containerNumber}</Text></Text>
-            ) : null}
-            {data.identifiers.blNumber ? (
-              <Text><Text style={s.contractInfoLabel}>B/L No: </Text><Text style={s.contractInfoValue}>{data.identifiers.blNumber}</Text></Text>
-            ) : null}
+            <Text><Text style={s.contractInfoLabel}>Seal No: </Text><Text style={s.contractInfoValue}>{data.identifiers.sealNumber}</Text></Text>
           </View>
-        )}
+        ) : null}
+
+        <ShippingDocsHeader
+          blNumber={data.blNumber ?? data.identifiers.blNumber}
+          containers={
+            data.containers && data.containers.length > 0
+              ? data.containers
+              : data.identifiers.containerNumber
+              ? [{ number: data.identifiers.containerNumber }]
+              : []
+          }
+        />
 
         <View style={s.twoCol}>
           <View style={s.halfCol}>
-            <Text style={s.sectionTitle}>SELLER</Text>
+            <Text style={sectionTitle}>SELLER</Text>
             <Text style={{ fontFamily: "Times-Bold", fontSize: 9 }}>{data.seller.company}</Text>
             <Text style={{ fontSize: 9 }}>{data.seller.address}</Text>
             <Text style={{ fontSize: 9 }}>Tel: {data.seller.tel}</Text>
             <Text style={{ fontSize: 9 }}>Email: {data.seller.email}</Text>
           </View>
           <View style={s.halfCol}>
-            <Text style={s.sectionTitle}>BUYER / CONSIGNEE</Text>
+            <Text style={sectionTitle}>BUYER / CONSIGNEE</Text>
             <Text style={{ fontFamily: "Times-Bold", fontSize: 9 }}>{data.buyer.company || "\u2014"}</Text>
             <Text style={{ fontSize: 9 }}>{data.buyer.address}</Text>
             {data.buyer.additionalNumber ? <Text style={{ fontSize: 9 }}>Add. No: {data.buyer.additionalNumber}</Text> : null}
@@ -68,7 +80,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
           </View>
         </View>
 
-        <Text style={s.sectionTitle}>SHIPPING & DELIVERY</Text>
+        <Text style={sectionTitle}>SHIPPING & DELIVERY</Text>
         <View style={s.twoCol}>
           <View style={s.halfCol}>
             <View style={s.row}><Text style={s.labelCol}>Loading Port:</Text><Text style={s.valueCol}>{data.shipping.loadingPort}</Text></View>
@@ -81,7 +93,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
           </View>
         </View>
 
-        <Text style={s.sectionTitle}>GOODS DESCRIPTION</Text>
+        <Text style={sectionTitle}>GOODS DESCRIPTION</Text>
         <View style={s.table}>
           <View style={s.tableHeaderRow}>
             <Text style={[s.tableHeaderText, s.colProduct]}>Product</Text>
@@ -125,7 +137,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
         </View>
 
         <View wrap={false}>
-          <Text style={s.sectionTitle}>TERMS & CONDITIONS</Text>
+          <Text style={sectionTitle}>TERMS & CONDITIONS</Text>
           <View style={{ marginTop: 2 }}>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>1. ORIGIN: </Text>{data.shipping.origin}</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>2. BRAND: </Text>{data.terms.brand}</Text></View>
@@ -138,7 +150,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
         </View>
 
         <View wrap={false}>
-          <Text style={s.sectionTitle}>BANK DETAILS</Text>
+          <Text style={sectionTitle}>BANK DETAILS</Text>
           <View style={s.twoCol}>
             <View style={s.halfCol}>
               <View style={s.row}><Text style={s.labelCol}>SWIFT:</Text><Text style={s.valueCol}>{data.bank.swift}</Text></View>
@@ -154,7 +166,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
         </View>
 
         <View wrap={false}>
-          <View style={s.signatureArea}>
+          <View style={[s.signatureArea, { marginTop: 12 }]}>
             <SellerSignatureBlock stamp={data.seller.stamp} company={data.seller.company} />
             <View style={s.buyerBlock}>
               <Text style={s.buyerLine}>BUYER</Text>

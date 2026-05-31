@@ -52,7 +52,11 @@ function toLegacyContract(row: ContractRow, wf: WorkflowHistory): ContractLogEnt
     buyer: row.master_snapshot.buyer?.company ?? "",
     product: row.product_label ?? "",
     status: row.status,
-    masterSnapshot: row.master_snapshot,
+    masterSnapshot: {
+      ...row.master_snapshot,
+      blNumber: row.bl_number,
+      containers: row.containers ?? [],
+    },
     sellerId: row.master_snapshot.sellerId,
     workflow: { currentStage: row.current_stage, history: wf.history, certs: wf.certs },
   };

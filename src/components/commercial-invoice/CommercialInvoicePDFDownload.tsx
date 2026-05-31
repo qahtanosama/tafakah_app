@@ -15,6 +15,8 @@ interface Props {
   invoiceNumber: string;
   priceFactor?: number;
   filenamePrefix?: string;
+  /** Compact icon-only button (used in the Documents list rows). */
+  compact?: boolean;
 }
 
 export default function CommercialInvoicePDFDownload({
@@ -24,6 +26,7 @@ export default function CommercialInvoicePDFDownload({
   invoiceNumber,
   priceFactor = 1,
   filenamePrefix = "CI",
+  compact = false,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -56,6 +59,22 @@ export default function CommercialInvoicePDFDownload({
       setBusy(false);
     }
   }, [data, totals, contractNumber, invoiceNumber, priceFactor, filename]);
+
+  if (compact) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        onClick={onClick}
+        title="Download PDF"
+        aria-label="Download PDF"
+        className="gap-1"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+      </Button>
+    );
+  }
 
   return (
     <div className="flex flex-col items-start gap-1">

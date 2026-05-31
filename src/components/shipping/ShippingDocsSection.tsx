@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ function newRow(value = ""): ContainerRow {
 }
 
 export default function ShippingDocsSection({ contractNo, onSaved }: Props) {
+  const queryClient = useQueryClient();
   const [contractId, setContractId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -141,8 +143,21 @@ export default function ShippingDocsSection({ contractNo, onSaved }: Props) {
     }
     const unique = Array.from(new Set(normalized));
     const containerObjs: ContractContainer[] = unique.map((number) => ({ number }));
-    // B/L + containers are persisted on the contract row via updateContractContainers;
-    // the PDF generators read them straight from Supabase by ?id. No localStorage mirror.
+    // B/L + containers are persisted on the contract row via updateContractContainers
+    // (a server action that can't touch the client cache), so invalidate the
+    // contracts queries here — otherwise useContract serves a stale row and the
+    // CI / PL / SC render without the freshly-saved B/L + containers.
+    //
+    // refetchType "all" is the key part: by default invalidateQueries only
+    // refetches ACTIVE queries, but the CI/PL useContract query is INACTIVE
+    // while we're on the Shipping page, so it would only be marked stale. "all"
+    // forces the inactive query to refetch now, so the doc is fresh on arrival.
+    // The ["contracts"] prefix already covers ["contracts", id] /
+    // ["contracts","by-no",…]; the id-specific call is belt-and-suspenders.
+    queryClient.invalidateQueries({ queryKey: ["contracts"], refetchType: "all" });
+    if (contractId) {
+      queryClient.invalidateQueries({ queryKey: ["contracts", contractId], refetchType: "all" });
+    }
 
     // Reset row state to the canonical de-duped values.
     setRows(unique.length > 0 ? unique.map((v) => newRow(v)) : [newRow()]);
@@ -150,7 +165,7 @@ export default function ShippingDocsSection({ contractNo, onSaved }: Props) {
 
     onSaved?.({ blNumber: trimmedBl, containers: containerObjs });
     showToast("success", "✓ Shipping documents saved");
-  }, [contractId, rows, blNumber, onSaved, showToast]);
+  }, [contractId, rows, blNumber, onSaved, showToast, queryClient]);
 
   if (loading) {
     return (

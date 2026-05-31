@@ -53,7 +53,9 @@ export default function SalesContractForm() {
 
   const active: ActiveContract | null = row && row.master_snapshot
     ? {
-        data: row.master_snapshot,
+        // Fold the live B/L + containers (contracts row) over the frozen snapshot,
+        // so the SC shows containers once shipping assigns them. Mirrors InvoiceForm.
+        data: { ...row.master_snapshot, blNumber: row.bl_number, containers: row.containers ?? [] },
         contractNo: row.contract_no,
         invoiceNo: row.invoice_no,
         dateSubmitted: row.created_at,

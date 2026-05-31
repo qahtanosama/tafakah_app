@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ContractCombobox from "@/components/ui/contract-combobox";
@@ -27,6 +28,13 @@ import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/Qui
 import type { RequiredCert } from "@/types/workflow";
 import StageStrip from "@/components/workflow/StageStrip";
 import UploadZone from "./UploadZone";
+
+// Per-document download wrappers — reused verbatim (same PDF generation +
+// save/picker logic the View pages use); rendered here in compact icon mode.
+const SalesContractPDFDownload = dynamic(() => import("@/components/sales-contract/SalesContractPDFDownload"), { ssr: false });
+const CommercialInvoicePDFDownload = dynamic(() => import("@/components/commercial-invoice/CommercialInvoicePDFDownload"), { ssr: false });
+const PackingListPDFDownload = dynamic(() => import("@/components/packing-list/PackingListPDFDownload"), { ssr: false });
+const FreightInvoicePDFDownload = dynamic(() => import("@/components/freight-invoice/FreightInvoicePDFDownload"), { ssr: false });
 
 /* ── Cert slot mapping ──────────────────────────────── */
 const CERT_SLOT_MAP: Partial<Record<DocSlot, RequiredCert>> = {
@@ -214,7 +222,14 @@ export default function DocumentsManager() {
     () => contracts.find((c) => c.contract_no === selectedContractNo),
     [contracts, selectedContractNo]
   );
-  const contractData = selectedContract?.master_snapshot ?? undefined;
+  const contractData = useMemo(() => {
+    if (!selectedContract || !selectedContract.master_snapshot) return undefined;
+    return {
+      ...selectedContract.master_snapshot,
+      blNumber: selectedContract.bl_number,
+      containers: selectedContract.containers ?? [],
+    };
+  }, [selectedContract]);
   const contractNo = selectedContract?.contract_no ?? "";
   const invoiceNo = selectedContract?.invoice_no ?? "";
   const { data: shippingRow } = useShipping(dbContractId ?? undefined);
@@ -681,12 +696,51 @@ export default function DocumentsManager() {
             <h2 className="mb-3 text-lg font-bold">Your Generated Documents</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { label: "Sales Contract", href: `/sales-contract?id=${selectedContract?.id}` },
-                { label: "Commercial Invoice", href: `/commercial-invoice?id=${selectedContract?.id}` },
-                { label: "Customs Invoice", href: `/customs-invoice?id=${selectedContract?.id}`, note: "Internal use only" },
-                { label: "Packing List", href: `/packing-list?id=${selectedContract?.id}` },
+                {
+                  label: "Sales Contract",
+                  href: `/sales-contract?id=${selectedContract?.id}`,
+                  download: <SalesContractPDFDownload compact data={contractData} totals={totals!} contractNumber={contractNo} />,
+                },
+                {
+                  label: "Commercial Invoice",
+                  href: `/commercial-invoice?id=${selectedContract?.id}`,
+                  download: <CommercialInvoicePDFDownload compact data={contractData} totals={totals!} contractNumber={contractNo} invoiceNumber={invoiceNo} />,
+                },
+                {
+                  label: "Customs Invoice",
+                  href: `/customs-invoice?id=${selectedContract?.id}`,
+                  note: "Internal use only",
+                  // Customs = Commercial Invoice at the 0.55 price factor (matches InvoiceForm).
+                  download: <CommercialInvoicePDFDownload compact data={contractData} totals={totals!} contractNumber={contractNo} invoiceNumber={invoiceNo} priceFactor={0.55} filenamePrefix="CI-Customs" />,
+                },
+                {
+                  label: "Packing List",
+                  href: `/packing-list?id=${selectedContract?.id}`,
+                  download: <PackingListPDFDownload compact data={contractData} totals={totals!} contractNumber={contractNo} invoiceNumber={invoiceNo} />,
+                },
+                // Freight Invoice row — FOB only, same gate as its View link.
                 ...((selectedContract?.master_snapshot?.shipping?.incoterm ?? "").trim().toUpperCase().startsWith("FOB")
-                  ? [{ label: "Freight Invoice", href: `/freight-invoice?id=${selectedContract?.id}`, note: "FOB only" }]
+                  ? [{
+                      label: "Freight Invoice",
+                      href: `/freight-invoice?id=${selectedContract?.id}`,
+                      note: "FOB only",
+                      download: (
+                        <FreightInvoicePDFDownload
+                          compact
+                          data={contractData}
+                          invoiceNumber={`${invoiceNo}-FRT`}
+                          contractNumber={contractNo}
+                          freightBase={shippingRow?.freight_base ?? 0}
+                          freightAdditional={shippingRow?.freight_additional ?? 0}
+                          freightChargeLabel={shippingRow?.freight_charge_label ?? ""}
+                          freightInvoiceDate={shippingRow?.freight_invoice_date ?? ""}
+                          freightNotes={shippingRow?.freight_notes ?? ""}
+                          loadingPort={shippingRow?.port_of_loading || contractData.shipping?.loadingPort || ""}
+                          dischargePort={shippingRow?.port_of_discharge || contractData.shipping?.dischargePort || ""}
+                          containers={selectedContract?.containers ?? []}
+                        />
+                      ),
+                    }]
                   : []),
               ].map((d) => (
                 <div key={d.label} className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 dark:bg-zinc-900">
@@ -697,7 +751,10 @@ export default function DocumentsManager() {
                       {d.note && <span className="ml-2 text-xs text-zinc-400">({d.note})</span>}
                     </div>
                   </div>
-                  <Link href={d.href}><Button variant="outline" size="sm" className="gap-1"><Eye className="h-3 w-3" /> View</Button></Link>
+                  <div className="flex items-center gap-2">
+                    {d.download}
+                    <Link href={d.href}><Button variant="outline" size="sm" className="gap-1"><Eye className="h-3 w-3" /> View</Button></Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -815,7 +872,11 @@ export default function DocumentsManager() {
             buyer: selectedContract.master_snapshot.buyer?.company ?? "",
             product: selectedContract.product_label ?? "",
             status: selectedContract.status,
-            masterSnapshot: selectedContract.master_snapshot,
+            masterSnapshot: {
+              ...selectedContract.master_snapshot,
+              blNumber: selectedContract.bl_number,
+              containers: selectedContract.containers ?? [],
+            },
             sellerId: selectedContract.master_snapshot.sellerId,
           } as ContractLogEntry}
         />
