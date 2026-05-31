@@ -74,7 +74,7 @@ export default function ContractLogTable() {
   const { data: shippingByCid } = useAllShipping();
   const deleteContract = useDeleteContract();
   const setStatus = useSetContractStatus();
-  const { isSuperAdmin } = useAuth();
+  const { isTeam } = useAuth();
 
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<"all" | WorkflowStage>("all");
@@ -306,7 +306,7 @@ export default function ContractLogTable() {
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  {isSuperAdmin && (
+                  {isTeam && (
                     <Button
                       variant="ghost"
                       size="icon"

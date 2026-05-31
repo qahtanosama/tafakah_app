@@ -14,7 +14,6 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeamUser } from "@/lib/auth/require-team";
-import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { logAuditEvent } from "@/lib/audit/log";
 import {
   calcTotals,
@@ -226,13 +225,13 @@ function diffSnapshots(
  *   - bl_number / containers columns — owned by the Shipping Docs page; not
  *     clobbered here (the form has no canonical editor for them).
  *
- * Guarded by requireSuperAdmin() — team users are rejected (defense in depth;
- * the UI only surfaces this action to super admins).
+ * Guarded by requireTeamUser() — both team and super_admin may edit; clients
+ * are rejected. The audit row records the actual actor and their role.
  */
 export async function editContract(
   input: SalesContractData & { id: string }
 ): Promise<SaveContractResult> {
-  const guard = await requireSuperAdmin();
+  const guard = await requireTeamUser();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (!isUuid(input.id)) return { ok: false, error: "Invalid contract id" };
   const admin = createAdminClient();
@@ -291,7 +290,7 @@ export async function editContract(
   await logAuditEvent({
     actorUserId: guard.userId,
     actorEmail: guard.email,
-    actorRole: "super_admin",
+    actorRole: guard.role,
     action: "contract_edit",
     targetResourceType: "contract",
     targetResourceId: input.id,

@@ -125,7 +125,7 @@ export default function MasterDataForm() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
   const isEditMode = !!editId;
-  const { isSuperAdmin, loading: authLoading } = useAuth();
+  const { isTeam, loading: authLoading } = useAuth();
   const { data: editRow } = useContract(editId ?? undefined);
   const editContractMut = useEditContract();
   const editLoadedRef = useRef(false);
@@ -453,14 +453,15 @@ export default function MasterDataForm() {
   // race-safe next_contract_sequence RPC, so no client-side duplicate check.
   const isDuplicate = false;
 
-  // Editing a submitted contract is super-admin only (server also enforces this
-  // in editContract via requireSuperAdmin — this is the matching UI gate).
-  if (isEditMode && !authLoading && !isSuperAdmin) {
+  // Editing a submitted contract requires team access (team or super_admin).
+  // The server also enforces this in editContract via requireTeamUser — this is
+  // the matching UI gate; clients are rejected.
+  if (isEditMode && !authLoading && !isTeam) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
         <AlertTriangle className="h-10 w-10 text-amber-500" />
         <h2 className="text-xl font-bold">Not authorized</h2>
-        <p className="text-zinc-500">Editing a submitted contract requires super-admin access.</p>
+        <p className="text-zinc-500">Editing a submitted contract requires team access.</p>
         <Link href="/contract-log"><Button variant="outline" className="mt-2">Back to Contract Log</Button></Link>
       </div>
     );
