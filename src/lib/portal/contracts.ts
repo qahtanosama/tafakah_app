@@ -18,13 +18,19 @@ export interface PortalContractSummary {
   totalUSD: number;
   totalReceived: number;
   etd: string | null;
+  atd: string | null;
   eta: string | null;
+  ata: string | null;
+  statusOverride: string | null;
 }
 
 interface ShippingRow {
   contract_id: string;
   etd: string | null;
+  atd: string | null;
   eta: string | null;
+  ata: string | null;
+  status_override: string | null;
 }
 
 interface FinanceRow {
@@ -55,7 +61,7 @@ export async function loadClientContracts(
   const ids = contracts.map((c) => c.id);
 
   const [{ data: shipping }, { data: finance }] = await Promise.all([
-    supabase.from("contract_shipping").select("contract_id, etd, eta").in("contract_id", ids),
+    supabase.from("contract_shipping").select("contract_id, etd, atd, eta, ata, status_override").in("contract_id", ids),
     supabase.from("contract_finance").select("contract_id, payments_received").in("contract_id", ids),
   ]);
 
@@ -76,6 +82,9 @@ export async function loadClientContracts(
     totalUSD: Number(c.totals?.totalUSD ?? 0),
     totalReceived: financeMap.get(c.id) ?? 0,
     etd: shippingMap.get(c.id)?.etd ?? null,
+    atd: shippingMap.get(c.id)?.atd ?? null,
     eta: shippingMap.get(c.id)?.eta ?? null,
+    ata: shippingMap.get(c.id)?.ata ?? null,
+    statusOverride: shippingMap.get(c.id)?.status_override ?? null,
   }));
 }

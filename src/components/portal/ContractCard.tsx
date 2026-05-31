@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ChevronRight } from "lucide-react";
 import StageBadge from "./StageBadge";
+import ShippingStatusBadge from "./ShippingStatusBadge";
 import { formatCurrency, formatDate, type AppLocale } from "@/lib/i18n/format";
 
 export interface ContractCardData {
@@ -14,7 +15,10 @@ export interface ContractCardData {
   totalUSD: number;
   totalReceived: number;
   etd: string | null;
+  atd: string | null;
   eta: string | null;
+  ata: string | null;
+  statusOverride: string | null;
 }
 
 export default function ContractCard({ contract }: { contract: ContractCardData }) {
@@ -39,7 +43,16 @@ export default function ContractCard({ contract }: { contract: ContractCardData 
             {t("invoiceNo")}: {contract.invoiceNo}
           </p>
         </div>
-        <StageBadge stage={contract.stage} />
+        <div className="flex flex-col items-end gap-1.5">
+          <StageBadge stage={contract.stage} />
+          <ShippingStatusBadge
+            etd={contract.etd}
+            atd={contract.atd}
+            eta={contract.eta}
+            ata={contract.ata}
+            statusOverride={contract.statusOverride}
+          />
+        </div>
       </div>
 
       <div className="mt-4 flex items-baseline justify-between">

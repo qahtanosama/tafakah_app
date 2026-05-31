@@ -9,6 +9,7 @@ import ShippingTimeline, { type ShippingData } from "@/components/portal/Shippin
 import DocumentRow, { type DocumentRowData } from "@/components/portal/DocumentRow";
 import PaymentsTable, { type PortalPayment } from "@/components/portal/PaymentsTable";
 import GeneratedDocDownload from "@/components/portal/GeneratedDocDownload";
+import ShippingStatusBadge from "@/components/portal/ShippingStatusBadge";
 import MergeDocumentsDialog from "@/components/portal/MergeDocumentsDialog";
 import FinalPackageCard from "@/components/portal/FinalPackageCard";
 import { formatCurrency, formatDate, formatNumber, type AppLocale } from "@/lib/i18n/format";
@@ -37,6 +38,7 @@ interface ShippingRow extends ShippingData {
   contract_id: string;
   container_numbers: string[] | null;
   bl_number: string | null;
+  status_override: string | null;
 }
 
 interface FinanceRow {
@@ -92,7 +94,7 @@ export default async function ContractDetailPage({
   const [{ data: shippingRaw }, { data: financeRaw }, { data: documentsRaw }] = await Promise.all([
     supabase
       .from("contract_shipping")
-      .select("contract_id, etd, atd, eta, ata, vessel, voyage, bl_number, carrier, container_numbers")
+      .select("contract_id, etd, atd, eta, ata, vessel, voyage, bl_number, carrier, container_numbers, status_override")
       .eq("contract_id", id)
       .maybeSingle(),
     supabase
@@ -181,7 +183,16 @@ export default async function ContractDetailPage({
             <h1 className="text-2xl font-bold text-navy sm:text-3xl">{contract.contract_no}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{contract.invoice_no}</p>
           </div>
-          <StageBadge stage={contract.current_stage} />
+          <div className="flex flex-col items-end gap-1.5">
+            <StageBadge stage={contract.current_stage} />
+            <ShippingStatusBadge
+              etd={shipping?.etd ?? null}
+              atd={shipping?.atd ?? null}
+              eta={shipping?.eta ?? null}
+              ata={shipping?.ata ?? null}
+              statusOverride={shipping?.status_override ?? null}
+            />
+          </div>
         </div>
         <dl className="mt-5 grid gap-4 border-t pt-5 sm:grid-cols-3">
           <Field
