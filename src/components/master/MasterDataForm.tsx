@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,7 @@ import {
   Wallet,
   Ship,
   Factory,
+  Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
@@ -62,7 +65,7 @@ import {
 import { useProducts } from "@/lib/data/products";
 import { useBuyers, useSaveBuyer, createEmptyBuyer } from "@/lib/data/buyers";
 import { useSellers, useSaveSeller, createEmptySeller } from "@/lib/data/sellers";
-import { useSaveContract, useNextSequence } from "@/lib/data/contracts";
+import { useSaveContract, useNextSequence, useContract, useEditContract } from "@/lib/data/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Buyer } from "@/types/buyer";
 import type { Seller } from "@/types/seller";
@@ -115,6 +118,19 @@ export default function MasterDataForm() {
   const saveBuyerMut = useSaveBuyer();
   const saveSellerMut = useSaveSeller();
   const qc = useQueryClient();
+
+  // ── Super-admin edit mode (?edit=<contractId>) ──
+  // Loads an existing contract's master_snapshot into this form and saves via
+  // the audited editContract action. Contract & invoice numbers stay locked.
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+  const isEditMode = !!editId;
+  const { isSuperAdmin, loading: authLoading } = useAuth();
+  const { data: editRow } = useContract(editId ?? undefined);
+  const editContractMut = useEditContract();
+  const editLoadedRef = useRef(false);
+  const [lockedNumbers, setLockedNumbers] = useState<{ contractNo: string; invoiceNo: string } | null>(null);
+
   const [data, setData] = useState<SalesContractData>(getDefaultContractData);
   const [loaded, setLoaded] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -144,29 +160,47 @@ export default function MasterDataForm() {
 
   const contractNo = useMemo(
     () => {
+      // Edit mode: the number is locked to the existing contract, never re-derived.
+      if (isEditMode) return lockedNumbers?.contractNo ?? "";
       if (!prefix || !sequence) return "";
       return `${year}-${prefix}${sequence}`;
     },
-    [year, sequence, prefix]
+    [isEditMode, lockedNumbers, year, sequence, prefix]
   );
   const invoiceNo = useMemo(
     () => {
+      if (isEditMode) return lockedNumbers?.invoiceNo ?? "";
       if (!prefix || !sequence) return "";
       return `TAFA${year}${prefix}${sequence}`;
     },
-    [year, sequence, prefix]
+    [isEditMode, lockedNumbers, year, sequence, prefix]
   );
 
   // Race-safe next sequence from Supabase (next_contract_sequence RPC).
   const { data: nextSeqData } = useNextSequence(year, prefix);
 
   useEffect(() => {
+    // Edit mode loads from the contract row (below), not the local draft.
+    if (isEditMode) return;
     const stored = loadMasterData();
     if (stored) setData(stored);
     setLoaded(true);
-  }, []);
+  }, [isEditMode]);
+
+  // Edit mode: hydrate the form from the contract's frozen master_snapshot once,
+  // and capture the locked contract / invoice numbers.
+  useEffect(() => {
+    if (!isEditMode || editLoadedRef.current) return;
+    if (!editRow || !editRow.master_snapshot) return;
+    setData(structuredClone(editRow.master_snapshot));
+    setLockedNumbers({ contractNo: editRow.contract_no, invoiceNo: editRow.invoice_no });
+    editLoadedRef.current = true;
+    setLoaded(true);
+  }, [isEditMode, editRow]);
 
   useEffect(() => {
+    // Never auto-assign / bump the sequence while editing an existing contract.
+    if (isEditMode) return;
     if (!loaded) return;
     if (typeof nextSeqData === "number" && nextSeqData > 0) {
       setData((prev) =>
@@ -175,7 +209,7 @@ export default function MasterDataForm() {
           : { ...prev, identifiers: { ...prev.identifiers, sequenceNumber: nextSeqData } }
       );
     }
-  }, [loaded, nextSeqData]);
+  }, [isEditMode, loaded, nextSeqData]);
 
   useEffect(() => {
     if (!loaded || productsList.length === 0) return;
@@ -196,12 +230,14 @@ export default function MasterDataForm() {
   }, [loaded, productsList, data.lineItems]);
 
   useEffect(() => {
+    // Don't write the edited contract into the new-contract local draft.
+    if (isEditMode) return;
     if (!loaded) return;
     saveMasterData(data);
     setShowSaved(true);
     if (savedTimer.current) clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setShowSaved(false), 1500);
-  }, [data, loaded]);
+  }, [data, loaded, isEditMode]);
 
   const showToast = useCallback(
     (type: "success" | "error", message: string) => {
@@ -390,10 +426,45 @@ export default function MasterDataForm() {
     qc,
   ]);
 
+  // Super-admin save: overwrite the existing contract's content + snapshot via
+  // the audited editContract action. Numbers stay locked server-side too.
+  const handleSaveEdit = useCallback(async () => {
+    if (!isEditMode || !editId || !lockedNumbers || !canSubmit) return;
+    const snapshot = structuredClone(data);
+    try {
+      await editContractMut.mutateAsync({ ...snapshot, id: editId });
+    } catch (err) {
+      showToast("error", `⚠ Save failed: ${(err as Error).message}`);
+      return;
+    }
+    setLastSubmit({
+      contractId: editId,
+      data: snapshot,
+      totals: calcTotals(snapshot.lineItems, snapshot.terms?.numberOfContainers),
+      contractNo: lockedNumbers.contractNo,
+      invoiceNo: lockedNumbers.invoiceNo,
+      dateSubmitted: new Date().toISOString(),
+    });
+    showToast("success", `✓ Contract ${lockedNumbers.contractNo} updated`);
+  }, [isEditMode, editId, lockedNumbers, canSubmit, data, editContractMut, showToast]);
+
   const fmt = (n: number, d = 2) => n.toFixed(d);
   // Contract-number uniqueness is enforced by the DB (unique constraint) and the
   // race-safe next_contract_sequence RPC, so no client-side duplicate check.
   const isDuplicate = false;
+
+  // Editing a submitted contract is super-admin only (server also enforces this
+  // in editContract via requireSuperAdmin — this is the matching UI gate).
+  if (isEditMode && !authLoading && !isSuperAdmin) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
+        <AlertTriangle className="h-10 w-10 text-amber-500" />
+        <h2 className="text-xl font-bold">Not authorized</h2>
+        <p className="text-zinc-500">Editing a submitted contract requires super-admin access.</p>
+        <Link href="/contract-log"><Button variant="outline" className="mt-2">Back to Contract Log</Button></Link>
+      </div>
+    );
+  }
 
   if (!loaded) {
     return (
@@ -418,6 +489,23 @@ export default function MasterDataForm() {
         </div>
       )}
 
+      {/* Edit-mode banner */}
+      {isEditMode && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <Pencil className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">
+              Editing contract {lockedNumbers?.contractNo ?? "…"}
+            </p>
+            <p className="text-amber-700 dark:text-amber-300">
+              All content is editable and corrections are saved to this contract and audit-logged.
+              The <span className="font-medium">contract number</span> and{" "}
+              <span className="font-medium">invoice number</span> are locked.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -428,10 +516,12 @@ export default function MasterDataForm() {
             </span>
           )}
         </div>
-        <Button variant="outline" onClick={handleReset} className="gap-2">
-          <RotateCcw className="h-4 w-4" />
-          Reset to Defaults
-        </Button>
+        {!isEditMode && (
+          <Button variant="outline" onClick={handleReset} className="gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Reset to Defaults
+          </Button>
+        )}
       </div>
 
       {/* ───── A) COMPANY INFO (Seller) ───── */}
@@ -626,7 +716,14 @@ export default function MasterDataForm() {
 
           {contractNo && (
             <div className="flex items-center gap-2 text-sm">
-              {isDuplicate ? (
+              {isEditMode ? (
+                <>
+                  <CircleCheck className="h-4 w-4 text-amber-500" />
+                  <span className="text-amber-600">
+                    Existing contract &mdash; number &amp; invoice locked
+                  </span>
+                </>
+              ) : isDuplicate ? (
                 <>
                   <AlertTriangle className="h-4 w-4 text-red-500" />
                   <span className="text-red-600">Duplicate detected</span>
@@ -1093,11 +1190,20 @@ export default function MasterDataForm() {
         <Button
           size="lg"
           className="gap-2 bg-emerald-600 px-8 py-6 text-lg font-bold text-white hover:bg-emerald-700"
-          disabled={!canSubmit || isDuplicate}
-          onClick={handleSubmit}
+          disabled={!canSubmit || isDuplicate || (isEditMode && editContractMut.isPending)}
+          onClick={isEditMode ? handleSaveEdit : handleSubmit}
         >
-          <Send className="h-5 w-5" />
-          Submit Contract
+          {isEditMode ? (
+            <>
+              <Check className="h-5 w-5" />
+              {editContractMut.isPending ? "Saving…" : "Save Changes"}
+            </>
+          ) : (
+            <>
+              <Send className="h-5 w-5" />
+              Submit Contract
+            </>
+          )}
         </Button>
         {lastSubmit && (
           <>

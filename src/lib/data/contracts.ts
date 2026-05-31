@@ -26,6 +26,7 @@ import type {
 import type { ContractContainer } from "@/types/contract";
 import {
   saveContract,
+  editContract,
   deleteContract,
   advanceStage,
   skipStage,
@@ -148,6 +149,25 @@ export function useSaveContract() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["contracts"] });
+    },
+  });
+}
+
+/**
+ * Super-admin contract correction. Overwrites the existing contract's editable
+ * content + master_snapshot (numbers/workflow/status preserved) and writes an
+ * audit_log row. Invalidates the contracts cache so every doc re-reads the fix.
+ */
+export function useEditContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: SalesContractData & { id: string }) => {
+      const res = await editContract(input);
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["contracts"], refetchType: "all" });
     },
   });
 }

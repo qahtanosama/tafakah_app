@@ -13,7 +13,8 @@ export type AuditAction =
   | "account_enable"
   | "impersonation_start"
   | "impersonation_end"
-  | "client_login_create";
+  | "client_login_create"
+  | "contract_edit";
 
 export interface AuditEvent {
   actorUserId: string | null;

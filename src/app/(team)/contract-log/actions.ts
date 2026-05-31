@@ -14,6 +14,8 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeamUser } from "@/lib/auth/require-team";
+import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
+import { logAuditEvent } from "@/lib/audit/log";
 import {
   calcTotals,
   generateContractNumber,
@@ -49,6 +51,44 @@ export type SaveContractResult =
   | { ok: false; error: string };
 
 type Admin = ReturnType<typeof createAdminClient>;
+
+/**
+ * Build the editable *content* columns of a contract row from the Master Data
+ * form shape. This is the single source of truth for the content write path —
+ * both `saveContract` (create / re-submit) and `editContract` (super-admin fix)
+ * go through it, so the column mapping never drifts between the two.
+ *
+ * NOTE: this deliberately does NOT set contract_no / invoice_no / current_stage
+ * / workflow_history / status — those are owned by the respective callers.
+ */
+function buildContentColumns(
+  input: SalesContractData,
+  opts: { seq: number; firstProduct: string; workflow: ContractWorkflow }
+) {
+  const totals = calcTotals(input.lineItems, input.terms?.numberOfContainers);
+  const buyerId = isUuid(input.buyer?.id) ? input.buyer.id! : null;
+  const sellerId = isUuid(input.sellerId) ? input.sellerId : null;
+
+  // Reflect the resolved sequence back into the stored snapshot.
+  const snapshot: SalesContractData = {
+    ...input,
+    identifiers: { ...input.identifiers, sequenceNumber: opts.seq },
+    workflow: opts.workflow,
+  };
+
+  return {
+    buyer_id: buyerId,
+    seller_id: sellerId,
+    contract_date: normalizeDate(input.identifiers.contractDate),
+    line_items: input.lineItems,
+    terms: input.terms ?? null,
+    totals,
+    bl_number: input.blNumber ?? null,
+    containers: input.containers ?? [],
+    master_snapshot: snapshot,
+    product_label: opts.firstProduct || null,
+  };
+}
 
 /** Resolve a contract-number prefix from the first line item's product. */
 async function resolvePrefix(admin: Admin, firstProduct: string): Promise<string> {
@@ -102,10 +142,6 @@ export async function saveContract(
     };
   }
 
-  const totals = calcTotals(input.lineItems, input.terms?.numberOfContainers);
-  const buyerId = isUuid(input.buyer?.id) ? input.buyer.id! : null;
-  const sellerId = isUuid(input.sellerId) ? input.sellerId : null;
-
   // saveContract owns the initial workflow stage. New contracts start at
   // "docs-generated"; the costed/etc. stages advance via the StageStrip UI.
   const workflow: ContractWorkflow = input.workflow ?? {
@@ -113,29 +149,13 @@ export async function saveContract(
     history: { "docs-generated": { completedAt: new Date().toISOString(), by: "auto" } },
   };
 
-  // Reflect the final resolved sequence back into the stored snapshot.
-  const snapshot: SalesContractData = {
-    ...input,
-    identifiers: { ...input.identifiers, sequenceNumber: seq },
-    workflow,
-  };
-
   const row = {
     contract_no: contractNo,
     invoice_no: invoiceNo,
-    buyer_id: buyerId,
-    seller_id: sellerId,
-    contract_date: normalizeDate(input.identifiers.contractDate),
-    line_items: input.lineItems,
-    terms: input.terms ?? null,
-    totals,
+    ...buildContentColumns(input, { seq, firstProduct, workflow }),
     current_stage: workflow.currentStage,
     // workflow_history holds BOTH the stage history and the cert refs.
     workflow_history: { history: workflow.history ?? {}, certs: workflow.certs ?? {} },
-    bl_number: input.blNumber ?? null,
-    containers: input.containers ?? [],
-    master_snapshot: snapshot,
-    product_label: firstProduct || null,
     status: "Active",
   };
 
@@ -163,6 +183,129 @@ export async function saveContract(
     .single();
   if (error) return { ok: false, error: `Insert failed: ${error.message}` };
   return { ok: true, contractId: (inserted as { id: string }).id, contractNo, invoiceNo };
+}
+
+/** Strip bulky / noisy fields (e.g. the seller stamp data-URL) before diffing. */
+function sanitizeForAudit(snap: SalesContractData | null): SalesContractData | null {
+  if (!snap) return null;
+  const clone = structuredClone(snap);
+  if (clone.seller) delete (clone.seller as { stamp?: string }).stamp;
+  return clone;
+}
+
+/** Shallow per-section diff of two snapshots: { section: { before, after } }. */
+function diffSnapshots(
+  before: SalesContractData | null,
+  after: SalesContractData | null
+): Record<string, { before: unknown; after: unknown }> {
+  const changes: Record<string, { before: unknown; after: unknown }> = {};
+  const keys = new Set<string>([
+    ...Object.keys(before ?? {}),
+    ...Object.keys(after ?? {}),
+  ]);
+  for (const k of keys) {
+    const b = (before as Record<string, unknown> | null)?.[k] ?? null;
+    const a = (after as Record<string, unknown> | null)?.[k] ?? null;
+    if (JSON.stringify(b) !== JSON.stringify(a)) {
+      changes[k] = { before: b, after: a };
+    }
+  }
+  return changes;
+}
+
+/**
+ * Super-admin contract correction. Overwrites the editable CONTENT of an
+ * existing contract (products, quantities, weights, prices, buyer/consignee,
+ * ports, terms, etc. — anything that could be a data-entry mistake) and its
+ * `master_snapshot`, then appends an `audit_log` row recording who changed what.
+ *
+ * Locked / preserved on purpose:
+ *   - contract_no / invoice_no — tie SC/CI/PL/Freight together; never change.
+ *   - current_stage / workflow_history — workflow is untouched by a content fix.
+ *   - status — a correction must not silently reactivate a Cancelled contract.
+ *   - bl_number / containers columns — owned by the Shipping Docs page; not
+ *     clobbered here (the form has no canonical editor for them).
+ *
+ * Guarded by requireSuperAdmin() — team users are rejected (defense in depth;
+ * the UI only surfaces this action to super admins).
+ */
+export async function editContract(
+  input: SalesContractData & { id: string }
+): Promise<SaveContractResult> {
+  const guard = await requireSuperAdmin();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  if (!isUuid(input.id)) return { ok: false, error: "Invalid contract id" };
+  const admin = createAdminClient();
+
+  // Read the existing row: numbers are locked, workflow preserved, and we need
+  // the prior snapshot + totals for the audit diff.
+  const { data: existing, error: readErr } = await admin
+    .from("contracts")
+    .select("contract_no, invoice_no, master_snapshot, totals")
+    .eq("id", input.id)
+    .maybeSingle();
+  if (readErr) return { ok: false, error: `Read failed: ${readErr.message}` };
+  if (!existing) return { ok: false, error: "Contract not found" };
+
+  const e = existing as {
+    contract_no: string;
+    invoice_no: string;
+    master_snapshot: SalesContractData | null;
+    totals: unknown;
+  };
+
+  const firstProduct = String(input.lineItems?.[0]?.product ?? "");
+  const seq =
+    typeof input.identifiers.sequenceNumber === "number" && input.identifiers.sequenceNumber > 0
+      ? input.identifiers.sequenceNumber
+      : e.master_snapshot?.identifiers.sequenceNumber ?? 0;
+
+  // Preserve the original workflow — a content edit never advances/resets stages.
+  const workflow: ContractWorkflow =
+    input.workflow ??
+    e.master_snapshot?.workflow ?? { currentStage: "docs-generated", history: {} };
+
+  const content = buildContentColumns(input, { seq, firstProduct, workflow });
+
+  // Only the editable content columns are written — see the locked/preserved
+  // list in this function's doc comment.
+  const editable = {
+    buyer_id: content.buyer_id,
+    seller_id: content.seller_id,
+    contract_date: content.contract_date,
+    line_items: content.line_items,
+    terms: content.terms,
+    totals: content.totals,
+    master_snapshot: content.master_snapshot,
+    product_label: content.product_label,
+  };
+
+  const { error: updErr } = await admin.from("contracts").update(editable).eq("id", input.id);
+  if (updErr) return { ok: false, error: `Update failed: ${updErr.message}` };
+
+  // Audit (best-effort — never blocks the save). Record old → new content diff.
+  const changes = diffSnapshots(
+    sanitizeForAudit(e.master_snapshot),
+    sanitizeForAudit(content.master_snapshot)
+  );
+  await logAuditEvent({
+    actorUserId: guard.userId,
+    actorEmail: guard.email,
+    actorRole: "super_admin",
+    action: "contract_edit",
+    targetResourceType: "contract",
+    targetResourceId: input.id,
+    metadata: {
+      contractNo: e.contract_no,
+      invoiceNo: e.invoice_no,
+      changedFields: Object.keys(changes),
+      changes,
+      totalsBefore: e.totals ?? null,
+      totalsAfter: content.totals,
+    },
+  });
+
+  return { ok: true, contractId: input.id, contractNo: e.contract_no, invoiceNo: e.invoice_no };
 }
 
 /**

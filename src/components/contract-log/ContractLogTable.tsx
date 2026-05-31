@@ -24,7 +24,7 @@ import type { ContractFinance } from "@/types/finance";
 import { useContracts, useDeleteContract, useSetContractStatus, type ContractRow } from "@/lib/data/contracts";
 import { useAllFinance, type FinanceRow } from "@/lib/data/finance";
 import { useAllShipping, shippingRowToEntry } from "@/lib/data/shipping";
-import { saveMasterData } from "@/lib/master-data";
+import { useAuth } from "@/hooks/useAuth";
 import { calcTotals } from "@/lib/sales-contract";
 import { calcSummary } from "@/lib/finance";
 import { getStatusInfo } from "@/lib/shipping";
@@ -74,6 +74,7 @@ export default function ContractLogTable() {
   const { data: shippingByCid } = useAllShipping();
   const deleteContract = useDeleteContract();
   const setStatus = useSetContractStatus();
+  const { isSuperAdmin } = useAuth();
 
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<"all" | WorkflowStage>("all");
@@ -122,9 +123,9 @@ export default function ContractLogTable() {
   const handleEdit = useCallback(
     (row: ContractRow) => {
       if (!row.master_snapshot) return;
-      // Load the snapshot into the Master Data draft (localStorage UI state) and edit.
-      saveMasterData(row.master_snapshot);
-      router.push("/master");
+      // Super-admin edit: open the Master Data form in audited edit mode for
+      // this contract (numbers locked; saved via editContract).
+      router.push(`/master?edit=${row.id}`);
     },
     [router]
   );
@@ -305,14 +306,16 @@ export default function ContractLogTable() {
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(row)}
-                    title="Edit in Master"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  {isSuperAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(row)}
+                      title="Edit Contract"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
