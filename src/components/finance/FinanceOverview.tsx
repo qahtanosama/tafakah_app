@@ -22,6 +22,7 @@ function rowToFinance(row: FinanceRow | undefined): ContractFinance | null {
     contractNo: "",
     costs: row.cost_items ?? [],
     payments: row.payments_received ?? [],
+    rmbUsdRate: row.rmb_usd_rate ?? null,
     updatedAt: row.updated_at ?? "",
   };
 }

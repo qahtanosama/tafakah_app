@@ -18,6 +18,7 @@ export async function saveContractFinance(params: {
   contractId: string;
   costs: CostItem[];
   payments: PaymentItem[];
+  rmbUsdRate?: number | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const guard = await requireTeamUser();
   if (!guard.ok) return { ok: false, error: guard.error };
@@ -31,6 +32,11 @@ export async function saveContractFinance(params: {
         contract_id: params.contractId,
         cost_items: params.costs ?? [],
         payments_received: params.payments ?? [],
+        // Normalize: only persist a positive rate, else null.
+        rmb_usd_rate:
+          typeof params.rmbUsdRate === "number" && params.rmbUsdRate > 0
+            ? params.rmbUsdRate
+            : null,
       },
       { onConflict: "contract_id" }
     );

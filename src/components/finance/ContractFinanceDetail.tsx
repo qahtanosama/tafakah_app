@@ -14,10 +14,10 @@ import {
 } from "@/components/ui/table";
 import { Plus, Trash2, X, ArrowLeft, Check } from "lucide-react";
 import type { SalesContractData } from "@/types/sales-contract";
-import type { ContractFinance, CostItem, PaymentItem, PaymentMethod } from "@/types/finance";
+import type { ContractFinance, CostItem, PaymentItem, PaymentMethod, CostCurrency } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
 import { calcTotals } from "@/lib/sales-contract";
-import { getFinance, createEmptyFinance, ensurePredefinedRows, calcSummary } from "@/lib/finance";
+import { getFinance, createEmptyFinance, ensurePredefinedRows, calcSummary, costToUSD, isValidRmbRate, rmbRateWarning } from "@/lib/finance";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
 import { useContractByNo } from "@/lib/data/contracts";
 import { useFinance, useSaveFinance } from "@/lib/data/finance";
@@ -34,10 +34,11 @@ function fmtDate(iso: string) {
 
 /* ── Spreadsheet cost row ──────────────────────────── */
 function CostRow({
-  cost, index, onUpdate, onDelete, showSavedId,
+  cost, index, rate, onUpdate, onDelete, showSavedId,
 }: {
   cost: CostItem;
   index: number;
+  rate: number | null;
   onUpdate: (updated: CostItem) => void;
   onDelete?: () => void;
   showSavedId: string | null;
@@ -46,6 +47,8 @@ function CostRow({
   const [amount, setAmount] = useState(cost.amount > 0 ? String(cost.amount) : "");
   const [date, setDate] = useState(cost.date);
   const [focused, setFocused] = useState(false);
+
+  const currency: CostCurrency = cost.currency ?? "USD";
 
   // Sync from parent when cost changes (e.g., after reload)
   useEffect(() => {
@@ -62,8 +65,17 @@ function CostRow({
     }
   }, [desc, amount, date, cost, onUpdate]);
 
+  // Changing currency commits any in-progress edits in the same write so they
+  // aren't lost (mirrors the inline category edit pattern).
+  const setCurrency = useCallback((cur: CostCurrency) => {
+    const amt = parseFloat(amount) || 0;
+    onUpdate({ ...cost, description: desc, amount: amt, date, currency: cur });
+  }, [amount, desc, date, cost, onUpdate]);
+
   const even = index % 2 === 0;
   const saved = showSavedId === cost.id;
+  const amt = parseFloat(amount) || 0;
+  const usdEquiv = costToUSD({ ...cost, amount: amt, currency }, rate);
 
   return (
     <tr className={`border-b border-zinc-100 transition-colors ${focused ? "bg-blue-50/50 dark:bg-blue-950/20" : even ? "bg-white dark:bg-zinc-900" : "bg-zinc-50/50 dark:bg-zinc-800/30"}`}>
@@ -90,18 +102,37 @@ function CostRow({
           placeholder="Description"
         />
       </td>
-      <td className="w-[140px] px-2 py-1">
-        <input
-          type="number"
-          step="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          onBlur={flush}
-          onFocus={() => setFocused(true)}
-          onBlurCapture={() => setFocused(false)}
-          className="h-9 w-full rounded border-transparent bg-transparent px-2 text-right font-mono text-sm outline-none transition-colors focus:border-blue-300 focus:bg-white focus:ring-1 focus:ring-blue-200 dark:focus:bg-zinc-800"
-          placeholder="—"
-        />
+      <td className="w-[88px] px-2 py-1">
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value as CostCurrency)}
+          className="h-9 w-full rounded border border-transparent bg-transparent px-1 text-sm outline-none transition-colors hover:border-zinc-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200 dark:hover:border-zinc-700 dark:focus:bg-zinc-800"
+          aria-label="Currency"
+        >
+          <option value="USD">$ USD</option>
+          <option value="RMB">¥ RMB</option>
+        </select>
+      </td>
+      <td className="w-[150px] px-2 py-1">
+        <div className="flex items-center justify-end gap-1">
+          <span className="font-mono text-sm text-zinc-400">{currency === "RMB" ? "¥" : "$"}</span>
+          <input
+            type="number"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onBlur={flush}
+            onFocus={() => setFocused(true)}
+            onBlurCapture={() => setFocused(false)}
+            className="h-9 w-full rounded border-transparent bg-transparent px-2 text-right font-mono text-sm outline-none transition-colors focus:border-blue-300 focus:bg-white focus:ring-1 focus:ring-blue-200 dark:focus:bg-zinc-800"
+            placeholder="—"
+          />
+        </div>
+        {currency === "RMB" && amt > 0 && (
+          <p className="px-2 text-right text-[11px] text-zinc-400">
+            {isValidRmbRate(rate) ? `≈ ${fmtUSD(usdEquiv)}` : <span className="text-amber-600">set rate</span>}
+          </p>
+        )}
       </td>
       <td className="w-[140px] px-2 py-1">
         <input
@@ -152,7 +183,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
 
     let f: ContractFinance;
     if (financeRow) {
-      f = { contractNo, costs: financeRow.cost_items ?? [], payments: financeRow.payments_received ?? [], updatedAt: financeRow.updated_at ?? "" };
+      f = { contractNo, costs: financeRow.cost_items ?? [], payments: financeRow.payments_received ?? [], rmbUsdRate: financeRow.rmb_usd_rate ?? null, updatedAt: financeRow.updated_at ?? "" };
     } else {
       f = getFinance(contractNo) ?? createEmptyFinance(contractNo);
     }
@@ -176,9 +207,26 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   const persist = useCallback((next: ContractFinance) => {
     setFinance(next);
     if (contractId) {
-      saveFinanceMut.mutate({ costs: next.costs, payments: next.payments });
+      saveFinanceMut.mutate({ costs: next.costs, payments: next.payments, rmbUsdRate: next.rmbUsdRate ?? null });
     }
   }, [contractId, saveFinanceMut]);
+
+  // RMB→USD rate (¥ per $1) — local input string committed on blur.
+  const [rateStr, setRateStr] = useState("");
+  useEffect(() => {
+    setRateStr(finance?.rmbUsdRate != null ? String(finance.rmbUsdRate) : "");
+  }, [finance?.rmbUsdRate]);
+  const liveRate = rateStr.trim() === "" ? null : parseFloat(rateStr);
+  const rateWarn = rmbRateWarning(liveRate);
+  const hasRmbCosts = !!finance?.costs.some((c) => (c.currency ?? "USD") === "RMB" && c.amount > 0);
+  const rateOk = isValidRmbRate(finance?.rmbUsdRate);
+
+  const commitRate = useCallback(() => {
+    if (!finance) return;
+    const v = rateStr.trim() === "" ? null : parseFloat(rateStr);
+    const next = typeof v === "number" && isFinite(v) && v > 0 ? v : null;
+    if ((finance.rmbUsdRate ?? null) !== next) persist({ ...finance, rmbUsdRate: next });
+  }, [finance, rateStr, persist]);
 
   const handleCostUpdate = useCallback((updated: CostItem) => {
     if (!finance) return;
@@ -262,17 +310,41 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
 
       {/* ═══ COSTS — Spreadsheet Grid ═══ */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
           <CardTitle>Costs</CardTitle>
+          {/* Per-contract RMB→USD rate (¥ per $1). */}
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="rmb-rate" className="text-xs text-zinc-500">RMB → USD rate (¥ per $1)</Label>
+              <Input
+                id="rmb-rate"
+                type="number"
+                step="0.0001"
+                inputMode="decimal"
+                value={rateStr}
+                onChange={(e) => setRateStr(e.target.value)}
+                onBlur={commitRate}
+                placeholder="e.g. 7.2"
+                className="h-9 w-28 text-right font-mono"
+              />
+            </div>
+            {rateWarn && <p className="mt-1 text-right text-[11px] text-amber-600">{rateWarn}</p>}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
+          {hasRmbCosts && !rateOk && (
+            <div className="mx-4 mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              This contract has RMB costs but no valid rate yet — they count as $0 in the totals until you set the RMB → USD rate above.
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-zinc-100/50 text-left text-xs font-semibold text-zinc-500 dark:bg-zinc-800/50">
                   <th className="px-3 py-2">Category</th>
                   <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2 text-right">Amount (USD)</th>
+                  <th className="px-3 py-2">Currency</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
                   <th className="px-3 py-2">Date</th>
                   <th className="w-[44px] px-1 py-2"></th>
                 </tr>
@@ -283,6 +355,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
                     key={cost.id}
                     cost={cost}
                     index={i}
+                    rate={finance?.rmbUsdRate ?? null}
                     onUpdate={handleCostUpdate}
                     onDelete={cost.isPredefined ? undefined : () => handleDeleteCustom(cost.id)}
                     showSavedId={savedId}
@@ -290,7 +363,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
                 ))}
                 {/* Add custom row */}
                 <tr className="border-b border-zinc-100">
-                  <td colSpan={5} className="px-3 py-2">
+                  <td colSpan={6} className="px-3 py-2">
                     <button onClick={handleAddCustom} className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700">
                       <Plus className="h-4 w-4" /> Add Custom Item
                     </button>
@@ -298,7 +371,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
                 </tr>
                 {/* Total */}
                 <tr className="bg-zinc-100 font-bold dark:bg-zinc-800">
-                  <td colSpan={2} className="px-3 py-3 text-base">TOTAL COST</td>
+                  <td colSpan={3} className="px-3 py-3 text-base">TOTAL COST (USD)</td>
                   <td className="px-3 py-3 text-right font-mono text-base">{fmtUSD(summary.totalCost)}</td>
                   <td colSpan={2}></td>
                 </tr>

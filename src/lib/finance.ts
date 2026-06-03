@@ -4,6 +4,44 @@ import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
 
 const STORAGE_KEY = "contract-finance";
 
+/** Usual RMB→USD (¥ per $1) range — outside this we warn the user. */
+export const RMB_RATE_MIN = 5;
+export const RMB_RATE_MAX = 10;
+
+/** A rate is usable for conversion iff it's a positive finite number. */
+export function isValidRmbRate(rate: number | null | undefined): rate is number {
+  return typeof rate === "number" && isFinite(rate) && rate > 0;
+}
+
+/** Soft validation message for the rate input, or null if it looks fine. */
+export function rmbRateWarning(rate: number | null | undefined): string | null {
+  if (rate == null) return null;
+  if (!(typeof rate === "number" && isFinite(rate)) || rate <= 0) {
+    return "Rate must be a positive number.";
+  }
+  if (rate < 2 || rate > 20) {
+    return `⚠ ${rate} looks like a typo — RMB/USD is normally about 7 (¥ per $1).`;
+  }
+  if (rate < RMB_RATE_MIN || rate > RMB_RATE_MAX) {
+    return `⚠ ${rate} is outside the usual ${RMB_RATE_MIN}–${RMB_RATE_MAX} range — double-check.`;
+  }
+  return null;
+}
+
+/**
+ * Convert a single cost item to USD. USD items pass through; RMB items are
+ * divided by the rate (¥ per $1). RMB with no valid rate yields 0 — the UI
+ * warns, so this never silently understates cost without a visible flag.
+ * A missing `currency` is treated as USD (legacy data).
+ */
+export function costToUSD(cost: CostItem, rate: number | null | undefined): number {
+  const currency = cost.currency ?? "USD";
+  if (currency === "RMB") {
+    return isValidRmbRate(rate) ? cost.amount / rate : 0;
+  }
+  return cost.amount;
+}
+
 export function getAllFinance(): ContractFinance[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -50,10 +88,11 @@ export function createEmptyFinance(contractNo: string): ContractFinance {
     isPredefined: true,
     description: "",
     amount: 0,
+    currency: "USD",
     date: "",
     notes: "",
   }));
-  return { contractNo, costs, payments: [], updatedAt: new Date().toISOString() };
+  return { contractNo, costs, payments: [], rmbUsdRate: null, updatedAt: new Date().toISOString() };
 }
 
 /** Ensure a finance entry has all predefined rows (migration for old data) */
@@ -62,7 +101,7 @@ export function ensurePredefinedRows(finance: ContractFinance): ContractFinance 
     if (!finance.costs.some((c) => c.id === p.id)) {
       finance.costs.splice(PREDEFINED_COSTS.indexOf(p), 0, {
         id: p.id, category: p.category, isPredefined: true,
-        description: "", amount: 0, date: "", notes: "",
+        description: "", amount: 0, currency: "USD", date: "", notes: "",
       });
     }
   }
@@ -105,7 +144,9 @@ export function deletePayment(contractNo: string, paymentId: string): void {
 }
 
 export function calcSummary(revenue: number, finance: ContractFinance | null): FinanceSummary {
-  const totalCost = finance ? finance.costs.reduce((s, c) => s + c.amount, 0) : 0;
+  // Costs may be USD or RMB; convert each to USD via the per-contract rate.
+  const rate = finance?.rmbUsdRate ?? null;
+  const totalCost = finance ? finance.costs.reduce((s, c) => s + costToUSD(c, rate), 0) : 0;
   const totalReceived = finance ? finance.payments.reduce((s, p) => s + p.amount, 0) : 0;
   const grossProfit = revenue - totalCost;
   const margin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;

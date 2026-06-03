@@ -64,7 +64,7 @@ function productName(row: ContractRow): string {
 /** Adapt a Supabase finance row to the ContractFinance shape calcSummary expects. */
 function rowToFinance(row: FinanceRow | undefined): ContractFinance | null {
   if (!row) return null;
-  return { contractNo: "", costs: row.cost_items ?? [], payments: row.payments_received ?? [], updatedAt: row.updated_at ?? "" };
+  return { contractNo: "", costs: row.cost_items ?? [], payments: row.payments_received ?? [], rmbUsdRate: row.rmb_usd_rate ?? null, updatedAt: row.updated_at ?? "" };
 }
 
 export default function ContractLogTable() {

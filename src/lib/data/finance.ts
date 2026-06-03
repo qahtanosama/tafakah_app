@@ -21,6 +21,7 @@ export interface FinanceRow {
   contract_id: string;
   cost_items: CostItem[];
   payments_received: PaymentItem[];
+  rmb_usd_rate: number | null;
   updated_at: string;
 }
 
@@ -64,11 +65,13 @@ export function useSaveFinance(contractId: string) {
     mutationFn: async ({
       costs,
       payments,
+      rmbUsdRate,
     }: {
       costs: CostItem[];
       payments: PaymentItem[];
+      rmbUsdRate?: number | null;
     }) => {
-      const res = await saveContractFinance({ contractId, costs, payments });
+      const res = await saveContractFinance({ contractId, costs, payments, rmbUsdRate });
       if (!res.ok) throw new Error(res.error);
       return res;
     },

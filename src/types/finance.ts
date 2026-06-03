@@ -1,9 +1,14 @@
+/** Currency a cost item is entered in. Absent = legacy data, treated as USD. */
+export type CostCurrency = "USD" | "RMB";
+
 export interface CostItem {
   id: string;
   category: string;
   isPredefined: boolean;
   description: string;
   amount: number;
+  /** Native currency of `amount`. Optional for back-compat; defaults to USD. */
+  currency?: CostCurrency;
   date: string;
   notes: string;
 }
@@ -39,6 +44,8 @@ export interface ContractFinance {
   contractNo: string;
   costs: CostItem[];
   payments: PaymentItem[];
+  /** RMB→USD rate (¥ per $1) for converting RMB costs. Null = not set. */
+  rmbUsdRate?: number | null;
   updatedAt: string;
 }
 
