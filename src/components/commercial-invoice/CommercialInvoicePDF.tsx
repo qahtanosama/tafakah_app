@@ -21,7 +21,9 @@ export default function CommercialInvoicePDF({
   priceFactor = 1,
 }: Props) {
   const isCustoms = priceFactor !== 1;
-  const title = isCustoms ? "COMMERCIAL INVOICE (CUSTOMS)" : "COMMERCIAL INVOICE";
+  // Both variants print the same heading; the customs variant is distinguished
+  // only by its price factor (and the separate "(CUSTOMS VALUE)" suffix below).
+  const title = "COMMERCIAL INVOICE";
   const filledItems = data.lineItems.filter((item) => item.product);
   const factoredTotal = totals.totalUSD * priceFactor;
   const suffix = isCustoms ? " (CUSTOMS VALUE)" : "";
