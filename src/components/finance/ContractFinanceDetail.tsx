@@ -12,7 +12,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, X, ArrowLeft, Check } from "lucide-react";
+import { Plus, Trash2, X, ArrowLeft, Check, AlertTriangle } from "lucide-react";
 import type { SalesContractData } from "@/types/sales-contract";
 import type { ContractFinance, CostItem, PaymentItem, PaymentMethod, CostCurrency } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
@@ -161,7 +161,8 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   const contractRow = contractQuery.data;
   const contractId = contractRow?.id ?? null;
   const { data: financeRow, isLoading: financeLoading } = useFinance(contractId ?? undefined);
-  const saveFinanceMut = useSaveFinance(contractId ?? "");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveFinanceMut = useSaveFinance(contractId ?? "", (msg) => setSaveError(msg));
 
   const [finance, setFinance] = useState<ContractFinance | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -207,6 +208,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   const persist = useCallback((next: ContractFinance) => {
     setFinance(next);
     if (contractId) {
+      setSaveError(null); // clear any prior failure; onError re-sets it if this one fails too
       saveFinanceMut.mutate({ costs: next.costs, payments: next.payments, rmbUsdRate: next.rmbUsdRate ?? null });
     }
   }, [contractId, saveFinanceMut]);
@@ -290,6 +292,17 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
           <p className="text-base text-zinc-500">{buyer} &middot; {fmtDate(dateSubmitted)} &middot; {fmtUSD(revenue)}</p>
         </div>
       </div>
+
+      {/* Save-failure banner — finance saves auto-fire on blur, so surface any failure. */}
+      {saveError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <span className="font-semibold">Couldn&rsquo;t save your changes.</span> {saveError}
+            <span className="block text-xs opacity-80">Your most recent edit was not persisted. Fix the issue and re-enter it.</span>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">

@@ -58,8 +58,12 @@ export function useFinance(contractId: string | undefined) {
   });
 }
 
-/** Upsert costs + payments for a contract. */
-export function useSaveFinance(contractId: string) {
+/**
+ * Upsert costs + payments for a contract. Pass `onError` to surface a failed
+ * save in the UI — finance saves auto-fire on blur, so a swallowed error means
+ * the user thinks their edit saved when it didn't.
+ */
+export function useSaveFinance(contractId: string, onError?: (message: string) => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -74,6 +78,9 @@ export function useSaveFinance(contractId: string) {
       const res = await saveContractFinance({ contractId, costs, payments, rmbUsdRate });
       if (!res.ok) throw new Error(res.error);
       return res;
+    },
+    onError: (err) => {
+      onError?.(err instanceof Error ? err.message : "Failed to save changes.");
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["contract_finance", contractId] });
