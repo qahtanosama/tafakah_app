@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import createIntlMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 
-const PUBLIC_PATHS = ["/login", "/setup", "/api/health", "/logout", "/logo.png", "/fonts"];
+const PUBLIC_PATHS = ["/welcome", "/login", "/setup", "/api/health", "/logout", "/logo.png", "/fonts"];
 const intlMiddleware = createIntlMiddleware(routing);
 
 function stripLocale(pathname: string): { locale: string | null; rest: string } {
@@ -55,6 +55,12 @@ export async function proxy(req: NextRequest) {
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
   if (!user) {
+    // Unauthenticated root → show the welcome/landing page while keeping the
+    // URL at `/` (rewrite, not redirect). Deep links keep the /login?next=…
+    // flow so the user returns to where they were headed after signing in.
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/welcome", req.url));
+    }
     const url = new URL("/login", req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
