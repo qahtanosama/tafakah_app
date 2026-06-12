@@ -11,8 +11,10 @@ import { Search, DollarSign, TrendingUp, Clock, Trophy, Wallet } from "lucide-re
 import type { ContractFinance } from "@/types/finance";
 import { calcTotals } from "@/lib/sales-contract";
 import { calcSummary } from "@/lib/finance";
+import { isFobIncoterm, freightBilledTotal } from "@/lib/shipping";
 import { useContracts } from "@/lib/data/contracts";
 import { useAllFinance, type FinanceRow } from "@/lib/data/finance";
+import { useAllShipping } from "@/lib/data/shipping";
 import { Card } from "@/components/ui/card";
 
 /** Adapt a Supabase finance row to the ContractFinance shape calcSummary expects. */
@@ -45,6 +47,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function FinanceOverview() {
   const { data: contractRows, isLoading } = useContracts();
   const { data: financeByCid } = useAllFinance();
+  const { data: shippingByCid } = useAllShipping();
   const [search, setSearch] = useState("");
   const loaded = !isLoading;
 
@@ -60,6 +63,7 @@ export default function FinanceOverview() {
           buyer: c.master_snapshot?.buyer?.company?.trim() || "—",
           lineItems: c.master_snapshot?.lineItems ?? [],
           numberOfContainers: c.master_snapshot?.terms?.numberOfContainers,
+          incoterm: c.master_snapshot?.shipping?.incoterm,
         })),
     [contractRows]
   );
@@ -69,10 +73,15 @@ export default function FinanceOverview() {
     for (const c of contracts) {
       const t = calcTotals(c.lineItems, c.numberOfContainers);
       const f = rowToFinance(financeByCid?.[c.id]);
-      map[c.contractNo] = calcSummary(t.totalUSD, f);
+      // FOB only: sea freight billed to the buyer is revenue (0 for CIF/CFR).
+      const sh = shippingByCid?.[c.id];
+      const freightRevenue = isFobIncoterm(c.incoterm)
+        ? freightBilledTotal(sh?.freight_base, sh?.freight_additional)
+        : 0;
+      map[c.contractNo] = calcSummary(t.totalUSD, f, freightRevenue);
     }
     return map;
-  }, [contracts, financeByCid]);
+  }, [contracts, financeByCid, shippingByCid]);
 
   // Dashboard stats
   const stats = useMemo(() => {

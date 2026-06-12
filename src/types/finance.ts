@@ -52,7 +52,12 @@ export interface ContractFinance {
 export type PaymentStatus = "unpaid" | "partial" | "paid" | "overpaid";
 
 export interface FinanceSummary {
+  /** Goods + freight billed. `revenue = goodsRevenue + freightRevenue`. */
   revenue: number;
+  /** Revenue from the goods (sales-contract line items). */
+  goodsRevenue: number;
+  /** Sea freight billed to the buyer — FOB only, else 0. NOT freight paid. */
+  freightRevenue: number;
   totalCost: number;
   grossProfit: number;
   margin: number;

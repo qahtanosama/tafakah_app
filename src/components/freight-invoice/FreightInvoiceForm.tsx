@@ -7,12 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useContract } from "@/lib/data/contracts";
 import { useShipping } from "@/lib/data/shipping";
 import { buildContractDocumentData } from "@/lib/contracts/document-data";
+import { isFobIncoterm, freightBilledTotal } from "@/lib/shipping";
 import FreightInvoicePDFDownload from "./FreightInvoicePDFDownload";
-
-/** FOB gate — incoterm is free text (e.g. "FOB SHEKOU"), so prefix-match. */
-export function isFobIncoterm(incoterm: string | undefined | null): boolean {
-  return !!incoterm && incoterm.trim().toUpperCase().startsWith("FOB");
-}
 
 function EmptyState({ icon, title, body, action }: { icon: React.ReactNode; title: string; body: string; action?: React.ReactNode }) {
   return (
@@ -80,7 +76,7 @@ export default function FreightInvoiceForm() {
   // (folds B/L + containers over the snapshot so the header renders them).
   // Non-null here: the `!row || !snapshot` guard above has already returned.
   const data = buildContractDocumentData(row)!.data;
-  const total = (freightBase ?? 0) + (freightAdditional ?? 0);
+  const total = freightBilledTotal(freightBase, freightAdditional);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-6 py-8">

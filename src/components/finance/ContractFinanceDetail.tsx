@@ -19,7 +19,9 @@ import { PAYMENT_METHODS } from "@/types/finance";
 import { calcTotals } from "@/lib/sales-contract";
 import { getFinance, createEmptyFinance, ensurePredefinedRows, calcSummary, costToUSD, isValidRmbRate, rmbRateWarning } from "@/lib/finance";
 import { backfillPaymentIds } from "@/lib/finance/backfill-payment-ids";
+import { isFobIncoterm, freightBilledTotal } from "@/lib/shipping";
 import { useContractByNo } from "@/lib/data/contracts";
+import { useShipping } from "@/lib/data/shipping";
 import { useFinance, useSaveFinance } from "@/lib/data/finance";
 import PaymentReceipts from "@/components/finance/PaymentReceipts";
 
@@ -161,6 +163,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   const contractRow = contractQuery.data;
   const contractId = contractRow?.id ?? null;
   const { data: financeRow, isLoading: financeLoading } = useFinance(contractId ?? undefined);
+  const { data: shippingRow } = useShipping(contractId ?? undefined);
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveFinanceMut = useSaveFinance(contractId ?? "", (msg) => setSaveError(msg));
 
@@ -195,8 +198,13 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
   }, [contractNo, contractId, contractQuery.isLoading, financeLoading, financeRow]);
 
   const totals = useMemo(() => snapshot ? calcTotals(snapshot.lineItems, snapshot.terms?.numberOfContainers) : null, [snapshot]);
-  const revenue = totals?.totalUSD ?? 0;
-  const summary = useMemo(() => calcSummary(revenue, finance), [revenue, finance]);
+  const goodsRevenue = totals?.totalUSD ?? 0;
+  // FOB only: the buyer is billed sea freight, so it counts as revenue. Same
+  // contract_shipping value the Freight Invoice uses; 0 for CIF/CFR.
+  const freightRevenue = isFobIncoterm(snapshot?.shipping?.incoterm)
+    ? freightBilledTotal(shippingRow?.freight_base, shippingRow?.freight_additional)
+    : 0;
+  const summary = useMemo(() => calcSummary(goodsRevenue, finance, freightRevenue), [goodsRevenue, finance, freightRevenue]);
 
   const flashSaved = useCallback((id: string) => {
     setSavedId(id);
@@ -289,7 +297,7 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
         <Link href="/finance" className="text-zinc-400 hover:text-zinc-600"><ArrowLeft className="h-5 w-5" /></Link>
         <div>
           <h1 className="text-2xl font-bold">{contractNo}</h1>
-          <p className="text-base text-zinc-500">{buyer} &middot; {fmtDate(dateSubmitted)} &middot; {fmtUSD(revenue)}</p>
+          <p className="text-base text-zinc-500">{buyer} &middot; {fmtDate(dateSubmitted)} &middot; {fmtUSD(summary.revenue)}</p>
         </div>
       </div>
 
@@ -304,10 +312,16 @@ export default function ContractFinanceDetail({ contractNo }: { contractNo: stri
         </div>
       )}
 
-      {/* Summary cards */}
+      {/* Summary cards. On FOB, freight billed to the buyer is shown as its own
+          revenue line alongside goods (header above shows the combined total). */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { label: "Revenue", value: fmtUSD(summary.revenue), color: "text-zinc-700" },
+          ...(summary.freightRevenue > 0
+            ? [
+                { label: "Goods Revenue", value: fmtUSD(summary.goodsRevenue), color: "text-zinc-700" },
+                { label: "Sea Freight (billed)", value: fmtUSD(summary.freightRevenue), color: "text-zinc-700" },
+              ]
+            : [{ label: "Revenue", value: fmtUSD(summary.revenue), color: "text-zinc-700" }]),
           { label: "Total Cost", value: fmtUSD(summary.totalCost), color: "text-red-600" },
           { label: "Gross Profit", value: fmtUSD(summary.grossProfit), color: summary.grossProfit >= 0 ? "text-emerald-600" : "text-red-600" },
           { label: "Margin", value: summary.margin.toFixed(1) + "%", color: summary.margin >= 15 ? "text-emerald-600" : "text-amber-600" },

@@ -27,7 +27,7 @@ import { useAllShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import { useAuth } from "@/hooks/useAuth";
 import { calcTotals } from "@/lib/sales-contract";
 import { calcSummary } from "@/lib/finance";
-import { getStatusInfo } from "@/lib/shipping";
+import { getStatusInfo, isFobIncoterm, freightBilledTotal } from "@/lib/shipping";
 import type { ShippingEntry } from "@/types/shipping";
 import { STAGE_ORDER, STAGE_LABELS, type WorkflowStage } from "@/types/workflow";
 import Link from "next/link";
@@ -143,10 +143,15 @@ export default function ContractLogTable() {
     for (const c of contracts) {
       const snap = c.master_snapshot;
       const t = snap ? calcTotals(snap.lineItems, snap.terms?.numberOfContainers) : { totalUSD: 0 } as ReturnType<typeof calcTotals>;
-      map[c.contract_no] = calcSummary(t.totalUSD, rowToFinance(financeByCid?.[c.id]));
+      // FOB only: sea freight billed to the buyer is revenue (0 for CIF/CFR).
+      const sh = shippingByCid?.[c.id];
+      const freightRevenue = isFobIncoterm(snap?.shipping?.incoterm)
+        ? freightBilledTotal(sh?.freight_base, sh?.freight_additional)
+        : 0;
+      map[c.contract_no] = calcSummary(t.totalUSD, rowToFinance(financeByCid?.[c.id]), freightRevenue);
     }
     return map;
-  }, [contracts, financeByCid]);
+  }, [contracts, financeByCid, shippingByCid]);
 
   const shippingMap = useMemo(() => {
     const map: Record<string, ShippingEntry | null> = {};

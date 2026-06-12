@@ -143,7 +143,19 @@ export function deletePayment(contractNo: string, paymentId: string): void {
   saveFinance(f);
 }
 
-export function calcSummary(revenue: number, finance: ContractFinance | null): FinanceSummary {
+/**
+ * @param goodsRevenue   Revenue from the sales-contract line items.
+ * @param freightRevenue Sea freight billed to the buyer (FOB only; 0 otherwise).
+ *   Callers gate on incoterm — passing 0 keeps behavior identical to before, so
+ *   CIF/CFR never gains a freight line. This is freight billed (revenue), NOT
+ *   the freight-paid cost item, which lives in `finance.costs`.
+ */
+export function calcSummary(
+  goodsRevenue: number,
+  finance: ContractFinance | null,
+  freightRevenue = 0
+): FinanceSummary {
+  const revenue = goodsRevenue + freightRevenue;
   // Costs may be USD or RMB; convert each to USD via the per-contract rate.
   const rate = finance?.rmbUsdRate ?? null;
   const totalCost = finance ? finance.costs.reduce((s, c) => s + costToUSD(c, rate), 0) : 0;
@@ -157,5 +169,5 @@ export function calcSummary(revenue: number, finance: ContractFinance | null): F
   else if (totalReceived >= revenue - 1) paymentStatus = totalReceived > revenue + 1 ? "overpaid" : "paid";
   else paymentStatus = "partial";
 
-  return { revenue, totalCost, grossProfit, margin, totalReceived, outstanding, paymentStatus };
+  return { revenue, goodsRevenue, freightRevenue, totalCost, grossProfit, margin, totalReceived, outstanding, paymentStatus };
 }

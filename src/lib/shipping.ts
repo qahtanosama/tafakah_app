@@ -7,6 +7,28 @@ import type {
 
 const STORAGE_KEY = "shipping-tracker";
 
+/**
+ * FOB gate — incoterm is free text (e.g. "FOB SHEKOU"), so prefix-match.
+ * On FOB contracts the buyer is billed the sea freight (revenue); on CIF/CFR
+ * it's baked into goods price, so there's no separate freight-revenue line.
+ */
+export function isFobIncoterm(incoterm: string | undefined | null): boolean {
+  return !!incoterm && incoterm.trim().toUpperCase().startsWith("FOB");
+}
+
+/**
+ * Sea freight billed to the buyer (revenue) = base + additional, the SAME
+ * value the Freight Invoice uses. Read from contract_shipping; null components
+ * count as 0. This is freight billed — NOT the freight paid to the line, which
+ * is a separate cost item the user enters in Finance.
+ */
+export function freightBilledTotal(
+  freightBase: number | null | undefined,
+  freightAdditional: number | null | undefined
+): number {
+  return (freightBase ?? 0) + (freightAdditional ?? 0);
+}
+
 export function getAllShipping(): ShippingEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
