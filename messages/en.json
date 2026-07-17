@@ -161,6 +161,57 @@
       "currency": {
         "usd": "USD"
       }
+    },
+    "arrivalReport": {
+      "heading": "Arrival Report",
+      "intro": "Tell us how your shipment arrived. Add a report per container, with photos and feedback.",
+      "addReport": "Add report",
+      "edit": "Edit",
+      "cancel": "Cancel",
+      "save": "Save report",
+      "saving": "Saving…",
+      "noReports": "No arrival reports yet.",
+      "container": "Container",
+      "containerNone": "Select a container",
+      "arrivalDate": "Arrival date",
+      "damagedBoxes": "Damaged boxes",
+      "totalBoxes": "Total boxes received",
+      "condition": "Condition on arrival",
+      "conditions": {
+        "good": "Good",
+        "fair": "Fair",
+        "poor": "Poor"
+      },
+      "issues": "Issues",
+      "tags": {
+        "rot": "Rot",
+        "mould": "Mould",
+        "sprouting": "Sprouting",
+        "over-ripe": "Over-ripe"
+      },
+      "comments": "Comments / what to improve",
+      "commentsPlaceholder": "How did the goods arrive? Anything we should improve?",
+      "photos": "Photos",
+      "addPhotos": "Add photos",
+      "photosHint": "Up to 10 images (boxes, damage, container). JPG, PNG, WEBP or HEIC, max 15 MB each.",
+      "selectedCount": "{count} selected",
+      "reportedOn": "Reported {date}",
+      "errors": {
+        "notSignedIn": "Please sign in again.",
+        "accessDenied": "You do not have access to this contract.",
+        "invalidContainer": "That container is not on this contract.",
+        "invalidNumber": "Box counts must be whole numbers of 0 or more.",
+        "tooManyPhotos": "Too many photos — 10 maximum.",
+        "badPhotoType": "Only image files are allowed (JPG, PNG, WEBP, HEIC).",
+        "photoTooLarge": "One of the images is too large (15 MB max).",
+        "uploadFailed": "Photo upload failed. Please try again.",
+        "saveFailed": "Could not save the report. Please try again.",
+        "deleteFailed": "Could not delete the report. Please try again."
+      },
+      "delete": "Delete",
+      "deleteConfirm": "Delete this report?",
+      "deleteYes": "Yes, delete",
+      "deleting": "Deleting…"
     }
   }
 }

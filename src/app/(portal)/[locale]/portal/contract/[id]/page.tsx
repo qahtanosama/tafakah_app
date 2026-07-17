@@ -12,6 +12,10 @@ import GeneratedDocDownload from "@/components/portal/GeneratedDocDownload";
 import ShippingStatusBadge from "@/components/portal/ShippingStatusBadge";
 import MergeDocumentsDialog from "@/components/portal/MergeDocumentsDialog";
 import FinalPackageCard from "@/components/portal/FinalPackageCard";
+import ArrivalReportSection, { type ArrivalReportLabels } from "@/components/portal/ArrivalReportSection";
+import { loadArrivalReportsWithPhotos } from "@/lib/portal/arrival-reports-data";
+import { getStatusInfo } from "@/lib/shipping";
+import type { ShippingEntry, ShippingStatusOverride } from "@/types/shipping";
 import { formatCurrency, formatDate, formatNumber, type AppLocale } from "@/lib/i18n/format";
 
 interface ContractRow {
@@ -69,6 +73,7 @@ export default async function ContractDetailPage({
   const t = await getTranslations({ locale, namespace: "portal.contractDetail" });
   const tShip = await getTranslations({ locale, namespace: "portal.shipping" });
   const tDocTypes = await getTranslations({ locale, namespace: "portal.documentTypes" });
+  const tArr = await getTranslations({ locale, namespace: "portal.arrivalReport" });
   const loc = locale as AppLocale;
 
   const supabase = await createClient();
@@ -115,6 +120,62 @@ export default async function ContractDetailPage({
   const finance = financeRaw as FinanceRow | null;
   const documents = (documentsRaw as DocumentRow[] | null) ?? [];
 
+  // Client after-sales / arrival reports (RLS-scoped: client sees only their own).
+  const arrivalReports = await loadArrivalReportsWithPhotos(supabase, id);
+  const arrivalLabels: ArrivalReportLabels = {
+    heading: tArr("heading"),
+    intro: tArr("intro"),
+    addReport: tArr("addReport"),
+    edit: tArr("edit"),
+    delete: tArr("delete"),
+    deleteConfirm: tArr("deleteConfirm"),
+    deleteYes: tArr("deleteYes"),
+    deleting: tArr("deleting"),
+    cancel: tArr("cancel"),
+    save: tArr("save"),
+    saving: tArr("saving"),
+    noReports: tArr("noReports"),
+    container: tArr("container"),
+    containerNone: tArr("containerNone"),
+    arrivalDate: tArr("arrivalDate"),
+    damagedBoxes: tArr("damagedBoxes"),
+    totalBoxes: tArr("totalBoxes"),
+    condition: tArr("condition"),
+    conditions: {
+      good: tArr("conditions.good"),
+      fair: tArr("conditions.fair"),
+      poor: tArr("conditions.poor"),
+    },
+    issues: tArr("issues"),
+    tags: {
+      rot: tArr("tags.rot"),
+      mould: tArr("tags.mould"),
+      sprouting: tArr("tags.sprouting"),
+      "over-ripe": tArr("tags.over-ripe"),
+    },
+    comments: tArr("comments"),
+    commentsPlaceholder: tArr("commentsPlaceholder"),
+    photos: tArr("photos"),
+    addPhotos: tArr("addPhotos"),
+    photosHint: tArr("photosHint"),
+    selectedCount: tArr("selectedCount"),
+    reportedOn: tArr("reportedOn"),
+    errors: {
+      notSignedIn: tArr("errors.notSignedIn"),
+      missingContract: tArr("errors.saveFailed"),
+      accessDenied: tArr("errors.accessDenied"),
+      invalidContainer: tArr("errors.invalidContainer"),
+      invalidCondition: tArr("errors.saveFailed"),
+      invalidNumber: tArr("errors.invalidNumber"),
+      tooManyPhotos: tArr("errors.tooManyPhotos"),
+      badPhotoType: tArr("errors.badPhotoType"),
+      photoTooLarge: tArr("errors.photoTooLarge"),
+      uploadFailed: tArr("errors.uploadFailed"),
+      saveFailed: tArr("errors.saveFailed"),
+      deleteFailed: tArr("errors.deleteFailed"),
+    },
+  };
+
   // Uploaded certificates the client may add to a merge — PDFs only (pdf-lib
   // can't merge images), ordered to match the team's Stage-6 package.
   const CERT_TYPES = ["co", "health", "phyto", "bl", "other"];
@@ -150,6 +211,20 @@ export default async function ContractDetailPage({
     .map((c) => (typeof c?.number === "string" ? c.number : ""))
     .filter((n) => n.length > 0);
   const hasShippingDocs = !!contract.bl_number || containerNumbers.length > 0;
+
+  // Arrival-report gate. The workflow stage and the shipping status badge are
+  // independent axes (a contract can read "Delivered" via ata/override while its
+  // current_stage still lags). Resolve the status with the SAME getStatusInfo the
+  // badge uses, so the section shows exactly when the client sees "Delivered".
+  const arrivalShippingStatus = getStatusInfo({
+    etd: shipping?.etd ?? "",
+    atd: shipping?.atd ?? null,
+    eta: shipping?.eta ?? "",
+    ata: shipping?.ata ?? null,
+    statusOverride: (shipping?.status_override ?? "auto") as ShippingStatusOverride,
+  } as unknown as ShippingEntry);
+  const showArrivalReport =
+    showShippingDocs || arrivalShippingStatus.status === "delivered";
 
   const shippingForTimeline: ShippingData | null = shipping
     ? {
@@ -275,6 +350,19 @@ export default async function ContractDetailPage({
           <ShippingTimeline shipping={shippingForTimeline} stage={contract.current_stage} />
         </div>
       </section>
+
+      {/* Arrival / after-sales report — client-written, shown once the shipment
+          reads as shipped-or-later (workflow stage) OR Delivered (ata/override). */}
+      {showArrivalReport && (
+        <ArrivalReportSection
+          contractId={id}
+          locale={loc}
+          currentUserId={userData.user.id}
+          containerNumbers={containerNumbers}
+          reports={arrivalReports}
+          labels={arrivalLabels}
+        />
+      )}
 
       {/* Final Document Package — only renders if merged PDF exists */}
       {contract.merged_pdf_path && (

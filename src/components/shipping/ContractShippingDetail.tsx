@@ -24,6 +24,7 @@ import { fetchShipmentFromShipsgo, mergeTrackIntoEntry, formatRelativeTime, isSt
 import { useRouter } from "next/navigation";
 import StageStrip from "@/components/workflow/StageStrip";
 import ShippingDocsSection from "@/components/shipping/ShippingDocsSection";
+import ArrivalReportsCard from "@/components/shipping/ArrivalReportsCard";
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "\u2014";
@@ -467,6 +468,9 @@ export default function ContractShippingDetail({ contractNo }: { contractNo: str
           </CardContent>
         </Card>
       )}
+
+      {/* Arrival reports — client-submitted, read-only (renders only if any exist) */}
+      <ArrivalReportsCard contractId={contractId} />
 
       {/* Booking */}
       <Card>
