@@ -47,7 +47,11 @@ export function useAuth() {
       });
     }
 
-    supabase.auth.getUser().then(({ data }) => load(data.user));
+    // Read the session from local cookie storage instead of round-tripping to
+    // the auth server on every hard load — the proxy has already verified the
+    // JWT before this page was served, and onAuthStateChange below keeps the
+    // state honest across sign-in/out and token refreshes.
+    supabase.auth.getSession().then(({ data }) => load(data.session?.user ?? null));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       load(session?.user ?? null);
     });

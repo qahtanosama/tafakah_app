@@ -52,9 +52,14 @@ export async function proxy(req: NextRequest) {
     }
   );
 
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
-  if (!user) {
+  // getClaims() verifies the session JWT locally against the project's public
+  // signing keys (cached process-wide for 10 min) — no auth-server round trip
+  // on the hot path. Expired sessions still refresh through the cookie flow
+  // above, and legacy HS256 tokens make it fall back to a server check
+  // internally, so behavior is identical either way.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
+  if (!claims?.sub) {
     // Unauthenticated root → show the welcome/landing page while keeping the
     // URL at `/` (rewrite, not redirect). Deep links keep the /login?next=…
     // flow so the user returns to where they were headed after signing in.
@@ -66,13 +71,26 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const { data: profile } = await supabase
-    .from("users_profile")
-    .select("role, is_active, preferred_language")
-    .eq("user_id", user.id)
-    .single();
+  // Authorization fields ride inside the token (see the custom_access_token_hook
+  // migration), so the per-request users_profile query disappears. Sessions
+  // issued before the hook was enabled lack the claim — fall back to the DB
+  // for those until they refresh. Freshness note: claim values lag a profile
+  // change by up to one token TTL; server actions and admin pages keep their
+  // own direct DB checks.
+  interface ProfileClaims { role: string | null; is_active: boolean; preferred_language: string | null }
+  const fromToken = (claims as Record<string, unknown>).app_profile as ProfileClaims | undefined;
+  let profile: ProfileClaims | null =
+    fromToken && typeof fromToken === "object" && "role" in fromToken ? fromToken : null;
+  if (!profile) {
+    const { data } = await supabase
+      .from("users_profile")
+      .select("role, is_active, preferred_language")
+      .eq("user_id", claims.sub)
+      .single();
+    profile = (data as ProfileClaims | null) ?? null;
+  }
 
-  if (!profile || !profile.is_active) {
+  if (!profile || !profile.role || !profile.is_active) {
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL("/login?error=disabled", req.url));
   }
