@@ -116,6 +116,9 @@ export function compressImage(base64: string, maxWidth = 1200): Promise<string> 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL("image/jpeg", 0.8));
     };
+    // Formats the browser can't decode (e.g. HEIC outside Safari) would
+    // otherwise never fire onload and hang the upload — pass them through.
+    img.onerror = () => resolve(base64);
     img.src = base64;
   });
 }

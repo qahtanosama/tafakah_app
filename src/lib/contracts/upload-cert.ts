@@ -2,22 +2,12 @@
 
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const STORAGE_BUCKET = "contract-documents";
-const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/heic",
-  "image/heif",
-  "image/webp",
-]);
-
-// `bl` = bill of lading. The DB check constraint allows
-// sc, ci, ci-customs, pl, co, health, phyto, bl, other.
-const ALLOWED_DOC_TYPES = new Set(["co", "bl", "phyto", "health", "other"] as const);
-type DocType = "co" | "bl" | "phyto" | "health" | "other";
+import {
+  CONTRACT_DOCUMENTS_BUCKET,
+  MAX_CERT_SIZE_BYTES,
+  ALLOWED_CERT_DOC_TYPES,
+  type CertDocType,
+} from "./cert-storage";
 
 export type UploadCertResult =
   | { ok: true; documentId: string; storagePath: string }
@@ -38,68 +28,67 @@ async function requireTeam(): Promise<{ ok: true; userId: string } | { ok: false
   return { ok: true, userId: userData.user.id };
 }
 
-function sanitizeForPath(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/\.[^.]*$/, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 50) || "file";
-}
-
-function extOf(name: string, fallback: string): string {
-  const m = /\.([^.]+)$/.exec(name);
-  return (m?.[1] ?? fallback).toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-interface UploadInput {
+interface FinalizeInput {
   contractId: string;
-  docType: DocType;
+  docType: CertDocType;
+  /** Path the browser just uploaded to — must live under this contract's certs/ folder. */
+  storagePath: string;
   fileName: string;
   mimeType: string;
-  /** base64 (no data: prefix) — Server Actions can't accept FormData binary cleanly across boundaries, so callers encode. */
-  base64: string;
+  sizeBytes: number;
   /** Optional AI-classifier output to persist alongside the file. */
   aiMetadata?: Record<string, unknown> | null;
 }
 
-export async function uploadCertificate(input: UploadInput): Promise<UploadCertResult> {
+/**
+ * Register a cert the browser already uploaded straight to Storage.
+ *
+ * The file bytes never pass through this action — Server Action bodies are
+ * size-limited, and scanned health/phyto certificates routinely run to tens
+ * of megabytes. The browser uploads with the RLS-scoped client (team-only
+ * bucket write policy), then calls this to archive any replaced cert and
+ * insert the metadata row.
+ */
+export async function finalizeCertUpload(input: FinalizeInput): Promise<UploadCertResult> {
   try {
     const guard = await requireTeam();
     if (!guard.ok) return { ok: false, error: guard.error };
 
-    if (!input.contractId || !input.docType || !input.fileName || !input.base64) {
+    if (!input.contractId || !input.docType || !input.fileName || !input.storagePath) {
       return { ok: false, error: "Missing required fields" };
     }
-    if (!ALLOWED_DOC_TYPES.has(input.docType)) {
+    if (!ALLOWED_CERT_DOC_TYPES.has(input.docType)) {
       return { ok: false, error: `Unsupported docType: ${input.docType}` };
     }
-    if (input.mimeType && !ALLOWED_MIME_TYPES.has(input.mimeType)) {
-      return { ok: false, error: `Unsupported file type: ${input.mimeType}` };
-    }
 
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(input.base64, "base64");
-    } catch {
-      return { ok: false, error: "Invalid file payload" };
+    // The client re-submits the path it uploaded to; pin it to this
+    // contract's certs/ folder so a row can't point anywhere else.
+    const certsFolder = `contracts/${input.contractId}/certs`;
+    const leaf = input.storagePath.startsWith(`${certsFolder}/`)
+      ? input.storagePath.slice(certsFolder.length + 1)
+      : "";
+    if (!leaf || leaf.includes("/") || leaf.includes("..")) {
+      return { ok: false, error: "Invalid storage path" };
     }
-    if (buffer.length === 0) return { ok: false, error: "Empty file" };
-    if (buffer.length > MAX_SIZE_BYTES) {
-      return { ok: false, error: `File too large (max 50 MB, got ${(buffer.length / 1024 / 1024).toFixed(1)} MB)` };
-    }
-
-    const ext = extOf(input.fileName, input.mimeType.startsWith("image/") ? "jpg" : "pdf");
-    const timestamp = Date.now();
-    const storagePath =
-      input.docType === "other"
-        ? `contracts/${input.contractId}/certs/other-${timestamp}-${sanitizeForPath(input.fileName)}.${ext}`
-        : `contracts/${input.contractId}/certs/${input.docType}-${timestamp}.${ext}`;
 
     const admin = createAdminClient();
 
+    // Confirm the blob actually landed and read its true size before
+    // registering the row.
+    const { data: objects, error: listError } = await admin.storage
+      .from(CONTRACT_DOCUMENTS_BUCKET)
+      .list(certsFolder, { search: leaf });
+    if (listError) return { ok: false, error: `Storage check failed: ${listError.message}` };
+    const object = objects?.find((o) => o.name === leaf);
+    if (!object) return { ok: false, error: "Uploaded file not found in storage" };
+    const sizeBytes = (object.metadata as { size?: number } | null)?.size ?? input.sizeBytes;
+    if (sizeBytes > MAX_CERT_SIZE_BYTES) {
+      await admin.storage.from(CONTRACT_DOCUMENTS_BUCKET).remove([input.storagePath]);
+      return { ok: false, error: `File too large (max 50 MB, got ${(sizeBytes / 1024 / 1024).toFixed(1)} MB)` };
+    }
+
     // Replacement semantics: for any non-"other" type, archive + remove the
-    // currently-active row (and its blob) BEFORE uploading the new one. The
+    // currently-active row (and its blob) BEFORE inserting the new one. The
     // partial unique index `(contract_id, doc_type) where is_archived = false
     // and doc_type <> 'other'` would otherwise reject the insert.
     if (input.docType !== "other") {
@@ -115,30 +104,22 @@ export async function uploadCertificate(input: UploadInput): Promise<UploadCertR
           .from("contract_documents")
           .update({ is_archived: true, archived_at: new Date().toISOString() })
           .eq("id", old.id);
-        if (old.storage_path) {
-          await admin.storage.from(STORAGE_BUCKET).remove([old.storage_path]);
+        if (old.storage_path && old.storage_path !== input.storagePath) {
+          await admin.storage.from(CONTRACT_DOCUMENTS_BUCKET).remove([old.storage_path]);
         }
       }
     }
-
-    const { error: uploadError } = await admin.storage
-      .from(STORAGE_BUCKET)
-      .upload(storagePath, buffer, {
-        contentType: input.mimeType || "application/octet-stream",
-        upsert: false,
-      });
-    if (uploadError) return { ok: false, error: `Upload failed: ${uploadError.message}` };
 
     const { data: doc, error: insertError } = await admin
       .from("contract_documents")
       .insert({
         contract_id: input.contractId,
         doc_type: input.docType,
-        storage_path: storagePath,
+        storage_path: input.storagePath,
         file_name: input.fileName,
         mime_type: input.mimeType || null,
-        size_bytes: buffer.length,
-        file_size: buffer.length,
+        size_bytes: sizeBytes,
+        file_size: sizeBytes,
         is_archived: false,
         ai_metadata: input.aiMetadata ?? null,
         uploaded_by: guard.userId,
@@ -148,11 +129,11 @@ export async function uploadCertificate(input: UploadInput): Promise<UploadCertR
 
     if (insertError || !doc) {
       // Rollback: drop the orphan blob.
-      await admin.storage.from(STORAGE_BUCKET).remove([storagePath]);
+      await admin.storage.from(CONTRACT_DOCUMENTS_BUCKET).remove([input.storagePath]);
       return { ok: false, error: `Insert failed: ${insertError?.message ?? "unknown"}` };
     }
 
-    return { ok: true, documentId: doc.id as string, storagePath };
+    return { ok: true, documentId: doc.id as string, storagePath: input.storagePath };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -178,7 +159,7 @@ export async function deleteCertificate(documentId: string): Promise<{ ok: true 
 
     const path = (doc as { storage_path: string | null }).storage_path;
     if (path) {
-      await admin.storage.from(STORAGE_BUCKET).remove([path]);
+      await admin.storage.from(CONTRACT_DOCUMENTS_BUCKET).remove([path]);
     }
 
     return { ok: true };

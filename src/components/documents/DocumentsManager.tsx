@@ -16,7 +16,9 @@ import type { TradeDocument, AnalyzeRequest, AnalyzeResponse, DocSlot, DocumentC
 import { RECEIVED_SLOTS, SLOT_LABELS, CATEGORY_LABELS, categoryToSlot } from "@/types/document";
 import { calcTotals } from "@/lib/sales-contract";
 import { compressImage } from "@/lib/documents";
-import { uploadCertificate, deleteCertificate } from "@/lib/contracts/upload-cert";
+import { finalizeCertUpload, deleteCertificate } from "@/lib/contracts/upload-cert";
+import { CONTRACT_DOCUMENTS_BUCKET, MAX_CERT_SIZE_BYTES, buildCertStoragePath } from "@/lib/contracts/cert-storage";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { listCertsForContract, type CertRow } from "@/lib/contracts/list-certs";
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
@@ -89,10 +91,16 @@ function certRowToTradeDoc(row: CertRow): TradeDocument {
   };
 }
 
-/** Strip the `data:<mime>;base64,` prefix; the server action wants raw base64. */
-function stripDataUrl(b64: string): string {
-  const idx = b64.indexOf(",");
-  return idx >= 0 ? b64.slice(idx + 1) : b64;
+/** Files above this skip the AI pass — too big to inline into the analysis request. */
+const ANALYZE_MAX_BYTES = 15 * 1024 * 1024;
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 /* ── Types for merge items ──────────────────────────── */
@@ -294,6 +302,10 @@ export default function DocumentsManager() {
       showToastMsg("error", docsError ?? "Contract not yet synced to the cloud \u2014 open Admin \u2192 Migrate first.");
       return;
     }
+    if (file.size > MAX_CERT_SIZE_BYTES) {
+      showToastMsg("error", `"${file.name}" is too large (max 50 MB).`);
+      return;
+    }
     const isImage = file.type.startsWith("image/");
     const tempId = crypto.randomUUID();
     const optimistic: TradeDocument = {
@@ -307,19 +319,25 @@ export default function DocumentsManager() {
       return [...filtered, optimistic];
     });
     try {
-      let base64DataUrl: string = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      if (isImage) base64DataUrl = await compressImage(base64DataUrl);
-      setDocs((prev) => prev.map((d) => (d.id === tempId ? { ...d, base64Data: base64DataUrl, status: "analyzing" } : d)));
+      // Images get recompressed before upload; everything else uploads as-is.
+      // The AI pass needs base64, so oversized non-image files skip it (the
+      // upload itself never depends on analysis).
+      let uploadBlob: Blob = file;
+      let mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
+      let base64DataUrl: string | null = null;
+      if (isImage) {
+        base64DataUrl = await compressImage(await readFileAsDataUrl(file));
+        uploadBlob = await (await fetch(base64DataUrl)).blob();
+        if (uploadBlob.type) mimeType = uploadBlob.type;
+      } else if (file.size <= ANALYZE_MAX_BYTES) {
+        base64DataUrl = await readFileAsDataUrl(file);
+      }
+      setDocs((prev) => prev.map((d) => (d.id === tempId ? { ...d, base64Data: base64DataUrl ?? "", status: "analyzing" } : d)));
 
       const pk = getActiveProviderKey();
       const t = calcTotals(contractData.lineItems, contractData.terms?.numberOfContainers);
       const reqBody: AnalyzeRequest = {
-        provider: pk.provider, apiKey: pk.apiKey, fileBase64: base64DataUrl, fileName: file.name, mimeType: file.type,
+        provider: pk.provider, apiKey: pk.apiKey, fileBase64: base64DataUrl ?? "", fileName: file.name, mimeType: file.type,
         masterData: {
           contractNo, buyer: contractData.buyer.company, origin: contractData.shipping.origin,
           loadingPort: contractData.shipping.loadingPort, dischargePort: contractData.shipping.dischargePort,
@@ -330,13 +348,15 @@ export default function DocumentsManager() {
         },
       };
       let analysis: AnalyzeResponse | null = null;
-      try {
-        const res = await fetch("/api/analyze-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody) });
-        if (!res.ok) throw new Error("Analysis API returned " + res.status);
-        analysis = await res.json();
-      } catch (err) {
-        // AI is best-effort. Keep going so the upload still succeeds.
-        console.warn("[documents] analysis failed, continuing without metadata:", err);
+      if (base64DataUrl) {
+        try {
+          const res = await fetch("/api/analyze-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody) });
+          if (!res.ok) throw new Error("Analysis API returned " + res.status);
+          analysis = await res.json();
+        } catch (err) {
+          // AI is best-effort. Keep going so the upload still succeeds.
+          console.warn("[documents] analysis failed, continuing without metadata:", err);
+        }
       }
 
       const finalSlot: DocSlot = targetSlot ?? (analysis ? categoryToSlot(analysis.category) : "other");
@@ -350,12 +370,23 @@ export default function DocumentsManager() {
           }
         : null;
 
-      const upload = await uploadCertificate({
+      // Upload straight from the browser to Storage (team-only RLS write
+      // policy) so the file never rides inside a size-limited Server Action
+      // body; the action below only registers the metadata row.
+      const storagePath = buildCertStoragePath(dbContractId, docType, file.name, mimeType);
+      const supabase = createBrowserClient();
+      const { error: storageError } = await supabase.storage
+        .from(CONTRACT_DOCUMENTS_BUCKET)
+        .upload(storagePath, uploadBlob, { contentType: mimeType, upsert: false });
+      if (storageError) throw new Error(`Upload failed: ${storageError.message}`);
+
+      const upload = await finalizeCertUpload({
         contractId: dbContractId,
         docType,
+        storagePath,
         fileName: file.name,
-        mimeType: file.type,
-        base64: stripDataUrl(base64DataUrl),
+        mimeType,
+        sizeBytes: uploadBlob.size,
         aiMetadata,
       });
       if (!upload.ok) throw new Error(upload.error);
@@ -600,7 +631,7 @@ export default function DocumentsManager() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-6 py-8">
-      <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileInput} />
+      <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif" onChange={handleFileInput} />
 
       {toast && (
         <div className={`fixed top-4 right-4 z-50 rounded-lg px-5 py-3 text-sm font-medium shadow-lg ${
@@ -764,7 +795,7 @@ export default function DocumentsManager() {
           <div>
             <h2 className="mb-3 text-lg font-bold">Received Documents</h2>
             <div className="mb-4">
-              <UploadZone onFiles={handleGeneralDrop} />
+              <UploadZone onFiles={handleGeneralDrop} onRejected={(message) => showToastMsg("error", message)} />
               <p className="mt-1 text-center text-xs text-zinc-400">Drop files here and AI will auto-assign them to the correct slot</p>
             </div>
             <div className="space-y-3">

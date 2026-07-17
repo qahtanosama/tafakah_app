@@ -1,22 +1,41 @@
 "use client";
 
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import { Upload } from "lucide-react";
+import { MAX_CERT_SIZE_BYTES } from "@/lib/contracts/cert-storage";
 
 interface Props {
   onFiles: (files: File[]) => void;
+  /** Called with a human-readable message when files are refused (too large / wrong type). */
+  onRejected?: (message: string) => void;
   disabled?: boolean;
 }
 
-export default function UploadZone({ onFiles, disabled }: Props) {
+function rejectionMessage(rejections: FileRejection[]): string {
+  const parts = rejections.map(({ file, errors }) => {
+    const code = errors[0]?.code;
+    const reason =
+      code === "file-too-large" ? "over 50 MB"
+      : code === "file-invalid-type" ? "unsupported type"
+      : errors[0]?.message ?? "rejected";
+    return `${file.name} (${reason})`;
+  });
+  return `Not uploaded: ${parts.join(", ")}`;
+}
+
+export default function UploadZone({ onFiles, onRejected, disabled }: Props) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: onFiles,
+    onDropRejected: (rejections) => onRejected?.(rejectionMessage(rejections)),
     accept: {
       "application/pdf": [".pdf"],
       "image/png": [".png"],
       "image/jpeg": [".jpg", ".jpeg"],
+      "image/webp": [".webp"],
+      "image/heic": [".heic"],
+      "image/heif": [".heif"],
     },
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_CERT_SIZE_BYTES,
     disabled,
   });
 
@@ -39,7 +58,7 @@ export default function UploadZone({ onFiles, disabled }: Props) {
             Drag & drop documents here, or click to browse
           </p>
           <p className="mt-1 text-xs text-zinc-400">
-            PDF, PNG, JPG up to 10 MB each
+            PDF or image (PNG, JPG, WEBP, HEIC) up to 50 MB each
           </p>
         </>
       )}
