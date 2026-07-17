@@ -59,6 +59,57 @@ export interface ContractRow {
   updated_at: string;
 }
 
+/**
+ * Snapshot fragments the LIST query carries — just what tables and analytics
+ * read (buyer name, line items, incoterm, container count, seller link). The
+ * heavy parts (seller block with its base64 stamp image, bank details,
+ * identifiers, notes) load per-contract via useContract/useContractByNo only.
+ */
+export type ContractListSnapshot = Partial<
+  Pick<SalesContractData, "buyer" | "shipping" | "lineItems" | "terms" | "sellerId">
+>;
+
+/** Slim list row. Anything needing the full snapshot must fetch the single contract. */
+export interface ContractListRow
+  extends Omit<ContractRow, "master_snapshot" | "line_items" | "terms" | "totals"> {
+  master_snapshot: ContractListSnapshot | null;
+}
+
+/** Newest-first cap for the list — keeps payloads bounded as history grows. */
+const LIST_LIMIT = 500;
+
+const LIST_SELECT =
+  "id, contract_no, invoice_no, buyer_id, seller_id, contract_date, current_stage, " +
+  "workflow_history, bl_number, containers, product_label, status, created_at, updated_at, " +
+  "ms_buyer:master_snapshot->buyer, ms_shipping:master_snapshot->shipping, " +
+  "ms_line_items:master_snapshot->lineItems, ms_terms:master_snapshot->terms, " +
+  "ms_seller_id:master_snapshot->>sellerId";
+
+interface RawListRow extends Omit<ContractListRow, "master_snapshot"> {
+  ms_buyer: SalesContractData["buyer"] | null;
+  ms_shipping: SalesContractData["shipping"] | null;
+  ms_line_items: SalesContractData["lineItems"] | null;
+  ms_terms: SalesContractData["terms"] | null;
+  ms_seller_id: string | null;
+}
+
+function toListRow(raw: RawListRow): ContractListRow {
+  const { ms_buyer, ms_shipping, ms_line_items, ms_terms, ms_seller_id, ...rest } = raw;
+  const hasSnapshot = ms_buyer || ms_shipping || ms_line_items || ms_terms || ms_seller_id;
+  return {
+    ...rest,
+    master_snapshot: hasSnapshot
+      ? {
+          buyer: ms_buyer ?? undefined,
+          shipping: ms_shipping ?? undefined,
+          lineItems: ms_line_items ?? undefined,
+          terms: ms_terms ?? undefined,
+          sellerId: ms_seller_id ?? undefined,
+        }
+      : null,
+  };
+}
+
 function useRealtimeContracts() {
   const qc = useQueryClient();
   useEffect(() => {
@@ -77,19 +128,25 @@ function useRealtimeContracts() {
   }, [qc]);
 }
 
-/** List all contracts the current user may see (RLS-scoped). */
+/**
+ * List all contracts the current user may see (RLS-scoped), as slim rows:
+ * scalar columns plus only the snapshot fragments list UIs read. Cuts the
+ * payload from ~full-history-of-everything (every row used to carry bank
+ * details and a base64 stamp image) to a bounded, mostly-scalar list.
+ */
 export function useContracts() {
   useRealtimeContracts();
-  return useQuery<ContractRow[]>({
+  return useQuery<ContractListRow[]>({
     queryKey: ["contracts"],
     queryFn: async () => {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("contracts")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select(LIST_SELECT)
+        .order("created_at", { ascending: false })
+        .limit(LIST_LIMIT);
       if (error) throw error;
-      return data as unknown as ContractRow[];
+      return (data as unknown as RawListRow[]).map(toListRow);
     },
   });
 }

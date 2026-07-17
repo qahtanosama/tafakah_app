@@ -2,24 +2,24 @@
  * Pure analytics over Supabase contracts (Batch 3.7a, replaces the localStorage
  * contract-log scans that used to live in lib/products.ts).
  *
- * Each function takes the `useContracts()` result (ContractRow[]) and aggregates
+ * Each function takes the `useContracts()` result (ContractListRow[]) and aggregates
  * over `master_snapshot.lineItems` / `master_snapshot.buyer`. No I/O — callers
  * pass already-fetched contracts so React Query handles caching.
  */
 
-import type { ContractRow } from "@/lib/data/contracts";
+import type { ContractListRow } from "@/lib/data/contracts";
 import type { PriceHistoryEntry } from "@/types/product";
 
-function buyerOf(c: ContractRow): string {
+function buyerOf(c: ContractListRow): string {
   return c.master_snapshot?.buyer?.company ?? "";
 }
 
-function lineItemsOf(c: ContractRow) {
+function lineItemsOf(c: ContractListRow) {
   return c.master_snapshot?.lineItems ?? [];
 }
 
 /** Price-history entries for a product across all (non-cancelled) contracts, newest first. */
-export function priceHistoryFor(contracts: ContractRow[], productName: string): PriceHistoryEntry[] {
+export function priceHistoryFor(contracts: ContractListRow[], productName: string): PriceHistoryEntry[] {
   const entries: PriceHistoryEntry[] = [];
   for (const c of contracts) {
     if (c.status === "Cancelled") continue;
@@ -40,7 +40,7 @@ export function priceHistoryFor(contracts: ContractRow[], productName: string): 
 
 /** Most recent price quoted to a buyer for a product, or null. */
 export function lastPriceToBuyer(
-  contracts: ContractRow[],
+  contracts: ContractListRow[],
   productName: string,
   buyerCompany: string
 ): number | null {
@@ -59,14 +59,14 @@ export function lastPriceToBuyer(
 }
 
 /** How many (non-cancelled) contracts include a given product. */
-export function productUsageCount(contracts: ContractRow[], productName: string): number {
+export function productUsageCount(contracts: ContractListRow[], productName: string): number {
   return contracts.filter(
     (c) => c.status !== "Cancelled" && lineItemsOf(c).some((i) => i.product === productName)
   ).length;
 }
 
 /** Contract counts keyed by lowercased buyer company name. */
-export function contractCountsByBuyer(contracts: ContractRow[]): Record<string, number> {
+export function contractCountsByBuyer(contracts: ContractListRow[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const c of contracts) {
     const key = buyerOf(c).toLowerCase();

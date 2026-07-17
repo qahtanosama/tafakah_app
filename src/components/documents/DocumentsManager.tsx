@@ -23,7 +23,7 @@ import { listCertsForContract, type CertRow } from "@/lib/contracts/list-certs";
 import { getActiveProviderKey } from "@/lib/settings";
 import { mergeDocuments } from "@/lib/pdf-merge";
 import { getStatusInfo } from "@/lib/shipping";
-import { useContracts, useSetCertRef, useClearCertRef } from "@/lib/data/contracts";
+import { useContracts, useContract, useSetCertRef, useClearCertRef } from "@/lib/data/contracts";
 import { buildContractDocumentData } from "@/lib/contracts/document-data";
 import { useShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import { saveBlobWithDownload } from "@/lib/quick-share/save-file";
@@ -226,16 +226,20 @@ export default function DocumentsManager() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingSlotRef = useRef<DocSlot | null>(null);
 
-  // Derived: selected contract entry
+  // Derived: selected contract entry (slim list row — combobox/id resolution).
   const selectedContract = useMemo(
     () => contracts.find((c) => c.contract_no === selectedContractNo),
     [contracts, selectedContractNo]
   );
+  // The list no longer carries the full master_snapshot (bank details, seller
+  // stamp, identifiers) — fetch the selected contract's complete row for the
+  // PDF builders and Quick Share.
+  const { data: fullContract } = useContract(selectedContract?.id);
   // Shared builder — the SAME data/totals the portal route feeds the PDFs, so
   // the team download/merge and the portal copy are byte-identical.
   const built = useMemo(
-    () => (selectedContract ? buildContractDocumentData(selectedContract) : null),
-    [selectedContract]
+    () => (fullContract ? buildContractDocumentData(fullContract) : null),
+    [fullContract]
   );
   const contractData = built?.data;
   const totals = built?.totals ?? null;
@@ -893,24 +897,24 @@ export default function DocumentsManager() {
         </div>
       )}
 
-      {selectedContract && selectedContract.master_snapshot && (
+      {fullContract && fullContract.master_snapshot && (
         <QuickShareDialog
           open={quickShareOpen}
           onClose={() => setQuickShareOpen(false)}
           contract={{
-            id: selectedContract.id,
-            contractNo: selectedContract.contract_no,
-            invoiceNo: selectedContract.invoice_no,
-            dateSubmitted: selectedContract.created_at,
-            buyer: selectedContract.master_snapshot.buyer?.company ?? "",
-            product: selectedContract.product_label ?? "",
-            status: selectedContract.status,
+            id: fullContract.id,
+            contractNo: fullContract.contract_no,
+            invoiceNo: fullContract.invoice_no,
+            dateSubmitted: fullContract.created_at,
+            buyer: fullContract.master_snapshot.buyer?.company ?? "",
+            product: fullContract.product_label ?? "",
+            status: fullContract.status,
             masterSnapshot: {
-              ...selectedContract.master_snapshot,
-              blNumber: selectedContract.bl_number,
-              containers: selectedContract.containers ?? [],
+              ...fullContract.master_snapshot,
+              blNumber: fullContract.bl_number,
+              containers: fullContract.containers ?? [],
             },
-            sellerId: selectedContract.master_snapshot.sellerId,
+            sellerId: fullContract.master_snapshot.sellerId,
           } as ContractLogEntry}
         />
       )}

@@ -21,7 +21,7 @@ import { Trash2, Pencil, Eye, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { ContractStatus } from "@/types/sales-contract";
 import type { ContractFinance } from "@/types/finance";
-import { useContracts, useDeleteContract, useSetContractStatus, type ContractRow } from "@/lib/data/contracts";
+import { useContracts, useDeleteContract, useSetContractStatus, type ContractListRow } from "@/lib/data/contracts";
 import { useAllFinance, type FinanceRow } from "@/lib/data/finance";
 import { useAllShipping, shippingRowToEntry } from "@/lib/data/shipping";
 import { useAuth } from "@/hooks/useAuth";
@@ -53,11 +53,11 @@ function formatDate(iso: string): string {
 }
 
 /** Derive a display buyer name from the frozen snapshot. */
-function buyerName(row: ContractRow): string {
+function buyerName(row: ContractListRow): string {
   return row.master_snapshot?.buyer?.company?.trim() || "—";
 }
 
-function productName(row: ContractRow): string {
+function productName(row: ContractListRow): string {
   return row.product_label || row.master_snapshot?.lineItems?.[0]?.product || "—";
 }
 
@@ -106,7 +106,7 @@ export default function ContractLogTable() {
   }, [contracts, search, stageFilter]);
 
   const handleDelete = useCallback(
-    (row: ContractRow) => {
+    (row: ContractListRow) => {
       // Hard delete in Supabase (cascades finance/shipping/documents).
       deleteContract.mutate({ id: row.id, hard: true });
     },
@@ -114,14 +114,14 @@ export default function ContractLogTable() {
   );
 
   const handleStatusChange = useCallback(
-    (row: ContractRow, status: ContractStatus) => {
+    (row: ContractListRow, status: ContractStatus) => {
       setStatus.mutate({ id: row.id, status });
     },
     [setStatus]
   );
 
   const handleEdit = useCallback(
-    (row: ContractRow) => {
+    (row: ContractListRow) => {
       if (!row.master_snapshot) return;
       // Super-admin edit: open the Master Data form in audited edit mode for
       // this contract (numbers locked; saved via editContract).
@@ -131,7 +131,7 @@ export default function ContractLogTable() {
   );
 
   const handleLoadActive = useCallback(
-    (row: ContractRow) => {
+    (row: ContractListRow) => {
       router.push(`/sales-contract?id=${row.id}`);
     },
     [router]
@@ -142,7 +142,7 @@ export default function ContractLogTable() {
     const map: Record<string, ReturnType<typeof calcSummary>> = {};
     for (const c of contracts) {
       const snap = c.master_snapshot;
-      const t = snap ? calcTotals(snap.lineItems, snap.terms?.numberOfContainers) : { totalUSD: 0 } as ReturnType<typeof calcTotals>;
+      const t = snap?.lineItems ? calcTotals(snap.lineItems, snap.terms?.numberOfContainers) : { totalUSD: 0 } as ReturnType<typeof calcTotals>;
       // FOB only: sea freight billed to the buyer is revenue (0 for CIF/CFR).
       const sh = shippingByCid?.[c.id];
       const freightRevenue = isFobIncoterm(snap?.shipping?.incoterm)
