@@ -52,7 +52,7 @@ function flipLocale(pathname: string | null): { otherLocale: "en" | "ar"; otherL
 }
 
 export default function AuthBadge() {
-  const { user, profile, role, loading, signOut } = useAuthContext();
+  const { user, profile, role, loading } = useAuthContext();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -78,14 +78,11 @@ export default function AuthBadge() {
 
   if (loading || !user || !profile) return null;
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     setSigningOut(true);
-    try {
-      await signOut();
-      window.location.href = "/login";
-    } finally {
-      setSigningOut(false);
-    }
+    // The /logout route records the audit event, signs out server-side, and
+    // redirects to /login; the full document navigation clears client state.
+    window.location.assign("/logout");
   };
 
   const fullName = profile.full_name?.trim() || user.email || "User";

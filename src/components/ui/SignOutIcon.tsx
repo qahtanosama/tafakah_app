@@ -2,20 +2,15 @@
 
 import { LogOut, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { useAuthContext } from "@/app/(team)/providers";
 
 export default function SignOutIcon() {
-  const { signOut } = useAuthContext();
   const [loading, setLoading] = useState(false);
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     setLoading(true);
-    try {
-      await signOut();
-      window.location.href = "/login";
-    } finally {
-      setLoading(false);
-    }
+    // The /logout route records the audit event, signs out server-side, and
+    // redirects to /login; the full document navigation clears client state.
+    window.location.assign("/logout");
   };
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,6 @@ import { createClient } from "@/lib/supabase/client";
 import { recordLoginEvent } from "@/app/(team)/login/log-login";
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +26,7 @@ export default function LoginForm() {
     if (!email || !password) return;
     setError(null);
     setBusy(true);
+    let navigating = false;
     try {
       const supabase = createClient();
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
@@ -63,23 +63,33 @@ export default function LoginForm() {
       // Audit log — best-effort, never block the redirect.
       void recordLoginEvent(user.id);
 
+      // Only same-site paths — a crafted ?next=https://evil.com (or //evil.com)
+      // must never become the post-login destination.
       const next = searchParams?.get("next");
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") && next !== "/login" ? next : null;
       let destination: string;
       if (profile.role === "client") {
         destination = profile.preferred_language === "ar" ? "/ar/portal" : "/portal";
       } else {
         // Both team and super_admin land on /. super_admin can navigate to
         // /admin/super from there.
-        destination = next && next !== "/login" ? next : "/";
+        destination = safeNext ?? "/";
       }
-      router.replace(destination);
-      router.refresh();
+      // Full-page navigation, deliberately NOT router.replace(): the client
+      // router still caches the logged-out payload for "/" (the middleware
+      // rewrite to /welcome), so a soft navigation lands back on the welcome
+      // screen until a manual reload. A document load re-runs the middleware
+      // with the fresh session cookies and clears the router cache.
+      navigating = true;
+      window.location.assign(destination);
     } catch (err) {
       setError((err as Error).message || "Login failed");
     } finally {
-      setBusy(false);
+      // Keep `busy` true through a successful sign-in — the page is about to
+      // unload, and re-enabling the form would flash an interactive state.
+      if (!navigating) setBusy(false);
     }
-  }, [email, password, router, searchParams]);
+  }, [email, password, searchParams]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm dark:bg-zinc-900">
