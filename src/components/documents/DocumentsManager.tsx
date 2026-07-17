@@ -121,9 +121,9 @@ function Timeline() {
     <div className="flex items-center gap-1 overflow-x-auto py-2 text-xs">
       {steps.map((s, i) => (
         <div key={i} className="flex items-center gap-1">
-          {i > 0 && <span className="text-zinc-300">&rarr;</span>}
+          {i > 0 && <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-600">&rarr;</span>}
           <span className={`whitespace-nowrap rounded-full px-2 py-0.5 ${
-            i === 3 ? "bg-emerald-100 font-medium text-emerald-700" : i < 3 ? "text-zinc-400" : "text-zinc-300"
+            i === 3 ? "bg-emerald-100 font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : i < 3 ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-400 dark:text-zinc-500"
           }`}>{i < 3 ? "\u2713 " : ""}{s}</span>
         </div>
       ))}
@@ -634,8 +634,10 @@ export default function DocumentsManager() {
       <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif" onChange={handleFileInput} />
 
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 rounded-lg px-5 py-3 text-sm font-medium shadow-lg ${
-          toast.type === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-800" : "border border-red-200 bg-red-50 text-red-800"
+        <div role={toast.type === "error" ? "alert" : "status"} className={`fixed top-4 right-4 z-50 rounded-lg px-5 py-3 text-sm font-medium shadow-lg ${
+          toast.type === "success"
+            ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+            : "border border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
         }`}>{toast.message}</div>
       )}
 
@@ -702,7 +704,7 @@ export default function DocumentsManager() {
               <span className="text-zinc-500">Shipment Package: {totalReady} of {totalExpected} documents ready</span>
               <span className="font-medium">{progressPct}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPct} aria-label="Shipment package completeness" className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
               <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progressPct}%` }} />
             </div>
           </div>
@@ -817,7 +819,7 @@ export default function DocumentsManager() {
                       <span className="truncate">{doc.fileName}</span>
                       {doc.status === "ready" && <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500">{CATEGORY_LABELS[doc.category]}</span>}
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleRemove(doc.id)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
+                    <Button variant="ghost" size="icon" aria-label={`Remove ${doc.fileName}`} onClick={() => handleRemove(doc.id)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
                   </div>
                 ))}
               </div>
@@ -841,10 +843,10 @@ export default function DocumentsManager() {
       {/* ═══ MERGE MODAL ═══ */}
       {showMergeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
+          <div role="dialog" aria-modal="true" aria-label="Create Shipment Package" className="mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold">Create Shipment Package</h3>
-              <button onClick={() => setShowMergeModal(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-5 w-5" /></button>
+              <button aria-label="Close" onClick={() => setShowMergeModal(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-5 w-5" /></button>
             </div>
             <p className="mb-2 text-xs text-zinc-400">Contract: {contractNo}</p>
 
