@@ -22,21 +22,44 @@ export const PORTS: Port[] = [
   // ── SAUDI ARABIA ──
   { code: "SAJED", name: "Jeddah Port", country: "Saudi Arabia", countryCode: "SA" },
   { code: "SADMM", name: "Dammam Port", country: "Saudi Arabia", countryCode: "SA" },
+  { code: "SAKAC", name: "King Abdullah Port (KAEC)", country: "Saudi Arabia", countryCode: "SA" },
+  { code: "SAGIZ", name: "Jizan Port", country: "Saudi Arabia", countryCode: "SA" },
   { code: "SAJUB", name: "Jubail Port", country: "Saudi Arabia", countryCode: "SA" },
   { code: "SAYNB", name: "Yanbu Port", country: "Saudi Arabia", countryCode: "SA" },
+  { code: "SADBA", name: "Duba Port (NEOM)", country: "Saudi Arabia", countryCode: "SA" },
 
   // ── UAE ──
   { code: "AEJEA", name: "Jebel Ali Port", country: "UAE", countryCode: "AE" },
-  { code: "AEAUH", name: "Abu Dhabi Port", country: "UAE", countryCode: "AE" },
-  { code: "AESHJ", name: "Sharjah Port", country: "UAE", countryCode: "AE" },
+  { code: "AEKLF", name: "Khor Fakkan Port", country: "UAE", countryCode: "AE" },
+  { code: "AEKHL", name: "Khalifa Port (Abu Dhabi)", country: "UAE", countryCode: "AE" },
+  { code: "AEAUH", name: "Zayed Port (Abu Dhabi)", country: "UAE", countryCode: "AE" },
+  { code: "AEPRA", name: "Port Rashid (Dubai)", country: "UAE", countryCode: "AE" },
+  { code: "AESHJ", name: "Port Khalid (Sharjah)", country: "UAE", countryCode: "AE" },
+  { code: "AEHAM", name: "Hamriyah Port (Sharjah)", country: "UAE", countryCode: "AE" },
   { code: "AEFJR", name: "Fujairah Port", country: "UAE", countryCode: "AE" },
+  { code: "AEAJM", name: "Ajman Port", country: "UAE", countryCode: "AE" },
+  { code: "AEQIW", name: "Umm Al Quwain Port", country: "UAE", countryCode: "AE" },
+  { code: "AERKT", name: "Saqr Port (Ras Al Khaimah)", country: "UAE", countryCode: "AE" },
 
   // ── OTHER GULF ──
   { code: "KWKWI", name: "Kuwait Port (Shuwaikh)", country: "Kuwait", countryCode: "KW" },
+  { code: "KWSAA", name: "Shuaiba Port", country: "Kuwait", countryCode: "KW" },
   { code: "QADOH", name: "Doha Port (Hamad)", country: "Qatar", countryCode: "QA" },
   { code: "BHKBS", name: "Khalifa Bin Salman Port", country: "Bahrain", countryCode: "BH" },
   { code: "OMSLL", name: "Salalah Port", country: "Oman", countryCode: "OM" },
   { code: "OMSOH", name: "Sohar Port", country: "Oman", countryCode: "OM" },
+  { code: "OMDQM", name: "Duqm Port", country: "Oman", countryCode: "OM" },
+  { code: "IQUQR", name: "Umm Qasr Port", country: "Iraq", countryCode: "IQ" },
+
+  // ── LEVANT & RED SEA (ARAB) ──
+  { code: "JOAQJ", name: "Aqaba Port", country: "Jordan", countryCode: "JO" },
+  { code: "LBBEY", name: "Beirut Port", country: "Lebanon", countryCode: "LB" },
+  { code: "SYLTK", name: "Latakia Port", country: "Syria", countryCode: "SY" },
+  { code: "SYTTS", name: "Tartus Port", country: "Syria", countryCode: "SY" },
+  { code: "YEADE", name: "Aden Port", country: "Yemen", countryCode: "YE" },
+  { code: "YEHOD", name: "Hodeidah Port", country: "Yemen", countryCode: "YE" },
+  { code: "SDPZU", name: "Port Sudan", country: "Sudan", countryCode: "SD" },
+  { code: "SOBBO", name: "Berbera Port", country: "Somalia", countryCode: "SO" },
 
   // ── EGYPT / RED SEA / EAST AFRICA ──
   { code: "EGSOK", name: "Sokhna Port", country: "Egypt", countryCode: "EG" },
@@ -45,7 +68,15 @@ export const PORTS: Port[] = [
   { code: "EGPSD", name: "Port Said", country: "Egypt", countryCode: "EG" },
   { code: "DJJIB", name: "Djibouti Port", country: "Djibouti", countryCode: "DJ" },
   { code: "KEMBA", name: "Mombasa Port", country: "Kenya", countryCode: "KE" },
+  { code: "KELAM", name: "Lamu Port", country: "Kenya", countryCode: "KE" },
   { code: "TZDAR", name: "Dar es Salaam Port", country: "Tanzania", countryCode: "TZ" },
+
+  // ── SOUTHERN AFRICA (origin ports — citrus/produce season) ──
+  { code: "ZADUR", name: "Durban Port", country: "South Africa", countryCode: "ZA" },
+  { code: "ZACPT", name: "Cape Town Port", country: "South Africa", countryCode: "ZA" },
+  { code: "ZAPLZ", name: "Gqeberha (Port Elizabeth)", country: "South Africa", countryCode: "ZA" },
+  { code: "ZAZBA", name: "Ngqura (Coega) Port", country: "South Africa", countryCode: "ZA" },
+  { code: "MZMPM", name: "Maputo Port", country: "Mozambique", countryCode: "MZ" },
 
   // ── SOUTH / SOUTHEAST ASIA ──
   { code: "INNSA", name: "Nhava Sheva (JNPT)", country: "India", countryCode: "IN" },
@@ -80,6 +111,16 @@ export const PORTS: Port[] = [
   { code: "CAMTR", name: "Montreal Port", country: "Canada", countryCode: "CA" },
   { code: "BRSSZ", name: "Santos Port", country: "Brazil", countryCode: "BR" },
 
+  // ── NORTH AFRICA (MAGHREB) ──
+  { code: "LYTIP", name: "Tripoli Port (Libya)", country: "Libya", countryCode: "LY" },
+  { code: "LYMRA", name: "Misrata Port", country: "Libya", countryCode: "LY" },
+  { code: "LYBEN", name: "Benghazi Port", country: "Libya", countryCode: "LY" },
+  { code: "TNRDS", name: "Radès Port (Tunis)", country: "Tunisia", countryCode: "TN" },
+  { code: "DZALG", name: "Algiers Port", country: "Algeria", countryCode: "DZ" },
+  { code: "DZORN", name: "Oran Port", country: "Algeria", countryCode: "DZ" },
+  { code: "MAPTM", name: "Tanger Med Port", country: "Morocco", countryCode: "MA" },
+  { code: "MACAS", name: "Casablanca Port", country: "Morocco", countryCode: "MA" },
+
   // ── OTHER ──
   { code: "TRIST", name: "Istanbul (Ambarli)", country: "T\u00FCrkiye", countryCode: "TR" },
   { code: "TRMER", name: "Mersin Port", country: "T\u00FCrkiye", countryCode: "TR" },
@@ -92,15 +133,28 @@ export function formatPortValue(port: Port): string {
 }
 
 const COUNTRY_ALIASES: Record<string, string[]> = {
-  "Saudi Arabia": ["SAUDI ARABIA", "SAUDI", "KSA"],
-  UAE: ["UAE", "UNITED ARAB EMIRATES", "DUBAI", "ABU DHABI"],
+  "Saudi Arabia": ["SAUDI ARABIA", "SAUDI", "KSA", "JEDDAH", "DAMMAM", "RIYADH", "JIZAN"],
+  UAE: ["UAE", "UNITED ARAB EMIRATES", "DUBAI", "ABU DHABI", "SHARJAH", "AJMAN", "FUJAIRAH", "RAS AL KHAIMAH", "KHOR FAKKAN", "KHORFAKKAN"],
   Kuwait: ["KUWAIT"],
   Qatar: ["QATAR", "DOHA"],
   Bahrain: ["BAHRAIN"],
-  Oman: ["OMAN", "MUSCAT", "SALALAH"],
+  Oman: ["OMAN", "MUSCAT", "SALALAH", "SOHAR", "DUQM"],
+  Iraq: ["IRAQ", "BAGHDAD", "BASRA", "UMM QASR"],
+  Jordan: ["JORDAN", "AMMAN", "AQABA"],
+  Lebanon: ["LEBANON", "BEIRUT"],
+  Syria: ["SYRIA", "DAMASCUS", "LATAKIA", "TARTUS"],
+  Yemen: ["YEMEN", "ADEN", "SANAA", "HODEIDAH"],
+  Sudan: ["SUDAN", "KHARTOUM", "PORT SUDAN"],
+  Somalia: ["SOMALIA", "SOMALILAND", "BERBERA", "MOGADISHU"],
+  Libya: ["LIBYA", "TRIPOLI", "MISRATA", "BENGHAZI"],
+  Tunisia: ["TUNISIA", "TUNIS", "RADES"],
+  Algeria: ["ALGERIA", "ALGIERS", "ORAN"],
+  Morocco: ["MOROCCO", "CASABLANCA", "TANGER", "TANGIER"],
   Egypt: ["EGYPT", "CAIRO"],
   Kenya: ["KENYA", "NAIROBI", "MOMBASA"],
   Tanzania: ["TANZANIA", "DAR ES SALAAM"],
+  "South Africa": ["SOUTH AFRICA", "RSA", "DURBAN", "CAPE TOWN", "JOHANNESBURG", "GQEBERHA", "PORT ELIZABETH"],
+  Mozambique: ["MOZAMBIQUE", "MAPUTO"],
   Djibouti: ["DJIBOUTI"],
   India: ["INDIA", "MUMBAI", "DELHI", "CHENNAI"],
   Pakistan: ["PAKISTAN", "KARACHI"],
