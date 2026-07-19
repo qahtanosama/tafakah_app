@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Loader2, Ship, X } from "lucide-react";
 import { submitLoadingPlan, cancelLoadingPlan } from "@/lib/portal/loading-plans";
-import { sailingAvailability } from "@/lib/schedule-availability";
+import { sailingAvailability, effectiveCargoCutoff } from "@/lib/schedule-availability";
 import type { LoadingPlan, SailingSchedule } from "@/types/schedule";
 import { formatDate, type AppLocale } from "@/lib/i18n/format";
 
@@ -32,6 +32,7 @@ export interface ScheduleLabels {
   badgeClosesIn: string; // "Booking closes in {days} days"
   badgeClosesToday: string;
   badgeClosed: string;
+  estimated: string; // "(est.)" suffix for the derived ETD−5 cut-off
   statuses: Record<string, string>; // open/closed/departed/cancelled
   planLoading: string;
   closedForBooking: string;
@@ -317,7 +318,22 @@ export default function SailingScheduleSection({ sailings, plans, locale, canSub
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
                   <div>
                     <dt className="text-xs text-muted-foreground">{labels.cargoCutoff}</dt>
-                    <dd className="font-medium">{s.cargoCutoff ? formatDate(s.cargoCutoff, locale) : "—"}</dd>
+                    <dd className="font-medium">
+                      {(() => {
+                        const cutoff = effectiveCargoCutoff(s);
+                        if (!cutoff.date) return "—";
+                        return (
+                          <>
+                            {formatDate(cutoff.date, locale)}
+                            {cutoff.derived && (
+                              <span className="ms-1 text-xs font-normal text-muted-foreground">
+                                {labels.estimated}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">{labels.docCutoff}</dt>

@@ -20,7 +20,7 @@ import {
   type SailingStatus,
 } from "@/types/schedule";
 import { EMPTY_SAILING, parseScheduleWorkbook } from "@/lib/schedule-excel";
-import { sailingAvailability, daysFromToday } from "@/lib/schedule-availability";
+import { sailingAvailability, daysFromToday, effectiveCargoCutoff } from "@/lib/schedule-availability";
 import {
   deleteSailing,
   deleteSailings,
@@ -737,7 +737,22 @@ export default function SchedulesManager({ sailings, plans }: Props) {
                             : "—"}
                         </TableCell>
                         <TableCell>{s.commodity ?? "—"}</TableCell>
-                        <TableCell>{fmtDate(s.cargoCutoff)}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const cutoff = effectiveCargoCutoff(s);
+                            if (!cutoff.date) return "—";
+                            return (
+                              <>
+                                {fmtDate(cutoff.date)}
+                                {cutoff.derived && (
+                                  <span className="ms-1 text-xs text-slate-500" title="Estimated: ETD − 5 days (no cut-off in the sheet)">
+                                    est.
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell>{fmtDate(s.docCutoff)}</TableCell>
                         <TableCell>{fmtDate(s.etd)}</TableCell>
                         <TableCell>{fmtDate(s.eta)}</TableCell>

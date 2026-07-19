@@ -85,6 +85,7 @@ export default async function PortalSchedulePage({
     badgeClosesIn: t("badgeClosesIn"),
     badgeClosesToday: t("badgeClosesToday"),
     badgeClosed: t("badgeClosed"),
+    estimated: t("estimated"),
     statuses: {
       open: t("statuses.open"),
       closed: t("statuses.closed"),

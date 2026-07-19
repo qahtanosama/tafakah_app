@@ -117,6 +117,7 @@
       "destination": "Destination",
       "commodity": "Commodity",
       "cargoCutoff": "Cargo cut-off",
+      "estimated": "(est.)",
       "docCutoff": "Docs cut-off",
       "etd": "ETD",
       "eta": "ETA",
