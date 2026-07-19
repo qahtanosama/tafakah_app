@@ -31,6 +31,8 @@ export interface SailingSchedule {
   commodity: string | null;
   notes: string | null;
   status: SailingStatus;
+  /** Team override: keep an 'open' sailing bookable past its cut-off/ETD. */
+  keepOpen: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +64,8 @@ export interface SailingScheduleRow {
   commodity: string | null;
   notes: string | null;
   status: SailingStatus;
+  /** Optional until migration 20260719_150000 is applied. */
+  keep_open?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +93,7 @@ export function rowToSailing(row: SailingScheduleRow): SailingSchedule {
     commodity: row.commodity,
     notes: row.notes,
     status: row.status,
+    keepOpen: row.keep_open ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

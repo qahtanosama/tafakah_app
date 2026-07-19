@@ -202,6 +202,60 @@ export async function deleteSailing(id: string): Promise<ScheduleActionResult> {
   return { ok: true };
 }
 
+/** Bulk delete (cleanup of departed/past sailings). Cascades to loading plans. */
+export async function deleteSailings(ids: string[]): Promise<ScheduleActionResult> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  if (!ids.length) return { ok: true };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("sailing_schedules").delete().in("id", ids);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateSchedulePages();
+  return { ok: true };
+}
+
+/** Bulk status change (e.g. mark a whole week's sailings departed). */
+export async function setSailingsStatus(
+  ids: string[],
+  status: SailingStatus,
+): Promise<ScheduleActionResult> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+  if (!SAILING_STATUSES.includes(status)) return { ok: false, error: "Invalid status" };
+  if (!ids.length) return { ok: true };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("sailing_schedules").update({ status }).in("id", ids);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateSchedulePages();
+  return { ok: true };
+}
+
+/**
+ * Team override: keep an 'open' sailing bookable past its cut-off/ETD.
+ * Requires migration 20260719_150000 (keep_open column).
+ */
+export async function setSailingKeepOpen(
+  id: string,
+  keepOpen: boolean,
+): Promise<ScheduleActionResult> {
+  const guard = await requireTeamUser();
+  if (!guard.ok) return { ok: false, error: guard.error };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("sailing_schedules")
+    .update({ keep_open: keepOpen })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateSchedulePages();
+  return { ok: true };
+}
+
 export async function setLoadingPlanStatus(
   id: string,
   status: (typeof TEAM_SETTABLE_PLAN_STATUSES)[number],

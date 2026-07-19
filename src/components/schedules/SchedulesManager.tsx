@@ -20,12 +20,15 @@ import {
   type SailingStatus,
 } from "@/types/schedule";
 import { EMPTY_SAILING, parseScheduleWorkbook } from "@/lib/schedule-excel";
-import { sailingAvailability } from "@/lib/schedule-availability";
+import { sailingAvailability, daysFromToday } from "@/lib/schedule-availability";
 import {
   deleteSailing,
+  deleteSailings,
   importSailings,
   setLoadingPlanStatus,
+  setSailingKeepOpen,
   setSailingStatus,
+  setSailingsStatus,
   updateSailing,
 } from "@/lib/schedules";
 
@@ -51,23 +54,59 @@ const PLAN_STATUS_STYLES: Record<string, string> = {
 
 /**
  * Date-derived booking flag shown UNDER the status dropdown for open
- * sailings. Wording says what happened to the dates ("Cut-off passed"),
- * never a second status — the dropdown stays the only status control.
+ * sailings, with the team's final say: once the cut-off passes they can
+ * keep the sailing bookable ("Keep open") or let it auto-hide. The
+ * dropdown stays the only status control.
  */
-function AvailabilityFlag({ s }: { s: SailingScheduleWithInternal }) {
+function AvailabilityFlag({
+  s,
+  pending,
+  onKeepOpen,
+}: {
+  s: SailingScheduleWithInternal;
+  pending: boolean;
+  onKeepOpen: (id: string, keepOpen: boolean) => void;
+}) {
   if (s.status !== "open") return null;
-  const a = sailingAvailability(s);
-  if (a.kind === "tight") {
+  // Raw date verdict (ignoring the override) decides which controls to show.
+  const raw = sailingAvailability({ ...s, keepOpen: false });
+  if (s.keepOpen) {
     return (
-      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-        {a.daysToDeadline === 0 ? "Closes today" : `Closes in ${a.daysToDeadline}d`}
+      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+        Kept open by team
+        <button
+          type="button"
+          title="Revert to automatic (hide when cut-off passes)"
+          onClick={() => onKeepOpen(s.id, false)}
+          disabled={pending}
+          className="font-bold hover:text-emerald-950"
+        >
+          ×
+        </button>
       </span>
     );
   }
-  if (a.kind === "unavailable") {
+  if (raw.kind === "tight") {
     return (
-      <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-        Cut-off passed — hidden from booking
+      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+        {raw.daysToDeadline === 0 ? "Closes today" : `Closes in ${raw.daysToDeadline}d`}
+      </span>
+    );
+  }
+  if (raw.kind === "unavailable") {
+    return (
+      <span className="mt-1 flex flex-col items-start gap-1">
+        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          Cut-off passed — hidden from booking
+        </span>
+        <button
+          type="button"
+          onClick={() => onKeepOpen(s.id, true)}
+          disabled={pending}
+          className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+        >
+          Keep open anyway
+        </button>
       </span>
     );
   }
@@ -94,6 +133,7 @@ export default function SchedulesManager({ sailings, plans }: Props) {
   const [editRow, setEditRow] = useState<SailingInput | null>(null);
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [sort, setSort] = useState<{ key: "etd" | "eta" | "line"; dir: 1 | -1 }>({ key: "etd", dir: 1 });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const distinct = useMemo(() => {
     const pick = (fn: (s: SailingScheduleWithInternal) => string | null) =>
@@ -246,6 +286,77 @@ export default function SchedulesManager({ sailings, plans }: Props) {
     startTransition(async () => {
       const result = await deleteSailing(id);
       if (!result.ok) return note(null, result.error);
+      setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      router.refresh();
+    });
+  }
+
+  function toggleKeepOpen(id: string, keepOpen: boolean) {
+    startTransition(async () => {
+      const result = await setSailingKeepOpen(id, keepOpen);
+      if (!result.ok) return note(null, result.error);
+      router.refresh();
+    });
+  }
+
+  // ── Bulk selection (Excel-style control) ─────────────────
+  const visibleIds = visibleSailings.map((s) => s.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const id of visibleIds) next.delete(id);
+        return next;
+      }
+      return new Set([...prev, ...visibleIds]);
+    });
+  }
+
+  /** Select every visible sailing that is already in the past (ETD passed) or departed/cancelled. */
+  function selectPast() {
+    const past = visibleSailings.filter((s) => {
+      if (s.status === "departed" || s.status === "cancelled") return true;
+      const days = daysFromToday(s.etd);
+      return days !== null && days < 0;
+    });
+    setSelected(new Set(past.map((s) => s.id)));
+    if (!past.length) note("No past sailings among the visible rows.", null);
+  }
+
+  function bulkDelete() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const planCount = plans.filter((p) => ids.includes(p.scheduleId)).length;
+    const suffix = planCount ? ` ${planCount} client loading plan(s) on them are deleted too.` : "";
+    if (!window.confirm(`Delete ${ids.length} sailing(s)?${suffix}`)) return;
+    startTransition(async () => {
+      const result = await deleteSailings(ids);
+      if (!result.ok) return note(null, result.error);
+      note(`Deleted ${ids.length} sailing(s).`, null);
+      setSelected(new Set());
+      router.refresh();
+    });
+  }
+
+  function bulkStatus(status: SailingStatus) {
+    const ids = [...selected];
+    if (!ids.length) return;
+    startTransition(async () => {
+      const result = await setSailingsStatus(ids, status);
+      if (!result.ok) return note(null, result.error);
+      note(`Marked ${ids.length} sailing(s) as ${status}.`, null);
+      setSelected(new Set());
       router.refresh();
     });
   }
@@ -413,12 +524,48 @@ export default function SchedulesManager({ sailings, plans }: Props) {
         <CardContent className="space-y-4 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Published sailings</h2>
-            {sailings.length > 0 && (
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                {visibleSailings.length} of {sailings.length}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {sailings.length > 0 && (
+                <Button variant="outline" size="sm" onClick={selectPast} disabled={pending}>
+                  Select past sailings
+                </Button>
+              )}
+              {sailings.length > 0 && (
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {visibleSailings.length} of {sailings.length}
+                </span>
+              )}
+            </div>
           </div>
+
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 dark:border-indigo-500/30 dark:bg-indigo-900/20">
+              <span className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                {selected.size} selected
+              </span>
+              <Button size="sm" variant="outline" onClick={() => bulkStatus("departed")} disabled={pending}>
+                Mark departed
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => bulkStatus("closed")} disabled={pending}>
+                Mark closed
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => bulkStatus("open")} disabled={pending}>
+                Mark open
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkDelete}
+                disabled={pending}
+                className="border-red-300 text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="me-1 h-3.5 w-3.5" /> Delete {selected.size}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} disabled={pending}>
+                Clear selection
+              </Button>
+            </div>
+          )}
 
           {sailings.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -496,6 +643,15 @@ export default function SchedulesManager({ sailings, plans }: Props) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible sailings"
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                        className="h-4 w-4 accent-indigo-600"
+                      />
+                    </TableHead>
                     <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("line")}>
                       Line{sortMark("line")}
                     </TableHead>
@@ -520,6 +676,7 @@ export default function SchedulesManager({ sailings, plans }: Props) {
                   {visibleSailings.map((s) =>
                     editingId === s.id && editRow ? (
                       <TableRow key={s.id}>
+                        <TableCell />
                         <TableCell>{textInput(editRow.shippingLine, (v) => setEditRow({ ...editRow, shippingLine: v }))}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -559,7 +716,16 @@ export default function SchedulesManager({ sailings, plans }: Props) {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      <TableRow key={s.id}>
+                      <TableRow key={s.id} className={selected.has(s.id) ? "bg-indigo-50/60 dark:bg-indigo-900/10" : undefined}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${s.vessel}`}
+                            checked={selected.has(s.id)}
+                            onChange={() => toggleRow(s.id)}
+                            className="h-4 w-4 accent-indigo-600"
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{s.shippingLine}</TableCell>
                         <TableCell>
                           {s.vessel}
@@ -597,7 +763,7 @@ export default function SchedulesManager({ sailings, plans }: Props) {
                               ))}
                             </SelectContent>
                           </Select>
-                          <AvailabilityFlag s={s} />
+                          <AvailabilityFlag s={s} pending={pending} onKeepOpen={toggleKeepOpen} />
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">

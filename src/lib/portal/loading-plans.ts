@@ -36,10 +36,12 @@ export async function submitLoadingPlan(
   }
 
   // RLS lets any active client read the schedule; reject sailings that are
-  // closed by status OR by date (cut-off/ETD passed) — same rule the UI shows.
+  // closed by status OR by date (cut-off/ETD passed), honoring the team's
+  // keep-open override — same rule the UI shows. select("*") keeps this
+  // deploy-order-safe while the keep_open migration hasn't been applied yet.
   const { data: sailing } = await supabase
     .from("sailing_schedules")
-    .select("id, status, etd, cargo_cutoff")
+    .select("*")
     .eq("id", scheduleId)
     .maybeSingle();
   if (!sailing) return { ok: false, error: "sailingNotFound" };
@@ -47,6 +49,7 @@ export async function submitLoadingPlan(
     status: sailing.status as string,
     etd: sailing.etd as string | null,
     cargoCutoff: sailing.cargo_cutoff as string | null,
+    keepOpen: (sailing as { keep_open?: boolean | null }).keep_open ?? false,
   });
   if (availability.kind === "unavailable") return { ok: false, error: "sailingClosed" };
 

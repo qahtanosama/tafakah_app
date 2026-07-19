@@ -4,8 +4,9 @@
 //
 // Rules (team-set status wins over everything):
 //   * status != open                    → unavailable
+//   * keepOpen (team override)          → available even past the deadline
 //   * booking deadline (cargo cut-off, else ETD) already passed → unavailable
-//   * deadline within TIGHT_WINDOW_DAYS → tight ("booking tight")
+//   * deadline within TIGHT_WINDOW_DAYS → tight ("booking closes in Xd")
 //   * otherwise                         → available
 
 export const TIGHT_WINDOW_DAYS = 7;
@@ -33,10 +34,13 @@ export function sailingAvailability(s: {
   status: string;
   etd: string | null;
   cargoCutoff: string | null;
+  /** Team override — keeps an 'open' sailing bookable past its deadline. */
+  keepOpen?: boolean;
 }): Availability {
   const deadline = s.cargoCutoff ?? s.etd;
   const days = daysFromToday(deadline);
   if (s.status !== "open") return { kind: "unavailable", daysToDeadline: days };
+  if (s.keepOpen) return { kind: "available", daysToDeadline: days };
   if (days === null) return { kind: "available", daysToDeadline: null };
   if (days < 0) return { kind: "unavailable", daysToDeadline: days };
   if (days <= TIGHT_WINDOW_DAYS) return { kind: "tight", daysToDeadline: days };
