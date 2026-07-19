@@ -144,7 +144,28 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>3. DELIVERY: </Text>{data.shipping.incoterm} — from {data.shipping.loadingPort} to {data.shipping.dischargePort || "\u2014"}</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>4. PACKING: </Text>{data.terms.numberOfContainers && data.terms.numberOfContainers > 1 ? `${data.terms.numberOfContainers}x ` : ""}{data.terms.containerType}</Text></View>
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>5. DAMAGE ALLOWANCE: </Text>{data.terms.damageAllowance} of invoice value</Text></View>
-            <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>6. PAYMENT: </Text>T/T (Telegraphic Transfer) to seller&apos;s bank account below.</Text></View>
+            {/* Legacy snapshots have no paymentTerms — render the historic fixed
+                wording inline. Multi-line terms (standard two-part 50/50) put
+                "PAYMENT:" on its own line with every condition beneath it. */}
+            {(() => {
+              const payment =
+                data.terms.paymentTerms || "T/T (Telegraphic Transfer) to seller's bank account below.";
+              const lines = payment.split("\n");
+              return (
+                <View style={s.termItem}>
+                  {lines.length === 1 ? (
+                    <Text><Text style={{ fontFamily: "Times-Bold" }}>6. PAYMENT: </Text>{lines[0]}</Text>
+                  ) : (
+                    <>
+                      <Text style={{ fontFamily: "Times-Bold" }}>6. PAYMENT:</Text>
+                      {lines.map((line, i) => (
+                        <Text key={i} style={{ marginLeft: 12, marginTop: 1 }}>{line}</Text>
+                      ))}
+                    </>
+                  )}
+                </View>
+              );
+            })()}
             <View style={s.termItem}><Text><Text style={{ fontFamily: "Times-Bold" }}>7. VALIDITY: </Text>This contract is valid until {formatDate(data.terms.contractValidTo)}.</Text></View>
           </View>
         </View>

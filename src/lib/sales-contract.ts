@@ -1,4 +1,5 @@
 import type { LineItem, Product, ContractTotals, SalesContractData } from "@/types/sales-contract";
+import { composePaymentTerms, DEFAULT_PAYMENT_TERMS } from "@/lib/payment-terms";
 
 // Legacy static lists (kept for backward compat with old snapshots)
 export const PRODUCTS: Product[] = ["Fresh Ginger", "Fresh Garlic", "Fresh Kiwi", "Fresh Apple"];
@@ -164,6 +165,9 @@ export function getDefaultContractData(): SalesContractData {
       contractValidTo: "",
       containerType: "40'RH",
       numberOfContainers: 1,
+      // Standard two-part terms (50% deposit / 50% balance before arrival) —
+      // see lib/payment-terms.ts; editable per contract in the Master form.
+      paymentTerms: composePaymentTerms(DEFAULT_PAYMENT_TERMS),
     },
   };
 }

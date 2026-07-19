@@ -233,7 +233,8 @@ export default function QuoteCalculator() {
   const generateQuote = useCallback((lang: "en" | "ar"): string => {
     if (!product) return "";
     if (lang === "ar") {
-      const pName = PRODUCT_AR[product.name] ?? product.name;
+      // Arabic name from the products DB; static map only covers legacy rows.
+      const pName = product.nameAr || (PRODUCT_AR[product.name] ?? product.name);
       const cType = CONTAINER_AR[containerType] ?? containerType;
       return `📦 عرض سعر — شركة تفكه للأغذية (شنغهاي)\n\nالمنتج: ${pName}\nالحجم: ${toArabicNum(nw, 1)} كجم / كرتون\nالحاوية: ${toArabicNum(numContainers)} × ${cType} (${toArabicFormatted(totalCartons)} كرتون)\nالكمية: ${toArabicNum(qtyMTS, 2)} طن متري\n\nالسعر لكل طن: ${toArabicFormatted(Math.round(sellPerMT))} دولار أمريكي\nالسعر لكل كرتون: ${toArabicNum(sellPerCarton, 2)} دولار أمريكي\nالقيمة الإجمالية: ${toArabicFormatted(Math.round(sellTotal))} دولار أمريكي\n\nالشروط: CIF (قابل للتفاوض)\nصلاحية العرض: ${toArabicNum(7)} أيام من تاريخه\n\n— شركة تفكه للأغذية (شنغهاي) المحدودة\n📧 info@taifukai.com\n📱 +86 187 2116 0270`;
     }

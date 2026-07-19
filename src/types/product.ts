@@ -1,6 +1,8 @@
 export interface ProductProfile {
   id: string;
   name: string;
+  /** Arabic display name (products.name_ar) — used in Arabic quotes/portal. */
+  nameAr: string;
   hsCode: string;
   prefix: string;
   defaultNW: number;

@@ -26,6 +26,7 @@ function dbToLocal(row: DbProduct): ProductProfile {
   return {
     id: row.id,
     name: row.name,
+    nameAr: row.name_ar ?? "",
     hsCode: row.hs_code,
     prefix: row.prefix,
     defaultNW: Number(row.default_nw ?? 0),
@@ -40,7 +41,7 @@ function localToDb(p: ProductProfile): Omit<DbProduct, "created_at" | "updated_a
   return {
     id: p.id,
     name: p.name,
-    name_ar: null,
+    name_ar: p.nameAr.trim() || null,
     name_zh: null,
     prefix: p.prefix,
     hs_code: p.hsCode,
@@ -94,6 +95,7 @@ export function useSaveProduct() {
             .from("products")
             .update({
               name: row.name,
+              name_ar: row.name_ar,
               prefix: row.prefix,
               hs_code: row.hs_code,
               default_nw: row.default_nw,

@@ -10,7 +10,12 @@ export interface LineItem {
   pricePerCarton: number;
 }
 
-export type Product = "Fresh Ginger" | "Fresh Garlic" | "Fresh Kiwi" | "Fresh Apple";
+/**
+ * Product name on a contract line item. Sourced from the products DATABASE
+ * (see /products page + useProducts) — any name is valid. Was a hardcoded
+ * 4-name union before the products table existed.
+ */
+export type Product = string;
 
 export interface SellerInfo {
   company: string;
@@ -59,6 +64,42 @@ export interface TermsInfo {
   contractValidTo: string;
   containerType: string;
   numberOfContainers?: number | "";
+  /**
+   * Payment terms printed as clause 6 of the Sales Contract (e.g. "30% T/T
+   * advance, 70% against copy of B/L"). Optional — contracts saved before
+   * this field render the legacy fixed wording (see SalesContractPDF).
+   */
+  paymentTerms?: string;
+}
+
+/**
+ * Incoterms 2020 rules offered in the term picker. The stored value stays a
+ * single string "TERM NAMED-PLACE" (e.g. "CIF JEDDAH") because downstream
+ * logic prefix-matches it (see isFobIncoterm in lib/shipping.ts).
+ */
+export const INCOTERM_TERMS = [
+  "CIF",
+  "CFR",
+  "FOB",
+  "EXW",
+  "FCA",
+  "CPT",
+  "CIP",
+  "DAP",
+  "DPU",
+  "DDP",
+] as const;
+
+/** Split "CIF JEDDAH" → { term: "CIF", place: "JEDDAH" } (tolerates any casing/extra text). */
+export function splitIncoterm(value: string): { term: string; place: string } {
+  const m = value.trim().match(/^([A-Za-z]{3})\b\s*(.*)$/);
+  if (m) return { term: m[1].toUpperCase(), place: m[2] };
+  return { term: value.trim().toUpperCase(), place: "" };
+}
+
+export function joinIncoterm(term: string, place: string): string {
+  const p = place.trim();
+  return p ? `${term} ${p}` : term;
 }
 
 export interface DocumentIdentifiers {

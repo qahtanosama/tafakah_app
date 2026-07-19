@@ -95,7 +95,7 @@ export default function ProductManager() {
 
   const handleNew = useCallback(() => {
     setEditing({
-      id: crypto.randomUUID(), name: "", hsCode: "", prefix: "",
+      id: crypto.randomUUID(), name: "", nameAr: "", hsCode: "", prefix: "",
       defaultNW: 0, defaultGW: 0, defaultPriceMT: 0, containerType: "40'RH", notes: "",
     });
     setIsNew(true);
@@ -183,6 +183,10 @@ export default function ProductManager() {
             <div className="sm:col-span-2 lg:col-span-2">
               <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Product Name *</Label>
               <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="e.g. Fresh Onion" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Arabic Name</Label>
+              <Input dir="rtl" value={editing.nameAr} onChange={(e) => setEditing({ ...editing, nameAr: e.target.value })} placeholder="مثال: بصل طازج" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
             </div>
             <div>
               <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">HS Code *</Label>

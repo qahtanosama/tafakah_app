@@ -186,6 +186,7 @@ export default function SalesContractForm() {
             <div className="flex flex-col gap-1"><span className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">Incoterm</span> <span className="text-indigo-700 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded w-fit border border-indigo-100 dark:border-indigo-800/30">{data.shipping.incoterm}</span></div>
             <div className="flex flex-col gap-1"><span className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">Origin</span> <span className="text-slate-800 dark:text-slate-200">{data.shipping.origin}</span></div>
             <div className="flex flex-col gap-1"><span className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">Delivery From</span> <span className="text-slate-800 dark:text-slate-200">{formatDate(data.shipping.deliveryFrom)}</span></div>
+            <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3"><span className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">Payment Terms</span> <span className="whitespace-pre-line text-slate-800 dark:text-slate-200">{data.terms.paymentTerms || "T/T to seller's bank account (default)"}</span></div>
           </div>
         </CardContent>
       </Card>

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import PortCombobox from "@/components/ui/port-combobox";
 import BuyerCombobox from "@/components/ui/buyer-combobox";
+import PaymentTermsEditor from "@/components/master/PaymentTermsEditor";
 import {
   Plus,
   Trash2,
@@ -44,6 +45,7 @@ import Link from "next/link";
 import QuickShareDialog, { QuickShareButton } from "@/components/quick-share/QuickShareDialog";
 import type { ContractLogEntry } from "@/types/sales-contract";
 import type { SalesContractData, LineItem, Product, ContractTotals } from "@/types/sales-contract";
+import { INCOTERM_TERMS, splitIncoterm, joinIncoterm } from "@/types/sales-contract";
 import {
   calcQtyMTS,
   calcPricePerCarton,
@@ -909,10 +911,41 @@ export default function MasterDataForm() {
           </div>
           <div>
             <Label>Incoterm</Label>
-            <Input
-              value={data.shipping.incoterm}
-              onChange={(e) => update("shipping", "incoterm", e.target.value)}
-            />
+            {(() => {
+              // Stored as one string ("CIF JEDDAH") — split into a term
+              // picker + named place so switching CIF/FOB is one click.
+              const { term, place } = splitIncoterm(data.shipping.incoterm);
+              const knownTerms: string[] = [...INCOTERM_TERMS];
+              return (
+                <div className="flex gap-2">
+                  <Select
+                    value={term || "CIF"}
+                    onValueChange={(v) =>
+                      update("shipping", "incoterm", joinIncoterm(v ?? term ?? "CIF", place))
+                    }
+                  >
+                    <SelectTrigger className="w-28 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {knownTerms.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                      {term && !knownTerms.includes(term) && (
+                        <SelectItem value={term}>{term}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={place}
+                    placeholder="Named place, e.g. JEDDAH"
+                    onChange={(e) =>
+                      update("shipping", "incoterm", joinIncoterm(term || "CIF", e.target.value))
+                    }
+                  />
+                </div>
+              );
+            })()}
           </div>
           <div>
             <Label>Origin</Label>
@@ -930,6 +963,15 @@ export default function MasterDataForm() {
           <CardTitle>E) Line Items</CardTitle>
         </CardHeader>
         <CardContent>
+          {productsList.length === 0 && (
+            <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
+              The product dropdown is fed by your products database, which is empty —{" "}
+              <Link href="/products" className="font-semibold underline">
+                add your products
+              </Link>{" "}
+              (name, HS code, weights, default price) and they appear here with everything auto-filled.
+            </p>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -1183,6 +1225,11 @@ export default function MasterDataForm() {
               step="1"
             />
           </div>
+          <PaymentTermsEditor
+            value={data.terms.paymentTerms ?? ""}
+            onChange={(v) => update("terms", "paymentTerms", v)}
+            dischargePort={data.shipping.dischargePort}
+          />
         </CardContent>
       </Card>
 
