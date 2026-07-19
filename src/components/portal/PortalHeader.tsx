@@ -9,6 +9,7 @@ import LocaleSwitcher from "./LocaleSwitcher";
 
 const NAV = [
   { href: "/portal", key: "dashboard" as const },
+  { href: "/portal/schedule", key: "schedule" as const },
   { href: "/portal/profile", key: "profile" as const },
 ];
 

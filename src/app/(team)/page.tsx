@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet, Calculator,
-  Receipt, ScrollText, ArrowRight, PenLine, Merge, Ship, Factory, Sparkles, ChevronRight
+  Receipt, ScrollText, ArrowRight, PenLine, Merge, Ship, Factory, Sparkles, ChevronRight, CalendarClock
 } from "lucide-react";
 import ShippingCardSummary from "@/components/shipping/ShippingCardSummary";
 import HomeStageWidget from "@/components/workflow/HomeStageWidget";
@@ -29,6 +29,7 @@ const sections = [
       { title: "Contract Log", description: "View all submitted contracts", icon: ClipboardList, href: "/contract-log" },
       { title: "Finance & Payments", description: "Track costs, payments & profit", icon: Wallet, href: "/finance" },
       { title: "Shipping Tracker", description: "Track ETD, ETA, and vessel status", icon: Ship, href: "/shipping", summary: "shipping" as const },
+      { title: "Sailing Schedules", description: "Publish departures & review loading plans", icon: CalendarClock, href: "/schedules" },
     ],
   },
   {
