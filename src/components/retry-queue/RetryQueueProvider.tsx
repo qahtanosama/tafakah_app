@@ -38,6 +38,16 @@ async function executeQueued(write: QueuedWrite): Promise<void> {
     if (error) throw error;
     return;
   }
+  if (write.operation === "upsert") {
+    // Replaying a plain insert here would hit the table's unique constraint and
+    // burn all 12 attempts on a conflict that is expected, not an error.
+    if (!write.conflictTarget) throw new Error("upsert missing conflictTarget");
+    const { error } = await supabase
+      .from(write.entity)
+      .upsert(payload as never, { onConflict: write.conflictTarget });
+    if (error) throw error;
+    return;
+  }
   if (write.operation === "update") {
     if (!id) throw new Error("update missing id");
     const rest = { ...payload } as Record<string, unknown>;

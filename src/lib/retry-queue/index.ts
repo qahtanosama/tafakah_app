@@ -5,15 +5,21 @@ import { openDB, type IDBPDatabase } from "idb";
 export type QueuedEntity =
   | "products" | "buyers" | "sellers"
   | "contracts" | "contract_finance" | "contract_shipping" | "contract_documents"
-  | "users_profile";
+  | "users_profile" | "product_cost_sheets";
 
-export type QueuedOperation = "insert" | "update" | "delete";
+export type QueuedOperation = "insert" | "update" | "delete" | "upsert";
 
 export interface QueuedWrite {
   id: string;
   entity: QueuedEntity;
   operation: QueuedOperation;
   payload: unknown;
+  /**
+   * Comma-separated unique columns for an `upsert` (e.g. "product_id,session_date").
+   * Required for upserts — without it a replayed write would insert a duplicate
+   * instead of updating the row that already exists.
+   */
+  conflictTarget?: string;
   idempotencyKey: string;
   attempts: number;
   nextRetryAt: number;

@@ -31,6 +31,8 @@ export async function withRetryQueue<T>(
     entity: QueuedEntity;
     operation: QueuedOperation;
     payload: unknown;
+    /** Unique columns for an `upsert` — e.g. "product_id,session_date". */
+    conflictTarget?: string;
     idempotencyKey: string;
     originPath?: string;
   }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import AppHeader from "@/components/ui/app-header";
-import QuoteCalculator from "@/components/products/QuoteCalculator";
+import QuoteCalculator from "@/components/products/quote-calculator/QuoteCalculator";
 
 export const metadata: Metadata = {
   title: "Quote Calculator \u2014 TAFAKAH Food",
