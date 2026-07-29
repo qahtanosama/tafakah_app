@@ -11,6 +11,7 @@ import { buildQuoteText } from "@/lib/quote/quote-text";
 import CargoBar from "./CargoBar";
 import CostSheet from "./CostSheet";
 import FxPanel from "./FxPanel";
+import PriceOfferDownload from "./PriceOfferDownload";
 import PricePanel, { PriceHistory } from "./PricePanel";
 import QuotePreview from "./QuotePreview";
 import SessionHistory from "./SessionHistory";
@@ -110,10 +111,12 @@ export default function QuoteCalculator() {
       gwPerCarton: cargo.gwPerCarton,
       cartonsPerContainer: cargo.cartonsPerContainer,
       containers: cargo.containers,
-      pricePerMT: quote.quotedPerMT,
+      // The to-the-cent figure, so the contract's carton price matches the
+      // carton price the buyer actually agreed to.
+      pricePerMT: quote.contractPerMT,
     });
     setToast("Sent to Master Data — open it to finish the contract.");
-  }, [product, cargo, quote.quotedPerMT]);
+  }, [product, cargo, quote.contractPerMT]);
 
   if (calc.loading) return <CalculatorSkeleton />;
 
@@ -172,6 +175,19 @@ export default function QuoteCalculator() {
             onCopy={handleCopy}
             onSendToMaster={handleSendToMaster}
             copied={copied && !previewOpen}
+            offerPdf={
+              product ? (
+                <PriceOfferDownload
+                  productName={product.name}
+                  productPrefix={product.prefix}
+                  containers={cargo.containers}
+                  cartons={quote.totals.cartons}
+                  gwPerCarton={cargo.gwPerCarton}
+                  quote={quote}
+                  disabled={!quote.ready}
+                />
+              ) : null
+            }
           />
           <PriceHistory rows={history} quotedPerMT={quote.quotedPerMT} />
         </div>

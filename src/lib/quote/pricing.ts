@@ -128,12 +128,37 @@ export function computeQuote(input: QuoteInput): Quote {
   const marginPct = clampMargin(input.marginPct);
   const sellPerMT = markUp(costPerMT, marginPct);
 
-  // Quote in whole dollars per MT, then derive the carton price and the total
-  // from that rounded figure. Deriving them independently from `sellPerMT`
-  // would leave the buyer able to show that our own numbers disagree.
-  const quotedPerMT = Math.round(sellPerMT);
-  const quotedPerCarton = (quotedPerMT * nonNegative(input.cargo.nwPerCarton)) / 1000;
-  const quotedTotal = quotedPerMT * totals.qtyMTS;
+  /* ── FOB / CIF split ──────────────────────────────────────────────────
+   * Sea freight is quoted as a pass-through at cost, and the margin is earned
+   * on the goods only. That is what makes CIF − FOB exactly equal the freight:
+   * when the rate jumps mid-negotiation the freight figure is restated on its
+   * own and the margin never enters the conversation.
+   *
+   * Marking up the full CIF cost instead would leave CIF − FOB larger than the
+   * freight, so a buyer subtracting one from the other would derive a freight
+   * number that does not match the invoice.
+   *
+   * Everything is quoted per carton in whole cents, because that is the figure
+   * the buyer negotiates and checks. The total is carton price × cartons, so
+   * the two always reconcile; price per MT is derived for display and for the
+   * contract, where produce is written per MT.
+   */
+  const freightUSD = lines.find((p) => p.line.id === "freight")?.usd ?? 0;
+  const fobCost = landedCost - freightUSD;
+  const fobCostPerCarton = totals.cartons > 0 ? fobCost / totals.cartons : 0;
+
+  const fobPerCarton = roundCents(markUp2(fobCostPerCarton, marginPct));
+  const freightPerCarton = roundCents(totals.cartons > 0 ? freightUSD / totals.cartons : 0);
+  const cifPerCarton = roundCents(fobPerCarton + freightPerCarton);
+
+  const quotedPerCarton = cifPerCarton;
+  const quotedTotal = roundCents(cifPerCarton * totals.cartons);
+  const nw = nonNegative(input.cargo.nwPerCarton);
+  // Whole dollars for display; the carton price above stays authoritative.
+  const quotedPerMT = nw > 0 ? Math.round((cifPerCarton * 1000) / nw) : 0;
+  // Two decimals, so a contract built from this lands within a cent of the
+  // carton price the buyer agreed to.
+  const contractPerMT = nw > 0 ? roundCents((cifPerCarton * 1000) / nw) : 0;
 
   const issues = collectIssues(input, totals, lines);
 
@@ -145,13 +170,31 @@ export function computeQuote(input: QuoteInput): Quote {
     costPerCarton,
     marginPct,
     sellPerMT,
+    freightUSD,
+    fobCost,
+    fobPerCarton,
+    fobTotal: roundCents(fobPerCarton * totals.cartons),
+    freightPerCarton,
+    cifPerCarton,
     quotedPerMT,
+    contractPerMT,
     quotedPerCarton,
     quotedTotal,
-    profit: quotedTotal - landedCost,
+    profit: roundCents(quotedTotal - landedCost),
     issues,
     ready: !issues.some((i) => i.level === "error"),
   };
+}
+
+/** Cents, so quoted figures are exact and per-carton × cartons reconciles. */
+function roundCents(n: number): number {
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
+/** Markup on a per-carton cost. Same formula as markUp, different unit. */
+function markUp2(costPerCarton: number, marginPct: number): number {
+  if (costPerCarton <= 0) return 0;
+  return costPerCarton / (1 - clampMargin(marginPct) / 100);
 }
 
 function collectIssues(input: QuoteInput, totals: CargoTotals, lines: PricedLine[]): QuoteIssue[] {

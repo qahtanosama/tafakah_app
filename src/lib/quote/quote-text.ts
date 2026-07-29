@@ -66,29 +66,50 @@ export interface QuoteTextInput {
   quote: Quote;
 }
 
+/**
+ * Named places for the two terms. Both come from the contract defaults so the
+ * quote, the contract and the PDFs cannot drift apart — the loading port for
+ * FOB, the incoterm's own named place for CIF.
+ */
+export function quotePlaces(): { fob: string; cif: string } {
+  const { shipping } = getDefaultContractData();
+  return {
+    // "SHEKOU PORT, CHINA" -> "SHEKOU"
+    fob: titleCase(shipping.loadingPort.split(/[,]/)[0].replace(/\s*PORT\s*$/i, "").trim()),
+    cif: titleCase(splitIncoterm(shipping.incoterm).place),
+  };
+}
+
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export function buildQuoteText(input: QuoteTextInput): string {
-  const { seller, shipping } = getDefaultContractData();
-  const incoterm = splitIncoterm(shipping.incoterm).term;
+  const { seller } = getDefaultContractData();
   const { quote, containers, gwPerCarton } = input;
+  const places = quotePlaces();
+  const fobTerm = places.fob ? `FOB ${places.fob}` : "FOB";
+  const cifTerm = places.cif ? `CIF ${places.cif}` : "CIF";
   const cartons = qty(quote.totals.cartons);
-  const mts = qty(quote.totals.qtyMTS, 2);
 
   if (input.lang === "ar") {
     const product = arabicProductName(input.productName, input.productNameAr);
     return [
       `📦 عرض سعر — ${BRAND}`,
       "",
-      `المنتج: ${product}`,
-      `الوزن القائم: ${qty(gwPerCarton, 1)} كجم / كرتون`,
-      `الحاويات: ${containers} × ${CONTAINER_TYPE} (${cartons} كرتون)`,
-      `الكمية: ${mts} طن`,
+      product,
+      `${containers} × ${CONTAINER_TYPE} · ${cartons} كرتون · ${qty(gwPerCarton, 1)} كجم قائم/كرتون`,
       "",
-      `السعر للطن: ${usd0(quote.quotedPerMT)}`,
-      `السعر للكرتون: ${usd(quote.quotedPerCarton)}`,
-      `القيمة الإجمالية: ${usd0(quote.quotedTotal)}`,
+      `${fobTerm}   ${usd(quote.fobPerCarton)} / كرتون`,
+      `${cifTerm}   ${usd(quote.cifPerCarton)} / كرتون`,
+      `الإجمالي ${cifTerm}   ${usd0(quote.quotedTotal)}`,
       "",
-      `الشروط: ${incoterm}`,
-      `صلاحية العرض: ${QUOTE_VALID_DAYS} أيام من تاريخه`,
+      `ملاحظة: أجور الشحن البحري غير مستقرة. سعر ${cifTerm} مبني على سعر الشحن الحالي وسيتم تأكيده عند الحجز. سعر ${fobTerm} ثابت لمدة ${QUOTE_VALID_DAYS} أيام.`,
       "",
       `— ${BRAND}`,
       `📧 ${EMAIL}`,
@@ -100,17 +121,14 @@ export function buildQuoteText(input: QuoteTextInput): string {
   return [
     `📦 Quote — ${BRAND}`,
     "",
-    `Product: ${input.productName}`,
-    `Gross weight: ${qty(gwPerCarton, 1)} KG / carton`,
-    `Containers: ${containers} × ${CONTAINER_TYPE} (${cartons} cartons)`,
-    `Quantity: ${mts} MT`,
+    input.productName,
+    `${containers} × ${CONTAINER_TYPE} · ${cartons} cartons · ${qty(gwPerCarton, 1)} KG gross/carton`,
     "",
-    `Price per MT: ${usd0(quote.quotedPerMT)}`,
-    `Price per carton: ${usd(quote.quotedPerCarton)}`,
-    `Total value: ${usd0(quote.quotedTotal)}`,
+    `${fobTerm}   ${usd(quote.fobPerCarton)} / carton`,
+    `${cifTerm}   ${usd(quote.cifPerCarton)} / carton`,
+    `Total ${cifTerm}   ${usd0(quote.quotedTotal)}`,
     "",
-    `Terms: ${incoterm}`,
-    `Validity: ${QUOTE_VALID_DAYS} days from today`,
+    `Note: sea freight is unstable. The ${cifTerm} price is based on today's freight rate and will be re-confirmed at the time of booking. The ${fobTerm} price is firm for ${QUOTE_VALID_DAYS} days.`,
     "",
     `— ${BRAND}`,
     `📧 ${EMAIL}`,

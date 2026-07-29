@@ -21,6 +21,8 @@ interface Props {
   onCopy: () => void;
   onSendToMaster: () => void;
   copied: boolean;
+  /** The letterhead offer PDF button — passed in so this panel stays render-only. */
+  offerPdf?: React.ReactNode;
 }
 
 /**
@@ -41,6 +43,7 @@ export default function PricePanel({
   onCopy,
   onSendToMaster,
   copied,
+  offerPdf,
 }: Props) {
   const errors = quote.issues.filter((i) => i.level === "error");
   const warnings = quote.issues.filter((i) => i.level === "warning");
@@ -69,19 +72,41 @@ export default function PricePanel({
           not jump once the inputs are complete. */}
       <div className={cn("px-5 pt-3 pb-5", blocked && "opacity-45")}>
         <dl>
-          <dt className="text-sm text-slate-600 dark:text-slate-400">Price per MT</dt>
+          <dt className="text-sm text-slate-600 dark:text-slate-400">CIF price per MT</dt>
           <dd className="mt-0.5 font-mono text-[2.75rem] leading-none font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400">
             {usd0(quote.quotedPerMT)}
           </dd>
 
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          {/* Per box, split the way the quote states it. Margin sits on FOB and
+              freight is passed at cost, so CIF − FOB is exactly the freight —
+              the number to restate when the rate moves. */}
+          <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-white/5">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <dt className="text-slate-600 dark:text-slate-400">FOB / carton</dt>
+              <dd className="font-mono font-semibold tabular-nums">{usd(quote.fobPerCarton)}</dd>
+            </div>
+            <div className="mt-1 flex items-baseline justify-between gap-3 text-sm">
+              <dt className="text-slate-600 dark:text-slate-400">
+                + sea freight <span className="text-xs">at cost</span>
+              </dt>
+              <dd className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                {usd(quote.freightPerCarton)}
+              </dd>
+            </div>
+            <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t border-foreground/10 pt-1.5 text-sm">
+              <dt className="font-medium">CIF / carton</dt>
+              <dd className="font-mono font-semibold tabular-nums">{usd(quote.cifPerCarton)}</dd>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <dt className="text-slate-600 dark:text-slate-400">Per carton</dt>
-              <dd className="font-mono font-medium tabular-nums">{usd(quote.quotedPerCarton)}</dd>
+              <dt className="text-slate-600 dark:text-slate-400">Total CIF</dt>
+              <dd className="font-mono font-medium tabular-nums">{usd0(quote.quotedTotal)}</dd>
             </div>
             <div>
-              <dt className="text-slate-600 dark:text-slate-400">Total value</dt>
-              <dd className="font-mono font-medium tabular-nums">{usd0(quote.quotedTotal)}</dd>
+              <dt className="text-slate-600 dark:text-slate-400">Total FOB</dt>
+              <dd className="font-mono font-medium tabular-nums">{usd0(quote.fobTotal)}</dd>
             </div>
             <div className="col-span-2 flex items-baseline justify-between border-t border-foreground/10 pt-2">
               <dt className="text-slate-600 dark:text-slate-400">Profit</dt>
@@ -247,6 +272,7 @@ export default function PricePanel({
               <Eye aria-hidden="true" />
               Preview
             </Button>
+            {offerPdf}
             <Button variant="outline" size="sm" onClick={onSendToMaster} disabled={blocked}>
               <SendHorizontal aria-hidden="true" />
               To contract

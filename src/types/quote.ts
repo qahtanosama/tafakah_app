@@ -85,15 +85,37 @@ export interface Quote {
   costPerCarton: number;
   /** Margin actually applied, after clamping. */
   marginPct: number;
-  /** Exact sell price before rounding — shown nowhere, kept for reference. */
+  /** Exact per-MT sell price before rounding — reference only. */
   sellPerMT: number;
+
+  /* ── FOB / CIF ────────────────────────────────────────────────────────
+   * Margin is earned on the goods; sea freight is passed through at cost. So
+   * `cifPerCarton - fobPerCarton === freightPerCarton` exactly, which is what
+   * lets a freight rise be restated without reopening the price.
+   */
+  /** Sea freight for the whole shipment, in USD. */
+  freightUSD: number;
+  /** Landed cost excluding sea freight. */
+  fobCost: number;
+  /** The firm price: FOB cost per carton plus margin, in whole cents. */
+  fobPerCarton: number;
+  fobTotal: number;
+  /** Freight per carton at cost — the volatile component. */
+  freightPerCarton: number;
+  /** fobPerCarton + freightPerCarton. */
+  cifPerCarton: number;
+
   /**
-   * What we quote: whole dollars per MT. Everything below is derived from this
-   * rather than from `sellPerMT`, so the panel, the quote text and the Master
-   * Data handoff all reconcile (quotedPerMT x MT === quotedTotal).
+   * CIF price per MT in whole dollars, for display. Derived from the carton
+   * price, which is authoritative — so this may not multiply exactly to
+   * `quotedTotal`.
    */
   quotedPerMT: number;
+  /** CIF per MT to the cent, for the contract handoff. */
+  contractPerMT: number;
+  /** Alias of `cifPerCarton` — what the buyer pays per box. */
   quotedPerCarton: number;
+  /** cifPerCarton x cartons. Exact. */
   quotedTotal: number;
   profit: number;
   issues: QuoteIssue[];
