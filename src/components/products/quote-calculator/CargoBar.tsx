@@ -3,7 +3,9 @@
 import type { ProductProfile } from "@/types/product";
 import type { Cargo, CargoTotals } from "@/types/quote";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import PortCombobox from "@/components/ui/port-combobox";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
+import { quoteTerms } from "@/lib/quote/quote-text";
 import { qty } from "@/lib/money";
 import { FieldLabel, NumberField } from "./fields";
 
@@ -24,6 +26,8 @@ interface Props {
  * exception is not worth a control that every quote has to step past.
  */
 export default function CargoBar({ products, product, cargo, totals, onChange }: Props) {
+  const terms = quoteTerms(cargo.loadingPort, cargo.dischargePort);
+
   return (
     <section
       aria-label="Shipment"
@@ -59,9 +63,9 @@ export default function CargoBar({ products, product, cargo, totals, onChange }:
         </label>
 
         <label className="block">
-          <FieldLabel>Cartons / container</FieldLabel>
+          <FieldLabel>Boxes / container</FieldLabel>
           <NumberField
-            label="Cartons per container"
+            label="Boxes per container"
             value={cargo.cartonsPerContainer}
             onChange={(cartonsPerContainer) => onChange({ cartonsPerContainer })}
             step={1}
@@ -89,10 +93,40 @@ export default function CargoBar({ products, product, cargo, totals, onChange }:
         </label>
       </div>
 
+      {/* The route decides what the quote says: "FOB Shekou" / "CIF Jeddah".
+          A wrong destination is a factual error in a client-facing offer, so it
+          is chosen per quote rather than inherited from a global default. */}
+      <div className="grid gap-x-4 gap-y-3 border-t border-foreground/10 px-4 pb-4 sm:grid-cols-2">
+        <div>
+          <FieldLabel>Loading port (FOB)</FieldLabel>
+          <PortCombobox
+            value={cargo.loadingPort}
+            onChange={(loadingPort) => onChange({ loadingPort })}
+            ariaLabel="Loading port for FOB"
+            placeholder="Search loading ports…"
+          />
+        </div>
+        <div>
+          <FieldLabel>Discharge port (CIF)</FieldLabel>
+          <PortCombobox
+            value={cargo.dischargePort}
+            onChange={(dischargePort) => onChange({ dischargePort })}
+            ariaLabel="Discharge port for CIF"
+            placeholder="Search discharge ports…"
+          />
+        </div>
+      </div>
+
       <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-foreground/10 px-4 py-2.5 text-sm">
         <div className="flex items-baseline gap-1.5">
           <dt className="text-slate-500 dark:text-slate-400">Container</dt>
           <dd className="font-mono font-medium text-slate-700 dark:text-slate-200">{CONTAINER_TYPE}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-slate-500 dark:text-slate-400">Terms</dt>
+          <dd className="font-medium text-slate-700 dark:text-slate-200">
+            {terms.fob} / {terms.cif}
+          </dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           <dt className="text-slate-500 dark:text-slate-400">Cartons</dt>

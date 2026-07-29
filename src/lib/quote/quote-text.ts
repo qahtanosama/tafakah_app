@@ -16,21 +16,21 @@
 import type { Quote } from "@/types/quote";
 import { splitIncoterm } from "@/types/sales-contract";
 import { getDefaultContractData } from "@/lib/sales-contract";
+import { PORTS, formatPortValue } from "@/lib/ports";
 import { qty, usd, usd0 } from "@/lib/money";
 import { CONTAINER_TYPE } from "./defaults";
 
 export const QUOTE_VALID_DAYS = 7;
 
 /**
- * Brand shown on quotes. The name stays in Latin script in the Arabic quote
- * too — Gulf buyers know the brand by its Latin name, and an invented Arabic
- * transliteration of a brand reads as a different company.
- *
- * Email is the brand's own rather than the seller record's, so the address a
- * buyer replies to matches the domain printed two lines below it. The phone
- * still comes from the seller record — one place to change it.
+ * Brand shown on quotes, with the Arabic form the team uses. Email is the
+ * brand's own rather than the seller record's, so the address a buyer replies to
+ * matches the domain printed two lines below it. The phone still comes from the
+ * seller record — one place to change it.
  */
 const BRAND = "NAWA FRESH";
+/** The brand written in Arabic, as the team writes it. */
+const BRAND_AR = "نوى فريش";
 const WEBSITE = "nawafresh.com";
 const EMAIL = `info@${WEBSITE}`;
 
@@ -63,21 +63,69 @@ export interface QuoteTextInput {
    * drives the MT quantity and the price, it just is not printed.
    */
   gwPerCarton: number;
+  /** Stored port values; printed as short names beside FOB and CIF. */
+  loadingPort: string;
+  dischargePort: string;
+  /**
+   * What one unit is called for this product — "carton", "mesh bag". Garlic
+   * ships in mesh bags, and "11,600 cartons" on a garlic offer is simply wrong.
+   */
+  packUnit?: string;
+  packUnitAr?: string;
   quote: Quote;
 }
 
+/** English plural of a pack unit. All of them pluralise with a trailing s. */
+function plural(unit: string): string {
+  return unit.endsWith("s") ? unit : unit + "s";
+}
+
 /**
- * Named places for the two terms. Both come from the contract defaults so the
- * quote, the contract and the PDFs cannot drift apart — the loading port for
- * FOB, the incoterm's own named place for CIF.
+ * Turns a stored port value into the short name a quote prints:
+ * "SHEKOU PORT, CHINA" -> "Shekou", "KHOR FAKKAN PORT, UAE" -> "Khor Fakkan".
+ * The country and the word PORT are dropped because "CIF Jeddah" is how the
+ * term is written on an offer.
  */
-export function quotePlaces(): { fob: string; cif: string } {
+export function portShortName(stored: string): string {
+  if (!stored) return "";
+  const head = stored.split(",")[0];
+  const qualified = /\(.*?\)/.test(head);
+  const bare = head.replace(/\s*\(.*?\)\s*/g, " ").trim();
+  // A parenthetical is the city that disambiguates the berth ("Khalifa Port
+  // (Abu Dhabi)"), so dropping BOTH it and the word Port would leave an
+  // incoterm place no forwarder recognises. Keep "Port" in that case.
+  const short = qualified ? bare : bare.replace(/\s*PORT\s*$/i, "").trim();
+  return titleCase(short || bare);
+}
+
+/**
+ * Fallback route from the contract defaults, used to seed a fresh quote.
+ *
+ * The default incoterm is stored as "CIF JEDDAH", so the destination arrives as
+ * the bare place name "JEDDAH". That is resolved to the full port value
+ * ("JEDDAH PORT, SAUDI ARABIA") so the port picker shows a real entry rather
+ * than a stray fragment sitting next to a properly-formatted loading port.
+ */
+export function defaultRoute(): { loadingPort: string; dischargePort: string } {
   const { shipping } = getDefaultContractData();
+  const place = shipping.dischargePort || splitIncoterm(shipping.incoterm).place;
   return {
-    // "SHEKOU PORT, CHINA" -> "SHEKOU"
-    fob: titleCase(shipping.loadingPort.split(/[,]/)[0].replace(/\s*PORT\s*$/i, "").trim()),
-    cif: titleCase(splitIncoterm(shipping.incoterm).place),
+    loadingPort: resolvePortValue(shipping.loadingPort),
+    dischargePort: resolvePortValue(place),
   };
+}
+
+/** Matches a loose place name to a known port, else returns it unchanged. */
+function resolvePortValue(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+  if (raw.includes(",")) return raw; // already a full "NAME, COUNTRY" value
+  const wanted = raw.toLowerCase();
+  const hit = PORTS.find((p) => {
+    const name = p.name.toLowerCase();
+    return name === wanted || name.startsWith(wanted + " ") || name.replace(/\s*port$/, "") === wanted;
+  });
+  return hit ? formatPortValue(hit) : raw;
 }
 
 function titleCase(s: string): string {
@@ -89,29 +137,39 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
+/** "FOB Shekou" / "CIF Jeddah", or the bare term when no port is chosen. */
+export function quoteTerms(loadingPort: string, dischargePort: string): { fob: string; cif: string } {
+  const fob = portShortName(loadingPort);
+  const cif = portShortName(dischargePort);
+  return { fob: fob ? `FOB ${fob}` : "FOB", cif: cif ? `CIF ${cif}` : "CIF" };
+}
+
 export function buildQuoteText(input: QuoteTextInput): string {
   const { seller } = getDefaultContractData();
   const { quote, containers, gwPerCarton } = input;
-  const places = quotePlaces();
-  const fobTerm = places.fob ? `FOB ${places.fob}` : "FOB";
-  const cifTerm = places.cif ? `CIF ${places.cif}` : "CIF";
+  const { fob: fobTerm, cif: cifTerm } = quoteTerms(input.loadingPort, input.dischargePort);
   const cartons = qty(quote.totals.cartons);
+  const unit = input.packUnit?.trim() || "carton";
+  const unitAr = input.packUnitAr?.trim() || "كرتون";
 
   if (input.lang === "ar") {
     const product = arabicProductName(input.productName, input.productNameAr);
     return [
-      `📦 عرض سعر — ${BRAND}`,
+      `📦 عرض سعر — ${BRAND_AR}`,
       "",
       product,
-      `${containers} × ${CONTAINER_TYPE} · ${cartons} كرتون · ${qty(gwPerCarton, 1)} كجم قائم/كرتون`,
+      // The container type is left off the Arabic quote on purpose — the buyer
+      // cares how many containers, not that they are 40'HC.
+      `${containers} حاوية · ${cartons} ${unitAr}`,
+      `الوزن الإجمالي: ${qty(gwPerCarton, 1)} كجم لكل ${unitAr}`,
       "",
-      `${fobTerm}   ${usd(quote.fobPerCarton)} / كرتون`,
-      `${cifTerm}   ${usd(quote.cifPerCarton)} / كرتون`,
-      `الإجمالي ${cifTerm}   ${usd0(quote.quotedTotal)}`,
+      `${fobTerm}   ${usd(quote.fobPerCarton)} / ${unitAr}`,
+      `${cifTerm}   ${usd(quote.cifPerCarton)} / ${unitAr}`,
+      `الإجمالي (${cifTerm})   ${usd0(quote.quotedTotal)}`,
       "",
-      `ملاحظة: أجور الشحن البحري غير مستقرة. سعر ${cifTerm} مبني على سعر الشحن الحالي وسيتم تأكيده عند الحجز. سعر ${fobTerm} ثابت لمدة ${QUOTE_VALID_DAYS} أيام.`,
+      `ملاحظة: أجور الشحن البحري غير مستقرة. سعر ${cifTerm} مبني على أجور الشحن الحالية وسيتم تأكيده عند الحجز. سعر ${fobTerm} ثابت لمدة ${QUOTE_VALID_DAYS} أيام من تاريخ هذا العرض.`,
       "",
-      `— ${BRAND}`,
+      `— ${BRAND_AR}`,
       `📧 ${EMAIL}`,
       `📱 ${seller.tel}`,
       `🌐 ${WEBSITE}`,
@@ -122,13 +180,13 @@ export function buildQuoteText(input: QuoteTextInput): string {
     `📦 Quote — ${BRAND}`,
     "",
     input.productName,
-    `${containers} × ${CONTAINER_TYPE} · ${cartons} cartons · ${qty(gwPerCarton, 1)} KG gross/carton`,
+    `${containers} × ${CONTAINER_TYPE} · ${cartons} ${plural(unit)} · ${qty(gwPerCarton, 1)} KG gross/${unit}`,
     "",
-    `${fobTerm}   ${usd(quote.fobPerCarton)} / carton`,
-    `${cifTerm}   ${usd(quote.cifPerCarton)} / carton`,
+    `${fobTerm}   ${usd(quote.fobPerCarton)} / ${unit}`,
+    `${cifTerm}   ${usd(quote.cifPerCarton)} / ${unit}`,
     `Total ${cifTerm}   ${usd0(quote.quotedTotal)}`,
     "",
-    `Note: sea freight is unstable. The ${cifTerm} price is based on today's freight rate and will be re-confirmed at the time of booking. The ${fobTerm} price is firm for ${QUOTE_VALID_DAYS} days.`,
+    `Note: sea freight is unstable. The ${cifTerm} price is based on today's freight rate and will be re-confirmed at the time of booking. The ${fobTerm} price is firm for ${QUOTE_VALID_DAYS} days from the date of this quote.`,
     "",
     `— ${BRAND}`,
     `📧 ${EMAIL}`,

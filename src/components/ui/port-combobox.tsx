@@ -11,6 +11,13 @@ interface PortComboboxProps {
   onChange: (value: string) => void;
   buyerAddress?: string;
   placeholder?: string;
+  /**
+   * Accessible name. The trigger is a button showing only the chosen port, so
+   * without this a screen reader announces the value with no indication of
+   * which field it belongs to — "Shekou Port, China, button" says nothing about
+   * loading versus discharge.
+   */
+  ariaLabel?: string;
 }
 
 export default function PortCombobox({
@@ -18,6 +25,7 @@ export default function PortCombobox({
   onChange,
   buyerAddress,
   placeholder = "Search ports...",
+  ariaLabel,
 }: PortComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -78,6 +86,9 @@ export default function PortCombobox({
       {/* Trigger */}
       <button
         type="button"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         onClick={() => {
           setOpen(!open);
           if (!open) setTimeout(() => inputRef.current?.focus(), 0);
@@ -102,6 +113,7 @@ export default function PortCombobox({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Type to filter..."
+              aria-label={ariaLabel ? `Filter ${ariaLabel.toLowerCase()}` : "Filter ports"}
               className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
             />
           </div>

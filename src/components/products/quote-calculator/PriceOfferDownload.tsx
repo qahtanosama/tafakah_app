@@ -15,6 +15,10 @@ interface Props {
   containers: number;
   cartons: number;
   gwPerCarton: number;
+  loadingPort: string;
+  dischargePort: string;
+  /** "carton" / "mesh bag" — pluralised for display. */
+  packUnit: string;
   quote: Quote;
   disabled?: boolean;
 }
@@ -32,6 +36,9 @@ export default function PriceOfferDownload({
   containers,
   cartons,
   gwPerCarton,
+  loadingPort,
+  dischargePort,
+  packUnit,
   quote,
   disabled,
 }: Props) {
@@ -52,7 +59,7 @@ export default function PriceOfferDownload({
 
       const blob = await pdf(
         <PriceOfferPDF
-          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, quote }}
+          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, packUnit, quote }}
         />
       ).toBlob();
 
@@ -67,7 +74,7 @@ export default function PriceOfferDownload({
     } finally {
       setBusy(false);
     }
-  }, [productName, productPrefix, containers, cartons, gwPerCarton, quote]);
+  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, packUnit, quote]);
 
   return (
     <>

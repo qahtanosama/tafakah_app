@@ -15,6 +15,9 @@ interface DbProduct {
   hs_code: string;
   default_nw: number;
   default_gw: number;
+  default_cartons: number | null;
+  pack_unit: string | null;
+  pack_unit_ar: string | null;
   default_price_mt: number;
   container_type: string;
   notes: string;
@@ -31,6 +34,9 @@ function dbToLocal(row: DbProduct): ProductProfile {
     prefix: row.prefix,
     defaultNW: Number(row.default_nw ?? 0),
     defaultGW: Number(row.default_gw ?? 0),
+    defaultCartons: Number(row.default_cartons ?? 0),
+    packUnit: row.pack_unit || "carton",
+    packUnitAr: row.pack_unit_ar || "كرتون",
     defaultPriceMT: Number(row.default_price_mt ?? 0),
     containerType: row.container_type ?? "",
     notes: row.notes ?? "",
@@ -47,6 +53,9 @@ function localToDb(p: ProductProfile): Omit<DbProduct, "created_at" | "updated_a
     hs_code: p.hsCode,
     default_nw: p.defaultNW,
     default_gw: p.defaultGW,
+    default_cartons: p.defaultCartons,
+    pack_unit: p.packUnit || "carton",
+    pack_unit_ar: p.packUnitAr || "كرتون",
     default_price_mt: p.defaultPriceMT,
     container_type: p.containerType,
     notes: p.notes,
@@ -100,6 +109,9 @@ export function useSaveProduct() {
               hs_code: row.hs_code,
               default_nw: row.default_nw,
               default_gw: row.default_gw,
+              default_cartons: row.default_cartons,
+              pack_unit: row.pack_unit,
+              pack_unit_ar: row.pack_unit_ar,
               default_price_mt: row.default_price_mt,
               container_type: row.container_type,
               notes: row.notes,

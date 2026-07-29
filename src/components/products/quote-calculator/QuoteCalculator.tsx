@@ -74,6 +74,10 @@ export default function QuoteCalculator() {
       containers: cargo.containers,
       cartonsPerContainer: cargo.cartonsPerContainer,
       gwPerCarton: cargo.gwPerCarton,
+      loadingPort: cargo.loadingPort,
+      dischargePort: cargo.dischargePort,
+      packUnit: product.packUnit,
+      packUnitAr: product.packUnitAr,
       quote,
     });
   }, [product, lang, cargo, quote]);
@@ -111,6 +115,8 @@ export default function QuoteCalculator() {
       gwPerCarton: cargo.gwPerCarton,
       cartonsPerContainer: cargo.cartonsPerContainer,
       containers: cargo.containers,
+      loadingPort: cargo.loadingPort,
+      dischargePort: cargo.dischargePort,
       // The to-the-cent figure, so the contract's carton price matches the
       // carton price the buyer actually agreed to.
       pricePerMT: quote.contractPerMT,
@@ -183,6 +189,9 @@ export default function QuoteCalculator() {
                   containers={cargo.containers}
                   cartons={quote.totals.cartons}
                   gwPerCarton={cargo.gwPerCarton}
+                  loadingPort={cargo.loadingPort}
+                  dischargePort={cargo.dischargePort}
+                  packUnit={product.packUnit}
                   quote={quote}
                   disabled={!quote.ready}
                 />

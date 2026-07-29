@@ -14,6 +14,7 @@ import {
   newCostLine,
 } from "@/lib/quote/defaults";
 import { stampIfAmountChanged } from "@/lib/quote/freshness";
+import { defaultRoute } from "@/lib/quote/quote-text";
 import { computeQuote } from "@/lib/quote/pricing";
 import {
   getLangSnapshot,
@@ -75,8 +76,10 @@ export function useQuoteCalculator() {
   const langState = useSyncExternalStore(subscribeLang, getLangSnapshot, getServerLangSnapshot);
 
   const [containers, setContainers] = useState(1);
-  const [cartonsPerContainer, setCartonsPerContainer] = useState(DEFAULT_CARTONS);
+  // null until the user types one, so the product's own boxes-per-container wins.
+  const [cartonsOverride, setCartonsOverride] = useState<{ productId: string; cartons: number } | null>(null);
   const [weights, setWeights] = useState<{ productId: string; nw: number; gw: number } | null>(null);
+  const [route, setRoute] = useState<{ loadingPort: string; dischargePort: string } | null>(null);
   const [working, setWorking] = useState<WorkingSheet | null>(null);
 
   /* ── the sheet on screen ───────────────────────────────────────────── */
@@ -95,16 +98,25 @@ export function useQuoteCalculator() {
 
   const cargo: Cargo = useMemo(() => {
     const owned = weights?.productId === productId ? weights : null;
+    const ownedCartons = cartonsOverride?.productId === productId ? cartonsOverride : null;
     // A reopened or saved sheet remembers the shipment it was costed for.
     const savedCargo = savedSheet?.cargo ?? {};
+    const fallbackRoute = defaultRoute();
     return {
       productId,
       containers,
-      cartonsPerContainer,
+      // The product's pack format is the real answer here; the generic default
+      // only applies to a product whose boxes-per-container is not set yet.
+      cartonsPerContainer:
+        ownedCartons?.cartons ??
+        savedCargo.cartonsPerContainer ??
+        (product?.defaultCartons || DEFAULT_CARTONS),
       nwPerCarton: owned?.nw ?? savedCargo.nwPerCarton ?? product?.defaultNW ?? 0,
       gwPerCarton: owned?.gw ?? savedCargo.gwPerCarton ?? product?.defaultGW ?? 0,
+      loadingPort: route?.loadingPort ?? savedCargo.loadingPort ?? fallbackRoute.loadingPort,
+      dischargePort: route?.dischargePort ?? savedCargo.dischargePort ?? fallbackRoute.dischargePort,
     };
-  }, [productId, containers, cartonsPerContainer, weights, savedSheet, product]);
+  }, [productId, containers, cartonsOverride, weights, route, savedSheet, product]);
 
   const quote = useMemo(
     () =>
@@ -145,6 +157,8 @@ export function useQuoteCalculator() {
             cartonsPerContainer: p.cargo.cartonsPerContainer,
             nwPerCarton: p.cargo.nwPerCarton,
             gwPerCarton: p.cargo.gwPerCarton,
+            loadingPort: p.cargo.loadingPort,
+            dischargePort: p.cargo.dischargePort,
           },
         });
       }, SAVE_DEBOUNCE_MS);
@@ -178,7 +192,18 @@ export function useQuoteCalculator() {
     (patch: Partial<Cargo>) => {
       if (patch.productId !== undefined) setProductChoice(patch.productId);
       if (patch.containers !== undefined) setContainers(patch.containers);
-      if (patch.cartonsPerContainer !== undefined) setCartonsPerContainer(patch.cartonsPerContainer);
+      if (patch.cartonsPerContainer !== undefined) {
+        setCartonsOverride({
+          productId: patch.productId ?? productId,
+          cartons: patch.cartonsPerContainer,
+        });
+      }
+      if (patch.loadingPort !== undefined || patch.dischargePort !== undefined) {
+        setRoute({
+          loadingPort: patch.loadingPort ?? cargo.loadingPort,
+          dischargePort: patch.dischargePort ?? cargo.dischargePort,
+        });
+      }
       if (patch.nwPerCarton !== undefined || patch.gwPerCarton !== undefined) {
         setWeights({
           productId: patch.productId ?? productId,
@@ -187,7 +212,7 @@ export function useQuoteCalculator() {
         });
       }
     },
-    [productId, cargo.nwPerCarton, cargo.gwPerCarton]
+    [productId, cargo.nwPerCarton, cargo.gwPerCarton, cargo.loadingPort, cargo.dischargePort]
   );
 
   const updateLine = useCallback(

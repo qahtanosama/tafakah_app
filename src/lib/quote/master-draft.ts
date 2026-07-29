@@ -10,9 +10,11 @@
  */
 
 import type { SalesContractData } from "@/types/sales-contract";
+import { joinIncoterm, splitIncoterm } from "@/types/sales-contract";
 import { loadMasterData, saveMasterData } from "@/lib/master-data";
 import { calcPricePerCarton, calcQtyMTS, getDefaultContractData, getHSCode } from "@/lib/sales-contract";
 import { CONTAINER_TYPE } from "./defaults";
+import { portShortName } from "./quote-text";
 
 export interface MasterDraftInput {
   productName: string;
@@ -24,6 +26,14 @@ export interface MasterDraftInput {
   cartonsPerContainer: number;
   containers: number;
   pricePerMT: number;
+  /**
+   * The route the quote was priced on. Carried through so the contract opens on
+   * the ports the offer named — the destination is chosen per quote precisely
+   * because it changes with the buyer, and a contract that reverts to the
+   * default would undo that choice.
+   */
+  loadingPort: string;
+  dischargePort: string;
 }
 
 export function sendToMasterData(input: MasterDraftInput): void {
@@ -46,6 +56,16 @@ export function sendToMasterData(input: MasterDraftInput): void {
       },
       ...rest,
     ],
+    shipping: {
+      ...base.shipping,
+      loadingPort: input.loadingPort || base.shipping.loadingPort,
+      dischargePort: input.dischargePort || base.shipping.dischargePort,
+      // The quote was made CIF that port, so the contract's incoterm names the
+      // same place. The term itself (CIF/FOB/…) is whatever the draft already had.
+      incoterm: input.dischargePort
+        ? joinIncoterm(splitIncoterm(base.shipping.incoterm).term, portShortName(input.dischargePort).toUpperCase())
+        : base.shipping.incoterm,
+    },
     terms: {
       ...base.terms,
       containerType: CONTAINER_TYPE,

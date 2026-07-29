@@ -4,7 +4,7 @@ import { Letterhead, s, GRAY_BORDER, LIGHT_BG } from "@/components/pdf/shared";
 import SellerSignatureBlock from "@/components/pdf/SellerSignatureBlock";
 import { getDefaultContractData } from "@/lib/sales-contract";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
-import { QUOTE_BRAND, QUOTE_VALID_DAYS, quotePlaces } from "@/lib/quote/quote-text";
+import { QUOTE_BRAND, QUOTE_VALID_DAYS, quoteTerms } from "@/lib/quote/quote-text";
 import { qty, usd, usd0 } from "@/lib/money";
 
 /**
@@ -103,15 +103,18 @@ export interface PriceOfferData {
   containers: number;
   cartons: number;
   gwPerCarton: number;
+  loadingPort: string;
+  dischargePort: string;
+  packUnit: string;
   quote: Quote;
 }
 
 export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
   const { seller } = getDefaultContractData();
-  const places = quotePlaces();
-  const fobTerm = places.fob ? `FOB ${places.fob}` : "FOB";
-  const cifTerm = places.cif ? `CIF ${places.cif}` : "CIF";
+  const { fob: fobTerm, cif: cifTerm } = quoteTerms(data.loadingPort, data.dischargePort);
   const { quote } = data;
+  const unit = data.packUnit?.trim() || "carton";
+  const units = unit.endsWith("s") ? unit : unit + "s";
 
   return (
     <Document
@@ -150,30 +153,30 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
         <Text style={s.sectionTitle}>Goods</Text>
         <Text style={o.cargoLine}>{data.productName}</Text>
         <Text style={o.cargoLine}>
-          {data.containers} × {CONTAINER_TYPE} · {qty(data.cartons)} cartons ·{" "}
-          {qty(data.gwPerCarton, 1)} KG gross per carton
+          {data.containers} × {CONTAINER_TYPE} · {qty(data.cartons)} {units} ·{" "}
+          {qty(data.gwPerCarton, 1)} KG gross per {unit}
         </Text>
         <Text style={o.cargoLine}>Total quantity: {qty(quote.totals.qtyMTS, 2)} MT net</Text>
 
         <View style={o.priceBox}>
           <View style={o.priceRow}>
             <Text style={o.priceTerm}>{fobTerm}</Text>
-            <Text style={o.priceUnit}>per carton</Text>
+            <Text style={o.priceUnit}>per {unit}</Text>
             <Text style={o.priceValue}>{usd(quote.fobPerCarton)}</Text>
           </View>
           <View style={o.priceRow}>
             <Text style={o.priceTermPlain}>Sea freight (at cost)</Text>
-            <Text style={o.priceUnit}>per carton</Text>
+            <Text style={o.priceUnit}>per {unit}</Text>
             <Text style={o.priceValuePlain}>{usd(quote.freightPerCarton)}</Text>
           </View>
           <View style={o.priceRow}>
             <Text style={o.priceTerm}>{cifTerm}</Text>
-            <Text style={o.priceUnit}>per carton</Text>
+            <Text style={o.priceUnit}>per {unit}</Text>
             <Text style={o.priceValue}>{usd(quote.cifPerCarton)}</Text>
           </View>
           <View style={o.priceRowLast}>
             <Text style={o.priceTerm}>Total {cifTerm}</Text>
-            <Text style={o.priceUnit}>{qty(data.cartons)} cartons</Text>
+            <Text style={o.priceUnit}>{qty(data.cartons)} {units}</Text>
             <Text style={o.priceValue}>{usd0(quote.quotedTotal)}</Text>
           </View>
         </View>

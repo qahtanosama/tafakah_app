@@ -49,6 +49,14 @@ export interface Cargo {
   cartonsPerContainer: number;
   nwPerCarton: number;
   gwPerCarton: number;
+  /**
+   * The named places printed as "FOB <loading>" and "CIF <discharge>". Chosen
+   * per quote — the destination changes with the buyer, and a quote that says
+   * CIF Jeddah to a Khor Fakkan buyer is simply wrong. Stored with the cost
+   * sheet so a re-quote keeps the route.
+   */
+  loadingPort: string;
+  dischargePort: string;
 }
 
 /** Shipment-wide quantities derived from Cargo. */

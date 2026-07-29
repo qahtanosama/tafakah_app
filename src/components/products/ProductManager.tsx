@@ -46,6 +46,7 @@ function ProductCard({ product, history, onEdit, onDelete }: {
         <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-[13px] sm:text-sm">
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">N.W./Ctn</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultNW} KG</span></div>
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">G.W./Ctn</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultGW} KG</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{product.packUnit === "carton" ? "Boxes" : product.packUnit + "s"}/Cont.</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">Default Price</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">${product.defaultPriceMT.toLocaleString()} <span className="text-slate-400 text-xs font-sans">/MT</span></span></div>
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">Container</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.containerType}</span></div>
         </div>
@@ -96,7 +97,8 @@ export default function ProductManager() {
   const handleNew = useCallback(() => {
     setEditing({
       id: crypto.randomUUID(), name: "", nameAr: "", hsCode: "", prefix: "",
-      defaultNW: 0, defaultGW: 0, defaultPriceMT: 0, containerType: "40'RH", notes: "",
+      defaultNW: 0, defaultGW: 0, defaultCartons: 0, packUnit: "carton", packUnitAr: "كرتون",
+      defaultPriceMT: 0, containerType: "40'RH", notes: "",
     });
     setIsNew(true);
     setPrefixError("");
@@ -199,6 +201,9 @@ export default function ProductManager() {
             </div>
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">N.W./Ctn (KG)</Label><Input type="number" value={editing.defaultNW || ""} onChange={(e) => setEditing({ ...editing, defaultNW: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">G.W./Ctn (KG)</Label><Input type="number" value={editing.defaultGW || ""} onChange={(e) => setEditing({ ...editing, defaultGW: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Boxes / Container</Label><Input type="number" value={editing.defaultCartons || ""} onChange={(e) => setEditing({ ...editing, defaultCartons: parseInt(e.target.value) || 0 })} placeholder="e.g. 11088" className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Unit name</Label><Input value={editing.packUnit} onChange={(e) => setEditing({ ...editing, packUnit: e.target.value })} placeholder="carton / mesh bag" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Unit name (Arabic)</Label><Input value={editing.packUnitAr} onChange={(e) => setEditing({ ...editing, packUnitAr: e.target.value })} placeholder="كرتون / كيس شبكي" dir="rtl" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Default Price/MT ($)</Label><Input type="number" value={editing.defaultPriceMT || ""} onChange={(e) => setEditing({ ...editing, defaultPriceMT: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Container Type</Label><Input value={editing.containerType} onChange={(e) => setEditing({ ...editing, containerType: e.target.value })} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div className="sm:col-span-2 lg:col-span-4"><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Notes</Label><Input value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} placeholder="Season, min order, etc." className="h-11 bg-white dark:bg-zinc-800 focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
