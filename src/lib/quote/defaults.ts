@@ -11,7 +11,7 @@ export const CONTAINER_TYPE = "40'HC";
 export const CURRENCIES: Currency[] = ["USD", "RMB", "EUR", "SAR", "AED", "KWD"];
 
 /** 1 USD = <rate>. Editable in the FX panel and persisted per browser. */
-export const DEFAULT_FX: FxRates = { RMB: 7.24, EUR: 0.92, SAR: 3.75, AED: 3.67, KWD: 0.31 };
+export const DEFAULT_FX: FxRates = { RMB: 6.75, EUR: 0.92, SAR: 3.75, AED: 3.67, KWD: 0.31 };
 
 /** Order matters — this is the dropdown order on every cost line. */
 export const UNITS: { value: CostUnit; label: string }[] = [
@@ -56,7 +56,10 @@ export function defaultCostLines(): CostLine[] {
   return [
     { id: "farm", label: "Farm price (EXW)", amount: 0, currency: "RMB", unit: "per_kg" },
     { id: "packing", label: "Packaging", amount: 0, currency: "RMB", unit: "per_carton" },
-    { id: "freight", label: "Sea freight", amount: 0, currency: "RMB", unit: "per_container" },
+    // Freight and bank charges are invoiced to us in USD; the sheet warns if
+    // either is switched to another currency, because entering a USD figure
+    // under RMB would divide it by the exchange rate and understate the cost.
+    { id: "freight", label: "Sea freight", amount: 0, currency: "USD", unit: "per_container" },
     { id: "customs", label: "Customs & agent fee", amount: 0, currency: "USD", unit: "per_container" },
     { id: "inland", label: "Inland transport", amount: 0, currency: "USD", unit: "per_container" },
     { id: "bank", label: "Bank charges", amount: 0, currency: "USD", unit: "flat" },
@@ -80,3 +83,11 @@ export function newCostLine(): CostLine {
 export function isFixedLine(id: string): boolean {
   return (FIXED_COST_IDS as readonly string[]).includes(id);
 }
+
+/**
+ * Lines the forwarder and the bank bill us in USD. Entering one of these in RMB
+ * silently divides it by the FX rate, which understates the cost and quietly
+ * inflates the margin — so the sheet flags a non-USD currency on these two
+ * rather than trusting it.
+ */
+export const USD_EXPECTED_LINES: readonly string[] = ["freight", "bank"];

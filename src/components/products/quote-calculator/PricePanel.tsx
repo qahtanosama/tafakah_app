@@ -6,8 +6,30 @@ import { Button } from "@/components/ui/button";
 import { MARGIN_MAX, MARGIN_MIN } from "@/lib/quote/defaults";
 import { convertFromUSD } from "@/lib/quote/pricing";
 import { qty, usd, usd0 } from "@/lib/money";
+import type { QuoteIssue } from "@/types/quote";
 import type { QuoteLang } from "@/lib/quote/storage";
 import { cn } from "@/lib/utils";
+import { useT, useTeamFormat } from "@/lib/team-i18n";
+
+/**
+ * Issue code -> dictionary key. The pricing layer reports which problem a quote
+ * has; the wording lives here, so the same calculation explains itself in
+ * whichever language the person reading it uses.
+ */
+const ISSUE_KEY = {
+  noProduct: "issueNoProduct",
+  containers: "issueContainers",
+  cartons: "issueCartons",
+  netWeight: "issueNetWeight",
+  grossWeight: "issueGrossWeight",
+  noFx: "issueNoFx",
+  farmZero: "issueFarmZero",
+  uncosted: "issueUncosted",
+  marginCapped: "issueMarginCapped",
+  weightsSwapped: "issueWeightsSwapped",
+  unnamedLine: "issueUnnamedLine",
+  noEtd: "issueNoEtd",
+} as const satisfies Record<QuoteIssue["code"], string>;
 
 interface Props {
   quote: Quote;
@@ -45,6 +67,7 @@ export default function PricePanel({
   copied,
   offerPdf,
 }: Props) {
+  const t = useT("calc");
   const errors = quote.issues.filter((i) => i.level === "error");
   const warnings = quote.issues.filter((i) => i.level === "warning");
   const blocked = !quote.ready;
@@ -63,16 +86,16 @@ export default function PricePanel({
     >
       <div className="flex items-baseline justify-between gap-3 px-5 pt-5">
         <h2 id="price-panel-heading" className="font-heading text-base font-semibold">
-          Sell at
+          {t("sellAt")}
         </h2>
-        <span className="text-xs text-slate-500 dark:text-slate-400">{quote.marginPct}% margin</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">{t("marginSuffix", { margin: quote.marginPct })}</span>
       </div>
 
       {/* Hero price. Dimmed rather than hidden while blocked — the layout must
           not jump once the inputs are complete. */}
       <div className={cn("px-5 pt-3 pb-5", blocked && "opacity-45")}>
         <dl>
-          <dt className="text-sm text-slate-600 dark:text-slate-400">CIF price per MT</dt>
+          <dt className="text-sm text-slate-600 dark:text-slate-400">{t("cifPricePerMt")}</dt>
           <dd className="mt-0.5 font-mono text-[2.75rem] leading-none font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400">
             {usd0(quote.quotedPerMT)}
           </dd>
@@ -82,34 +105,34 @@ export default function PricePanel({
               the number to restate when the rate moves. */}
           <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-white/5">
             <div className="flex items-baseline justify-between gap-3 text-sm">
-              <dt className="text-slate-600 dark:text-slate-400">FOB / carton</dt>
+              <dt className="text-slate-600 dark:text-slate-400">{t("fobPerCarton")}</dt>
               <dd className="font-mono font-semibold tabular-nums">{usd(quote.fobPerCarton)}</dd>
             </div>
             <div className="mt-1 flex items-baseline justify-between gap-3 text-sm">
               <dt className="text-slate-600 dark:text-slate-400">
-                + sea freight <span className="text-xs">at cost</span>
+                {t("plusSeaFreight")} <span className="text-xs">{t("atCost")}</span>
               </dt>
               <dd className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
                 {usd(quote.freightPerCarton)}
               </dd>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t border-foreground/10 pt-1.5 text-sm">
-              <dt className="font-medium">CIF / carton</dt>
+              <dt className="font-medium">{t("cifPerCarton")}</dt>
               <dd className="font-mono font-semibold tabular-nums">{usd(quote.cifPerCarton)}</dd>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <dt className="text-slate-600 dark:text-slate-400">Total CIF</dt>
+              <dt className="text-slate-600 dark:text-slate-400">{t("totalCif")}</dt>
               <dd className="font-mono font-medium tabular-nums">{usd0(quote.quotedTotal)}</dd>
             </div>
             <div>
-              <dt className="text-slate-600 dark:text-slate-400">Total FOB</dt>
+              <dt className="text-slate-600 dark:text-slate-400">{t("totalFob")}</dt>
               <dd className="font-mono font-medium tabular-nums">{usd0(quote.fobTotal)}</dd>
             </div>
             <div className="col-span-2 flex items-baseline justify-between border-t border-foreground/10 pt-2">
-              <dt className="text-slate-600 dark:text-slate-400">Profit</dt>
+              <dt className="text-slate-600 dark:text-slate-400">{t("profit")}</dt>
               <dd
                 className={cn(
                   "font-mono font-semibold tabular-nums",
@@ -125,13 +148,13 @@ export default function PricePanel({
             {sarPerCarton !== null && sarTotal !== null && (
               <div className="col-span-2 border-t border-foreground/10 pt-2">
                 <dt className="text-slate-600 dark:text-slate-400">
-                  In riyal <span className="text-xs">· 1 USD = {fx.SAR} SAR</span>
+                  {t("inRiyal")} <span className="text-xs">· {t("riyalRate", { rate: fx.SAR })}</span>
                 </dt>
                 <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 font-mono tabular-nums">
                   <span className="font-semibold">SAR {qty(sarPerCarton, 2)}</span>
-                  <span className="text-slate-600 dark:text-slate-400">per carton</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t("riyalPerCarton")}</span>
                   <span className="text-slate-600 dark:text-slate-400">
-                    · SAR {qty(sarTotal)} total
+                    · {t("riyalTotal", { total: qty(sarTotal) })}
                   </span>
                 </dd>
               </div>
@@ -145,7 +168,7 @@ export default function PricePanel({
       <div className="border-t border-foreground/10 px-5 py-4">
         <div className="flex items-center gap-4">
           <label htmlFor="margin-range" className="text-sm font-medium">
-            Margin
+            {t("margin")}
           </label>
           <input
             id="margin-range"
@@ -164,7 +187,7 @@ export default function PricePanel({
               min={MARGIN_MIN}
               max={MARGIN_MAX}
               value={marginPct}
-              aria-label="Margin percent"
+              aria-label={t("marginPercentA11y")}
               onChange={(e) => onMarginChange(parseInt(e.target.value, 10))}
               className="h-9 w-16 rounded-md border border-slate-200 bg-white px-2 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-zinc-800/60"
             />
@@ -173,20 +196,20 @@ export default function PricePanel({
         </div>
 
         <table className="mt-4 w-full text-sm">
-          <caption className="sr-only">Price at other margins</caption>
+          <caption className="sr-only">{t("scenariosCaption")}</caption>
           <thead>
             <tr className="text-xs text-slate-500 dark:text-slate-400">
               <th scope="col" className="pb-1 text-left font-medium">
-                Margin
+                {t("scMargin")}
               </th>
               <th scope="col" className="pb-1 text-right font-medium">
-                Per MT
+                {t("scPerMt")}
               </th>
               <th scope="col" className="pb-1 text-right font-medium">
-                Per carton
+                {t("scPerCarton")}
               </th>
               <th scope="col" className="pb-1 text-right font-medium">
-                Total
+                {t("scTotal")}
               </th>
             </tr>
           </thead>
@@ -227,15 +250,15 @@ export default function PricePanel({
         <div className="border-t border-foreground/10 px-5 py-4">
           <ul className="space-y-1.5 text-sm">
             {errors.map((issue) => (
-              <li key={issue.message} className="flex gap-2 text-red-700 dark:text-red-400">
+              <li key={issue.code} className="flex gap-2 text-red-700 dark:text-red-400">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{issue.message}</span>
+                <span>{t(ISSUE_KEY[issue.code], issue.params)}</span>
               </li>
             ))}
             {warnings.map((issue) => (
-              <li key={issue.message} className="flex gap-2 text-amber-700 dark:text-amber-400">
+              <li key={issue.code} className="flex gap-2 text-amber-700 dark:text-amber-400">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{issue.message}</span>
+                <span>{t(ISSUE_KEY[issue.code], issue.params)}</span>
               </li>
             ))}
           </ul>
@@ -246,7 +269,7 @@ export default function PricePanel({
         <div className="flex flex-wrap items-center gap-3">
           <div
             role="group"
-            aria-label="Quote language"
+            aria-label={t("quoteLanguage")}
             className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-zinc-800"
           >
             {(["en", "ar"] as const).map((code) => (
@@ -262,7 +285,7 @@ export default function PricePanel({
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 )}
               >
-                {code === "en" ? "English" : "العربية"}
+                {code === "en" ? t("langEn") : t("langAr")}
               </button>
             ))}
           </div>
@@ -270,24 +293,24 @@ export default function PricePanel({
           <div className="ml-auto flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={onPreview} disabled={blocked}>
               <Eye aria-hidden="true" />
-              Preview
+              {t("preview")}
             </Button>
             {offerPdf}
             <Button variant="outline" size="sm" onClick={onSendToMaster} disabled={blocked}>
               <SendHorizontal aria-hidden="true" />
-              To contract
+              {t("toContract")}
             </Button>
             {/* Copy is the primary action: pasting the quote into WhatsApp or
                 email is what this screen is for. */}
             <Button size="sm" onClick={onCopy} disabled={blocked}>
               {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-              {copied ? "Copied" : "Copy quote"}
+              {copied ? t("copied") : t("copyQuote")}
             </Button>
           </div>
         </div>
         {blocked && (
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Fill in the missing details above to send this quote.
+            {t("blockedHint")}
           </p>
         )}
       </div>
@@ -305,6 +328,8 @@ interface HistoryProps {
  * inside the price column because it only means anything next to the price.
  */
 export function PriceHistory({ rows, quotedPerMT }: HistoryProps) {
+  const t = useT("calc");
+  const fmt = useTeamFormat();
   if (rows.length === 0) return null;
 
   return (
@@ -313,18 +338,16 @@ export function PriceHistory({ rows, quotedPerMT }: HistoryProps) {
       className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10"
     >
       <h2 id="price-history-heading" className="px-5 pt-4 font-heading text-base font-semibold">
-        Last quoted
+        {t("lastQuoted")}
       </h2>
       <table className="mt-2 w-full text-sm">
-        <caption className="sr-only">
-          Most recent price per MT quoted to each buyer for this product
-        </caption>
+        <caption className="sr-only">{t("lastQuotedCaption")}</caption>
         <thead className="sr-only">
           <tr>
-            <th scope="col">Buyer</th>
-            <th scope="col">Date</th>
-            <th scope="col">Price per MT</th>
-            <th scope="col">Difference from this quote</th>
+            <th scope="col">{t("lqBuyer")}</th>
+            <th scope="col">{t("lqDate")}</th>
+            <th scope="col">{t("lqPrice")}</th>
+            <th scope="col">{t("lqDiff")}</th>
           </tr>
         </thead>
         <tbody>
@@ -332,18 +355,18 @@ export function PriceHistory({ rows, quotedPerMT }: HistoryProps) {
             <tr key={r.buyer} className="border-t border-foreground/5">
               <td className="py-2 pr-2 pl-5 font-medium">{r.buyer}</td>
               <td className="py-2 pr-2 text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">
-                {formatMonth(r.date)}
+                {formatMonth(r.date, fmt)}
               </td>
               <td className="py-2 pr-3 text-right font-mono tabular-nums">{usd0(r.priceMT)}</td>
               <td className="py-2 pr-5 text-right whitespace-nowrap">
-                {quotedPerMT > 0 ? <DiffBadge diffPct={r.diffPct} /> : <span className="text-slate-400">—</span>}
+                {quotedPerMT > 0 ? <DiffBadge diffPct={r.diffPct} sameLabel={t("lqSame")} /> : <span className="text-slate-400">—</span>}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="px-5 pt-1 pb-4 text-xs text-slate-500 dark:text-slate-400">
-        Difference is this quote against that price.
+        {t("lqFoot")}
       </p>
     </section>
   );
@@ -353,9 +376,9 @@ export function PriceHistory({ rows, quotedPerMT }: HistoryProps) {
  * Signed text, not colour alone — as the seller, quoting above a past price is
  * the good direction, which is the opposite of what a red/green reflex reads.
  */
-function DiffBadge({ diffPct }: { diffPct: number }) {
+function DiffBadge({ diffPct, sameLabel }: { diffPct: number; sameLabel: string }) {
   const rounded = Math.abs(diffPct) < 0.05 ? 0 : diffPct;
-  if (rounded === 0) return <span className="font-mono text-xs text-slate-500">same</span>;
+  if (rounded === 0) return <span className="font-mono text-xs text-slate-500">{sameLabel}</span>;
   return (
     <span className="font-mono text-xs font-medium tabular-nums text-slate-700 dark:text-slate-300">
       {rounded > 0 ? "+" : "−"}
@@ -364,8 +387,8 @@ function DiffBadge({ diffPct }: { diffPct: number }) {
   );
 }
 
-function formatMonth(date: string): string {
+function formatMonth(date: string, fmt: ReturnType<typeof useTeamFormat>): string {
   const d = new Date(date);
   if (isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(d);
+  return fmt.monthYear(d);
 }

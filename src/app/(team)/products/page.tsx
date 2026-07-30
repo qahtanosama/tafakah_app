@@ -14,7 +14,7 @@ export default function ProductsPage() {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/50 via-white to-slate-50 dark:from-indigo-950/20 dark:via-zinc-950 dark:to-zinc-950"></div>
       <div className="fixed inset-0 -z-10 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] dark:opacity-[0.04]"></div>
 
-      <AppHeader title="Product Database" />
+      <AppHeader title="Product Database" titleKey="products" />
       <main className="flex-1 w-full mx-auto">
         <ProductManager />
       </main>

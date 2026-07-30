@@ -4,7 +4,7 @@ import { Letterhead, s, GRAY_BORDER, LIGHT_BG } from "@/components/pdf/shared";
 import SellerSignatureBlock from "@/components/pdf/SellerSignatureBlock";
 import { getDefaultContractData } from "@/lib/sales-contract";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
-import { QUOTE_BRAND, QUOTE_VALID_DAYS, quoteTerms } from "@/lib/quote/quote-text";
+import { QUOTE_BRAND, QUOTE_VALID_DAYS, formatEtd, quoteTerms } from "@/lib/quote/quote-text";
 import { qty, usd, usd0 } from "@/lib/money";
 
 /**
@@ -105,6 +105,7 @@ export interface PriceOfferData {
   gwPerCarton: number;
   loadingPort: string;
   dischargePort: string;
+  etd: string;
   packUnit: string;
   quote: Quote;
 }
@@ -157,6 +158,7 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
           {qty(data.gwPerCarton, 1)} KG gross per {unit}
         </Text>
         <Text style={o.cargoLine}>Total quantity: {qty(quote.totals.qtyMTS, 2)} MT net</Text>
+        <Text style={o.cargoLine}>ETD: {formatEtd(data.etd)}</Text>
 
         <View style={o.priceBox}>
           <View style={o.priceRow}>

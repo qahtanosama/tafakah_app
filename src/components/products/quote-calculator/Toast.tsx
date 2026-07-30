@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { useT } from "@/lib/team-i18n";
 
 const DISMISS_MS = 5000;
 
@@ -18,6 +19,8 @@ export default function Toast({
   message: string | null;
   onDismiss: () => void;
 }) {
+  const t = useT("calc");
+
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(onDismiss, DISMISS_MS);
@@ -34,7 +37,7 @@ export default function Toast({
           <button
             type="button"
             onClick={onDismiss}
-            aria-label="Dismiss"
+            aria-label={t("dismiss")}
             className="-mr-1 rounded-md p-0.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
           >
             <X className="h-4 w-4" aria-hidden="true" />

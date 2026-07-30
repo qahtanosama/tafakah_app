@@ -17,6 +17,7 @@ import QuotePreview from "./QuotePreview";
 import SessionHistory from "./SessionHistory";
 import Toast from "./Toast";
 import { useQuoteCalculator } from "./useQuoteCalculator";
+import { useT } from "@/lib/team-i18n";
 
 const COPIED_MS = 2000;
 
@@ -28,6 +29,7 @@ const COPIED_MS = 2000;
  * useQuoteCalculator; this file wires them to the panels.
  */
 export default function QuoteCalculator() {
+  const t = useT("calc");
   const calc = useQuoteCalculator();
   const { data: contractsData } = useContracts();
 
@@ -76,6 +78,7 @@ export default function QuoteCalculator() {
       gwPerCarton: cargo.gwPerCarton,
       loadingPort: cargo.loadingPort,
       dischargePort: cargo.dischargePort,
+      etd: cargo.etd,
       packUnit: product.packUnit,
       packUnitAr: product.packUnitAr,
       quote,
@@ -97,9 +100,9 @@ export default function QuoteCalculator() {
       await navigator.clipboard.writeText(text);
       setCopied(true);
     } catch {
-      setToast("Could not reach the clipboard — copy the text from Preview instead.");
+      setToast(t("clipboardFailed"));
     }
-  }, [previewOpen, previewText, quoteText]);
+  }, [previewOpen, previewText, quoteText, t]);
 
   const handlePreview = useCallback(() => {
     setPreviewText(quoteText());
@@ -121,8 +124,8 @@ export default function QuoteCalculator() {
       // carton price the buyer actually agreed to.
       pricePerMT: quote.contractPerMT,
     });
-    setToast("Sent to Master Data — open it to finish the contract.");
-  }, [product, cargo, quote.contractPerMT]);
+    setToast(t("sentToMaster"));
+  }, [product, cargo, quote.contractPerMT, t]);
 
   if (calc.loading) return <CalculatorSkeleton />;
 
@@ -191,6 +194,7 @@ export default function QuoteCalculator() {
                   gwPerCarton={cargo.gwPerCarton}
                   loadingPort={cargo.loadingPort}
                   dischargePort={cargo.dischargePort}
+                  etd={cargo.etd}
                   packUnit={product.packUnit}
                   quote={quote}
                   disabled={!quote.ready}
@@ -219,9 +223,10 @@ export default function QuoteCalculator() {
 
 /** Mirrors the real layout so the page does not reflow when data lands. */
 function CalculatorSkeleton() {
+  const t = useT("calc");
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 md:px-8" aria-busy="true">
-      <span className="sr-only">Loading calculator…</span>
+      <span className="sr-only">{t("loading")}</span>
       <div className="h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,26rem)] lg:items-start">
         <div className="min-w-0 space-y-6">

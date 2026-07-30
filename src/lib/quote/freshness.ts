@@ -51,20 +51,15 @@ export function lineFreshness(line: CostLine, now: Date = new Date()): LineFresh
   return {
     days,
     stale: days > staleAfterDays(line.id),
-    label: ageLabel(days, then),
+    at: then,
   };
 }
 
+/** Past a fortnight the exact count stops helping — show the date instead. */
+export const AGE_EXACT_DAYS = 14;
+
 function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-function ageLabel(days: number, then: Date): string {
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 14) return `${days} days ago`;
-  // Past a fortnight the exact count stops helping — the date is easier to place.
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(then);
 }
 
 /** Stamps `updatedAt` when the amount actually changed — not on a relabel or unit switch. */

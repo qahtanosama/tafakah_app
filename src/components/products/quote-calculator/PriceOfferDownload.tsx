@@ -6,6 +6,7 @@ import { FileDown, Loader2 } from "lucide-react";
 import type { Quote } from "@/types/quote";
 import { Button } from "@/components/ui/button";
 import { saveBlobWithDownload, saveBlobWithPicker, supportsSaveFilePicker } from "@/lib/quick-share/save-file";
+import { useT } from "@/lib/team-i18n";
 import PriceOfferPDF from "./PriceOfferPDF";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
   gwPerCarton: number;
   loadingPort: string;
   dischargePort: string;
+  etd: string;
   /** "carton" / "mesh bag" — pluralised for display. */
   packUnit: string;
   quote: Quote;
@@ -38,10 +40,12 @@ export default function PriceOfferDownload({
   gwPerCarton,
   loadingPort,
   dischargePort,
+  etd,
   packUnit,
   quote,
   disabled,
 }: Props) {
+  const t = useT("calc");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -59,7 +63,7 @@ export default function PriceOfferDownload({
 
       const blob = await pdf(
         <PriceOfferPDF
-          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, packUnit, quote }}
+          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, quote }}
         />
       ).toBlob();
 
@@ -70,17 +74,17 @@ export default function PriceOfferDownload({
         await saveBlobWithDownload(blob, filename);
       }
     } catch (e) {
-      setErr((e as Error).message || "Could not create the PDF");
+      setErr((e as Error).message || t("pdfFailed"));
     } finally {
       setBusy(false);
     }
-  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, packUnit, quote]);
+  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, quote]);
 
   return (
     <>
       <Button variant="outline" size="sm" disabled={busy || disabled} onClick={onClick}>
         {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileDown aria-hidden="true" />}
-        {busy ? "Making PDF…" : "Offer PDF"}
+        {busy ? t("makingPdf") : t("offerPdf")}
       </Button>
       {err && (
         <p role="alert" className="w-full text-xs text-red-600 dark:text-red-400">

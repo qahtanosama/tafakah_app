@@ -57,6 +57,12 @@ export interface Cargo {
    */
   loadingPort: string;
   dischargePort: string;
+  /**
+   * Estimated departure of the vessel, as YYYY-MM-DD. Required on the quote so
+   * the buyer knows the sailing the price is tied to — a price with no departure
+   * is not a shippable offer, and freight moves between sailings.
+   */
+  etd: string;
 }
 
 /** Shipment-wide quantities derived from Cargo. */
@@ -80,9 +86,30 @@ export interface PricedLine {
 /** `error` blocks sending the quote; `warning` is worth knowing but not fatal. */
 export type IssueLevel = "error" | "warning";
 
+/**
+ * Which problem, not its wording. The pricing layer is pure and language-free;
+ * the panel looks the code up in the team dictionary, so the same quote reports
+ * its problems in English or Chinese without the math knowing either exists.
+ */
+export type QuoteIssueCode =
+  | "noProduct"
+  | "containers"
+  | "cartons"
+  | "netWeight"
+  | "grossWeight"
+  | "noFx"
+  | "farmZero"
+  | "uncosted"
+  | "marginCapped"
+  | "weightsSwapped"
+  | "unnamedLine"
+  | "noEtd";
+
 export interface QuoteIssue {
   level: IssueLevel;
-  message: string;
+  code: QuoteIssueCode;
+  /** Values interpolated into the message, e.g. { currencies: "RMB" }. */
+  params?: Record<string, string | number>;
 }
 
 export interface Quote {
@@ -158,10 +185,15 @@ export interface CostSheet {
   updatedAt: string;
 }
 
-/** How a line's value ages. `stale` means past that cost's own refresh window. */
+/**
+ * How a line's value ages. `stale` means past that cost's own refresh window.
+ *
+ * Reports the age, not its wording — the component picks "today" / "2 days ago"
+ * / a formatted date from the team dictionary, so this stays language-free.
+ */
 export interface LineFreshness {
   days: number;
   stale: boolean;
-  /** Short human label — "today", "2 days ago", "Jun 28". */
-  label: string;
+  /** When the amount was last changed, for formatting an older date. */
+  at: Date;
 }

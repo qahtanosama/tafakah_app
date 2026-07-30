@@ -5,6 +5,7 @@ import type { CostSheet } from "@/types/quote";
 import { todayKey } from "@/lib/data/cost-sheets";
 import { usd0 } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { useT, useTeamFormat } from "@/lib/team-i18n";
 
 interface Props {
   sessions: CostSheet[];
@@ -24,6 +25,8 @@ interface Props {
  * honest summary of what made each quote different.
  */
 export default function SessionHistory({ sessions, reopenedFrom, onReopen, onCloseReopened }: Props) {
+  const t = useT("calc");
+  const fmt = useTeamFormat();
   if (sessions.length === 0) return null;
 
   const today = todayKey();
@@ -35,7 +38,7 @@ export default function SessionHistory({ sessions, reopenedFrom, onReopen, onClo
     >
       <div className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-1">
         <h2 id="session-history-heading" className="font-heading text-base font-semibold">
-          Cost history
+          {t("historyTitle")}
         </h2>
         {reopenedFrom && (
           <button
@@ -44,26 +47,26 @@ export default function SessionHistory({ sessions, reopenedFrom, onReopen, onClo
             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:text-indigo-400 dark:hover:bg-indigo-500/10"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
-            Back to current
+            {t("backToCurrent")}
           </button>
         )}
       </div>
 
       <table className="w-full text-sm">
-        <caption className="sr-only">Saved cost sessions for this product, newest first</caption>
+        <caption className="sr-only">{t("historyCaption")}</caption>
         <thead>
           <tr className="text-xs text-slate-500 dark:text-slate-400">
             <th scope="col" className="py-1 pr-2 pl-5 text-left font-medium">
-              When
+              {t("historyWhen")}
             </th>
             <th scope="col" className="py-1 pr-2 text-right font-medium">
-              Farm
+              {t("historyFarm")}
             </th>
             <th scope="col" className="py-1 pr-2 text-right font-medium">
-              Quoted
+              {t("historyQuoted")}
             </th>
             <th scope="col" className="w-9 py-1 pr-4">
-              <span className="sr-only">Reopen</span>
+              <span className="sr-only">{t("historyReopen")}</span>
             </th>
           </tr>
         </thead>
@@ -82,10 +85,10 @@ export default function SessionHistory({ sessions, reopenedFrom, onReopen, onClo
               >
                 <td className="py-2 pr-2 pl-5">
                   <span className={cn("font-medium", viewing && "text-indigo-800 dark:text-indigo-200")}>
-                    {isToday ? "Today" : relativeDay(s.sessionDate)}
+                    {isToday ? t("historyToday") : relativeDay(s.sessionDate, t, fmt)}
                   </span>
                   {viewing && (
-                    <span className="ml-1.5 text-xs text-indigo-700 dark:text-indigo-300">· viewing</span>
+                    <span className="ml-1.5 text-xs text-indigo-700 dark:text-indigo-300">{t("historyViewing")}</span>
                   )}
                 </td>
                 <td className="py-2 pr-2 text-right font-mono tabular-nums text-slate-600 dark:text-slate-400">
@@ -99,7 +102,7 @@ export default function SessionHistory({ sessions, reopenedFrom, onReopen, onClo
                     <button
                       type="button"
                       onClick={() => onReopen(s)}
-                      aria-label={`Reopen the costs from ${relativeDay(s.sessionDate)}`}
+                      aria-label={t("historyReopenOf", { when: relativeDay(s.sessionDate, t, fmt) })}
                       className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-indigo-400"
                     >
                       <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -112,14 +115,18 @@ export default function SessionHistory({ sessions, reopenedFrom, onReopen, onClo
         </tbody>
       </table>
       <p className="px-5 pt-1.5 pb-4 text-xs text-slate-500 dark:text-slate-400">
-        Saved automatically — one session per day. Reopening loads that day&rsquo;s costs.
+        {t("historyFoot")}
       </p>
     </section>
   );
 }
 
 /** "Yesterday" / "3 days ago" / "Jul 12" — a date the reader can place. */
-function relativeDay(sessionDate: string): string {
+function relativeDay(
+  sessionDate: string,
+  t: ReturnType<typeof useT<"calc">>,
+  fmt: ReturnType<typeof useTeamFormat>
+): string {
   // sessionDate is a plain YYYY-MM-DD; parse as local so it is not shifted a day
   // by the timezone offset the way new Date("2026-07-12") would be.
   const [y, m, d] = sessionDate.split("-").map(Number);
@@ -130,8 +137,8 @@ function relativeDay(sessionDate: string): string {
     (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - then.getTime()) / 86_400_000
   );
 
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 14) return `${days} days ago`;
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(then);
+  if (days <= 0) return t("historyToday");
+  if (days === 1) return t("historyYesterday");
+  if (days < 14) return t("historyDaysAgo", { days });
+  return fmt.monthDay(then);
 }

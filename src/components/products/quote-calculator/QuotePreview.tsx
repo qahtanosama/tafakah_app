@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { QuoteLang } from "@/lib/quote/storage";
+import { useT } from "@/lib/team-i18n";
 
 interface Props {
   open: boolean;
@@ -31,6 +32,8 @@ export default function QuotePreview({
   onClose,
   copied,
 }: Props) {
+  const t = useT("calc");
+  const tc = useT("common");
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -54,15 +57,15 @@ export default function QuotePreview({
     >
       <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-5 py-3.5">
         <h2 id="quote-preview-heading" className="font-heading text-base font-semibold">
-          Quote preview
-          <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
-            {lang === "ar" ? "Arabic" : "English"}
+          {t("previewTitle")}
+          <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400" dir="auto">
+            {lang === "ar" ? t("langAr") : t("langEn")}
           </span>
         </h2>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close preview"
+          aria-label={t("closePreview")}
           className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
         >
           <X className="h-5 w-5" aria-hidden="true" />
@@ -71,7 +74,7 @@ export default function QuotePreview({
 
       <div className="px-5 py-4">
         <label htmlFor="quote-text" className="sr-only">
-          Quote text — edit before copying
+          {t("previewTextLabel")}
         </label>
         <textarea
           id="quote-text"
@@ -85,11 +88,11 @@ export default function QuotePreview({
 
       <div className="flex justify-end gap-2 border-t border-foreground/10 px-5 py-3.5">
         <Button variant="ghost" size="sm" onClick={onClose}>
-          Close
+          {tc("close")}
         </Button>
         <Button size="sm" onClick={onCopy}>
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-          {copied ? "Copied" : "Copy quote"}
+          {copied ? t("copied") : t("copyQuote")}
         </Button>
       </div>
     </dialog>

@@ -197,49 +197,48 @@ function markUp2(costPerCarton: number, marginPct: number): number {
   return costPerCarton / (1 - clampMargin(marginPct) / 100);
 }
 
+/**
+ * Reports WHICH problems a quote has, never their wording. Keeping this layer
+ * language-free is what lets the same calculation explain itself in English or
+ * Chinese; the panel resolves each code against the team dictionary.
+ */
 function collectIssues(input: QuoteInput, totals: CargoTotals, lines: PricedLine[]): QuoteIssue[] {
   const issues: QuoteIssue[] = [];
-  const error = (message: string) => issues.push({ level: "error", message });
-  const warn = (message: string) => issues.push({ level: "warning", message });
+  const error = (code: QuoteIssue["code"], params?: QuoteIssue["params"]) =>
+    issues.push({ level: "error", code, params });
+  const warn = (code: QuoteIssue["code"], params?: QuoteIssue["params"]) =>
+    issues.push({ level: "warning", code, params });
 
-  if (!input.productSelected) error("Pick a product.");
-  if (nonNegative(input.cargo.containers) < 1) error("Enter at least 1 container.");
-  if (nonNegative(input.cargo.cartonsPerContainer) <= 0) error("Enter cartons per container.");
-  if (nonNegative(input.cargo.nwPerCarton) <= 0) {
-    error("Enter net weight per carton — quantity and price per MT both depend on it.");
-  }
+  if (!input.productSelected) error("noProduct");
+  if (nonNegative(input.cargo.containers) < 1) error("containers");
+  if (nonNegative(input.cargo.cartonsPerContainer) <= 0) error("cartons");
+  if (nonNegative(input.cargo.nwPerCarton) <= 0) error("netWeight");
   // Printed on the quote, so a missing value would go out as "0.0 KG / carton".
-  if (nonNegative(input.cargo.gwPerCarton) <= 0) {
-    error("Enter gross weight per carton — it is stated on the quote.");
-  }
+  if (nonNegative(input.cargo.gwPerCarton) <= 0) error("grossWeight");
+  // The quote names the sailing the price is tied to; freight moves between
+  // sailings, so an offer without one is not actually shippable.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.cargo.etd ?? "")) error("noEtd");
 
   const unconvertible = [...new Set(lines.filter((p) => p.usd === null).map((p) => p.line.currency))];
-  if (unconvertible.length > 0) {
-    error(
-      `No exchange rate for ${unconvertible.join(", ")} — those lines are excluded from the landed cost.`
-    );
-  }
+  if (unconvertible.length > 0) error("noFx", { currencies: unconvertible.join(", ") });
 
   const farm = lines.find((p) => p.line.id === "farm");
-  if (farm && farm.line.amount <= 0) error("Farm price is 0 — there is nothing to mark up yet.");
+  if (farm && farm.line.amount <= 0) error("farmZero");
 
   const uncosted = lines
     .filter((p) => p.line.id !== "farm" && isFixedLine(p.line.id) && p.line.amount <= 0)
     .map((p) => p.line.label.toLowerCase());
-  if (uncosted.length > 0) warn(`Still at zero: ${uncosted.join(", ")}.`);
+  if (uncosted.length > 0) warn("uncosted", { labels: uncosted.join(", ") });
 
-  if (clampMargin(input.marginPct) !== input.marginPct) {
-    warn(`Margin capped at ${MAX_MARGIN}%.`);
-  }
+  if (clampMargin(input.marginPct) !== input.marginPct) warn("marginCapped", { max: MAX_MARGIN });
+
   // Gross below net is physically impossible — packaging only adds weight.
   const nw = nonNegative(input.cargo.nwPerCarton);
   const gw = nonNegative(input.cargo.gwPerCarton);
-  if (nw > 0 && gw > 0 && gw < nw) {
-    warn("Gross weight is below net weight — check the two are not swapped.");
-  }
+  if (nw > 0 && gw > 0 && gw < nw) warn("weightsSwapped");
 
   const unnamed = lines.filter((p) => !isFixedLine(p.line.id) && !p.line.label.trim() && p.line.amount > 0);
-  if (unnamed.length > 0) warn("An added cost line has an amount but no name.");
+  if (unnamed.length > 0) warn("unnamedLine");
 
   return issues;
 }

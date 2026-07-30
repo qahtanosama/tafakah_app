@@ -80,6 +80,7 @@ export function useQuoteCalculator() {
   const [cartonsOverride, setCartonsOverride] = useState<{ productId: string; cartons: number } | null>(null);
   const [weights, setWeights] = useState<{ productId: string; nw: number; gw: number } | null>(null);
   const [route, setRoute] = useState<{ loadingPort: string; dischargePort: string } | null>(null);
+  const [etd, setEtd] = useState<string | null>(null);
   const [working, setWorking] = useState<WorkingSheet | null>(null);
 
   /* ── the sheet on screen ───────────────────────────────────────────── */
@@ -115,8 +116,12 @@ export function useQuoteCalculator() {
       gwPerCarton: owned?.gw ?? savedCargo.gwPerCarton ?? product?.defaultGW ?? 0,
       loadingPort: route?.loadingPort ?? savedCargo.loadingPort ?? fallbackRoute.loadingPort,
       dischargePort: route?.dischargePort ?? savedCargo.dischargePort ?? fallbackRoute.dischargePort,
+      // Never inherited from a saved sheet: a departure date is specific to the
+      // sailing being quoted, and silently reusing last week's would put a date
+      // already in the past on a live offer.
+      etd: etd ?? "",
     };
-  }, [productId, containers, cartonsOverride, weights, route, savedSheet, product]);
+  }, [productId, containers, cartonsOverride, weights, route, etd, savedSheet, product]);
 
   const quote = useMemo(
     () =>
@@ -159,6 +164,7 @@ export function useQuoteCalculator() {
             gwPerCarton: p.cargo.gwPerCarton,
             loadingPort: p.cargo.loadingPort,
             dischargePort: p.cargo.dischargePort,
+            etd: p.cargo.etd,
           },
         });
       }, SAVE_DEBOUNCE_MS);
@@ -198,6 +204,7 @@ export function useQuoteCalculator() {
           cartons: patch.cartonsPerContainer,
         });
       }
+      if (patch.etd !== undefined) setEtd(patch.etd);
       if (patch.loadingPort !== undefined || patch.dischargePort !== undefined) {
         setRoute({
           loadingPort: patch.loadingPort ?? cargo.loadingPort,

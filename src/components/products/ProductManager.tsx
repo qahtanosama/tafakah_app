@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/team-i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Save, X, TrendingUp, Calculator, Package } from "lucide-react";
 import type { ProductProfile, PriceHistoryEntry } from "@/types/product";
@@ -19,6 +20,8 @@ function fmtDate(iso: string): string {
 function ProductCard({ product, history, onEdit, onDelete }: {
   product: ProductProfile; history: PriceHistoryEntry[]; onEdit: (p: ProductProfile) => void; onDelete: (p: ProductProfile) => void;
 }) {
+  const t = useT("products");
+  const tc = useT("common");
   const avgPrice = history.length > 0 ? history.reduce((s, h) => s + h.priceMT, 0) / history.length : 0;
   const lastPrice = history[0]?.priceMT ?? 0;
 
@@ -38,25 +41,25 @@ function ProductCard({ product, history, onEdit, onDelete }: {
           </div>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" onClick={() => onEdit(product)} title="Edit" className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(product)} title="Delete" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => onEdit(product)} title={tc("edit")} className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(product)} title={tc("delete")} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-5 pt-5 pb-6">
         <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-[13px] sm:text-sm">
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">N.W./Ctn</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultNW} KG</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">G.W./Ctn</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultGW} KG</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{product.packUnit === "carton" ? "Boxes" : product.packUnit + "s"}/Cont.</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">Default Price</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">${product.defaultPriceMT.toLocaleString()} <span className="text-slate-400 text-xs font-sans">/MT</span></span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">Container</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.containerType}</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardNw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultNW} KG</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardGw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultGW} KG</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardPerContainer", { unit: product.packUnit === "carton" ? "" : product.packUnit })}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardDefaultPrice")}</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">${product.defaultPriceMT.toLocaleString()} <span className="text-slate-400 text-xs font-sans">/MT</span></span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardContainer")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.containerType}</span></div>
         </div>
 
         {history.length > 0 && (
           <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-bold text-emerald-800 dark:text-emerald-400"><TrendingUp className="h-4 w-4" /> Pricing History <span className="font-normal text-emerald-600/70 text-xs">({history.length} shipments)</span></div>
+            <div className="mb-3 flex items-center gap-2 text-sm font-bold text-emerald-800 dark:text-emerald-400"><TrendingUp className="h-4 w-4" /> {t("pricingHistory")} <span className="font-normal text-emerald-600/70 text-xs">{t("shipments", { count: history.length })}</span></div>
             <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-              <div className="bg-white dark:bg-black/20 rounded px-3 py-2 flex justify-between border border-emerald-100/50 dark:border-white/5"><span className="text-emerald-600 dark:text-emerald-500 font-medium">Avg</span> <span className="font-mono font-bold text-emerald-900 dark:text-emerald-300">${Math.round(avgPrice).toLocaleString()}</span></div>
-              <div className="bg-white dark:bg-black/20 rounded px-3 py-2 flex justify-between border border-emerald-100/50 dark:border-white/5"><span className="text-emerald-600 dark:text-emerald-500 font-medium">Last</span> <span className="font-mono font-bold text-emerald-900 dark:text-emerald-300">${lastPrice.toLocaleString()}</span></div>
+              <div className="bg-white dark:bg-black/20 rounded px-3 py-2 flex justify-between border border-emerald-100/50 dark:border-white/5"><span className="text-emerald-600 dark:text-emerald-500 font-medium">{t("avg")}</span> <span className="font-mono font-bold text-emerald-900 dark:text-emerald-300">${Math.round(avgPrice).toLocaleString()}</span></div>
+              <div className="bg-white dark:bg-black/20 rounded px-3 py-2 flex justify-between border border-emerald-100/50 dark:border-white/5"><span className="text-emerald-600 dark:text-emerald-500 font-medium">{t("last")}</span> <span className="font-mono font-bold text-emerald-900 dark:text-emerald-300">${lastPrice.toLocaleString()}</span></div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {history.slice(0, 5).map((h, i) => (
@@ -72,6 +75,9 @@ function ProductCard({ product, history, onEdit, onDelete }: {
 }
 
 export default function ProductManager() {
+  const t = useT("products");
+  const tc = useT("common");
+  const tn = useT("nav");
   const { data: productsData, isLoading, isError, error, refetch } = useProducts();
   const products = productsData ?? [];
   const saveProductMut = useSaveProduct();
@@ -113,14 +119,14 @@ export default function ProductManager() {
   const handleDelete = useCallback((p: ProductProfile) => {
     const usage = productUsageCount(contractsData ?? [], p.name);
     const msg = usage > 0
-      ? `"${p.name}" is used in ${usage} contract(s). It won't affect existing records but will no longer be available for new contracts. Delete?`
-      : `Delete "${p.name}"?`;
+      ? t("deleteInUse", { name: p.name, count: usage })
+      : t("deleteConfirm", { name: p.name });
     if (!confirm(msg)) return;
     deleteProductMut.mutate(p.id, {
-      onSuccess: () => showToast(`${p.name} deleted`),
-      onError: (e) => showToast(`Delete failed: ${(e as Error).message}`),
+      onSuccess: () => showToast(t("deleted", { name: p.name })),
+      onError: (e) => showToast(t("deleteFailed", { message: (e as Error).message })),
     });
-  }, [deleteProductMut, showToast, contractsData]);
+  }, [deleteProductMut, showToast, contractsData, t]);
 
   const handleSave = useCallback(() => {
     if (!editing || !editing.name.trim() || !editing.prefix.trim()) return;
@@ -130,23 +136,23 @@ export default function ProductManager() {
       (p) => p.prefix.toUpperCase() === editing.prefix.toUpperCase() && p.id !== editing.id
     );
     if (duplicate) {
-      setPrefixError(`Prefix "${editing.prefix}" is already used. Choose another.`);
+      setPrefixError(t("prefixTaken", { prefix: editing.prefix }));
       return;
     }
     saveProductMut.mutate({ payload: { ...editing }, isUpdate: !isNew }, {
       onSuccess: () => {
         setEditing(null);
-        showToast(isNew ? `${editing.name} added` : `${editing.name} updated`);
+        showToast(isNew ? t("added", { name: editing.name }) : t("updated", { name: editing.name }));
       },
-      onError: (e) => showToast(`Save failed: ${(e as Error).message}`),
+      onError: (e) => showToast(t("saveFailed", { message: (e as Error).message })),
     });
-  }, [editing, isNew, productsData, saveProductMut, showToast]);
+  }, [editing, isNew, productsData, saveProductMut, showToast, t]);
 
-  if (isLoading) return <div className="flex min-h-[400px] items-center justify-center py-20 text-slate-500 font-medium">Loading database&hellip;</div>;
+  if (isLoading) return <div className="flex min-h-[400px] items-center justify-center py-20 text-slate-500 font-medium">{t("loadingDb")}</div>;
   if (isError) return (
     <div className="mx-auto max-w-xl py-16 text-center">
-      <p className="mb-3 text-sm text-red-600">Failed to load products: {(error as Error).message}</p>
-      <Button onClick={() => refetch()}>Retry</Button>
+      <p className="mb-3 text-sm text-red-600">{t("loadFailed", { message: (error as Error).message })}</p>
+      <Button onClick={() => refetch()}>{tc("retry")}</Button>
     </div>
   );
 
@@ -156,17 +162,17 @@ export default function ProductManager() {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Product Catalog</h2>
-          <p className="text-slate-500 mt-1 text-sm font-medium">Manage your export products, specifications, and default pricing.</p>
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">{t("catalog")}</h2>
+          <p className="text-slate-500 mt-1 text-sm font-medium">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <Link href="/products/calculator" className="w-full sm:w-auto">
             <Button variant="outline" className="w-full gap-2 h-11 border-slate-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 hover:bg-indigo-50 hover:text-indigo-600 transition-all font-semibold shadow-sm">
-              <Calculator className="h-4 w-4" /> Quote Calculator
+              <Calculator className="h-4 w-4" /> {tn("calculator")}
             </Button>
           </Link>
           <Button className="w-full sm:w-auto gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-6" onClick={handleNew}>
-            <Plus className="h-4 w-4" /> Add Product
+            <Plus className="h-4 w-4" /> {t("addProduct")}
           </Button>
         </div>
       </div>
@@ -177,39 +183,39 @@ export default function ProductManager() {
           <CardHeader className="flex flex-row items-center justify-between bg-indigo-50/50 dark:bg-indigo-900/10 border-b border-indigo-100 dark:border-indigo-800/50 pb-4 pt-5">
             <CardTitle className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"><Pencil className="h-4 w-4" /></div>
-              {isNew ? "Create New Product" : `Edit ${editing.name}`}
+              {isNew ? t("createNew") : t("editNamed", { name: editing.name })}
             </CardTitle>
             <button onClick={() => setEditing(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 hover:bg-slate-100 rounded-full p-1.5"><X className="h-5 w-5" /></button>
           </CardHeader>
           <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 p-6">
             <div className="sm:col-span-2 lg:col-span-2">
-              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Product Name *</Label>
-              <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="e.g. Fresh Onion" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fName")}</Label>
+              <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder={t("fNamePlaceholder")} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
             </div>
             <div>
-              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Arabic Name</Label>
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fNameAr")}</Label>
               <Input dir="rtl" value={editing.nameAr} onChange={(e) => setEditing({ ...editing, nameAr: e.target.value })} placeholder="مثال: بصل طازج" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
             </div>
             <div>
-              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">HS Code *</Label>
-              <Input value={editing.hsCode} onChange={(e) => setEditing({ ...editing, hsCode: e.target.value })} placeholder="e.g. 070310" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fHsCode")}</Label>
+              <Input value={editing.hsCode} onChange={(e) => setEditing({ ...editing, hsCode: e.target.value })} placeholder={t("fHsPlaceholder")} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
             </div>
             <div>
-              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Prefix (2-3 chars) *</Label>
-              <Input value={editing.prefix} onChange={(e) => { setEditing({ ...editing, prefix: e.target.value.toUpperCase() }); setPrefixError(""); }} placeholder="e.g. ON" maxLength={4} className={`h-11 bg-white dark:bg-zinc-800 font-mono font-bold tracking-widest focus:ring-indigo-500/20 ${prefixError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-slate-200 dark:border-white/10"}`} />
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fPrefix")}</Label>
+              <Input value={editing.prefix} onChange={(e) => { setEditing({ ...editing, prefix: e.target.value.toUpperCase() }); setPrefixError(""); }} placeholder={t("fPrefixPlaceholder")} maxLength={4} className={`h-11 bg-white dark:bg-zinc-800 font-mono font-bold tracking-widest focus:ring-indigo-500/20 ${prefixError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-slate-200 dark:border-white/10"}`} />
               {prefixError && <p className="mt-1.5 text-xs font-semibold text-red-500">{prefixError}</p>}
             </div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">N.W./Ctn (KG)</Label><Input type="number" value={editing.defaultNW || ""} onChange={(e) => setEditing({ ...editing, defaultNW: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">G.W./Ctn (KG)</Label><Input type="number" value={editing.defaultGW || ""} onChange={(e) => setEditing({ ...editing, defaultGW: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Boxes / Container</Label><Input type="number" value={editing.defaultCartons || ""} onChange={(e) => setEditing({ ...editing, defaultCartons: parseInt(e.target.value) || 0 })} placeholder="e.g. 11088" className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Unit name</Label><Input value={editing.packUnit} onChange={(e) => setEditing({ ...editing, packUnit: e.target.value })} placeholder="carton / mesh bag" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Unit name (Arabic)</Label><Input value={editing.packUnitAr} onChange={(e) => setEditing({ ...editing, packUnitAr: e.target.value })} placeholder="كرتون / كيس شبكي" dir="rtl" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Default Price/MT ($)</Label><Input type="number" value={editing.defaultPriceMT || ""} onChange={(e) => setEditing({ ...editing, defaultPriceMT: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Container Type</Label><Input value={editing.containerType} onChange={(e) => setEditing({ ...editing, containerType: e.target.value })} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
-            <div className="sm:col-span-2 lg:col-span-4"><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Notes</Label><Input value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} placeholder="Season, min order, etc." className="h-11 bg-white dark:bg-zinc-800 focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fNw")}</Label><Input type="number" value={editing.defaultNW || ""} onChange={(e) => setEditing({ ...editing, defaultNW: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fGw")}</Label><Input type="number" value={editing.defaultGW || ""} onChange={(e) => setEditing({ ...editing, defaultGW: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fBoxes")}</Label><Input type="number" value={editing.defaultCartons || ""} onChange={(e) => setEditing({ ...editing, defaultCartons: parseInt(e.target.value) || 0 })} placeholder={t("fBoxesPlaceholder")} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fUnit")}</Label><Input value={editing.packUnit} onChange={(e) => setEditing({ ...editing, packUnit: e.target.value })} placeholder={t("fUnitPlaceholder")} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fUnitAr")}</Label><Input value={editing.packUnitAr} onChange={(e) => setEditing({ ...editing, packUnitAr: e.target.value })} placeholder="كرتون / كيس شبكي" dir="rtl" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fPrice")}</Label><Input type="number" value={editing.defaultPriceMT || ""} onChange={(e) => setEditing({ ...editing, defaultPriceMT: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fContainerType")}</Label><Input value={editing.containerType} onChange={(e) => setEditing({ ...editing, containerType: e.target.value })} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            <div className="sm:col-span-2 lg:col-span-4"><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fNotes")}</Label><Input value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} placeholder={t("fNotesPlaceholder")} className="h-11 bg-white dark:bg-zinc-800 focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div className="sm:col-span-2 lg:col-span-4 mt-2 border-t border-slate-100 dark:border-white/5 pt-6 flex justify-end">
               <Button className="gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8" onClick={handleSave} disabled={!editing.name.trim() || !editing.prefix.trim() || !editing.hsCode.trim()}>
-                <Save className="h-4 w-4" /> {isNew ? "Save New Product" : "Update Product"}
+                <Save className="h-4 w-4" /> {isNew ? t("saveNew") : t("updateProduct")}
               </Button>
             </div>
           </CardContent>

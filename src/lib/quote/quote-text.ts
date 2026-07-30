@@ -66,6 +66,8 @@ export interface QuoteTextInput {
   /** Stored port values; printed as short names beside FOB and CIF. */
   loadingPort: string;
   dischargePort: string;
+  /** Vessel ETD as YYYY-MM-DD; printed so the buyer knows the sailing. */
+  etd: string;
   /**
    * What one unit is called for this product — "carton", "mesh bag". Garlic
    * ships in mesh bags, and "11,600 cartons" on a garlic offer is simply wrong.
@@ -73,6 +75,14 @@ export interface QuoteTextInput {
   packUnit?: string;
   packUnitAr?: string;
   quote: Quote;
+}
+
+/** ETD for a quote: "15 Aug 2026" — unambiguous for Gulf and Chinese readers. */
+export function formatEtd(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** English plural of a pack unit. All of them pluralise with a trailing s. */
@@ -161,6 +171,7 @@ export function buildQuoteText(input: QuoteTextInput): string {
       // The container type is left off the Arabic quote on purpose — the buyer
       // cares how many containers, not that they are 40'HC.
       `${containers} حاوية · ${cartons} ${unitAr}`,
+      `تاريخ الإبحار (ETD): ${formatEtd(input.etd)}`,
       `الوزن الإجمالي: ${qty(gwPerCarton, 1)} كجم لكل ${unitAr}`,
       "",
       `${fobTerm}   ${usd(quote.fobPerCarton)} / ${unitAr}`,
@@ -181,6 +192,7 @@ export function buildQuoteText(input: QuoteTextInput): string {
     "",
     input.productName,
     `${containers} × ${CONTAINER_TYPE} · ${cartons} ${plural(unit)} · ${qty(gwPerCarton, 1)} KG gross/${unit}`,
+    `ETD: ${formatEtd(input.etd)}`,
     "",
     `${fobTerm}   ${usd(quote.fobPerCarton)} / ${unit}`,
     `${cifTerm}   ${usd(quote.cifPerCarton)} / ${unit}`,

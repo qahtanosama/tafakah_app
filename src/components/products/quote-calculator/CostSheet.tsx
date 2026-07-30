@@ -2,13 +2,55 @@
 
 import { AlertTriangle, Plus, X } from "lucide-react";
 import type { CostLine, CostUnit, Currency, PricedLine, Quote } from "@/types/quote";
-import { CURRENCIES, UNITS, isFixedLine } from "@/lib/quote/defaults";
-import { lineFreshness, staleAfterDays } from "@/lib/quote/freshness";
+import { CURRENCIES, UNITS, USD_EXPECTED_LINES, isFixedLine } from "@/lib/quote/defaults";
+import { AGE_EXACT_DAYS, lineFreshness, staleAfterDays } from "@/lib/quote/freshness";
 import { qty, usd } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { useT, useTeamFormat } from "@/lib/team-i18n";
 import { NumberField, SelectField, TextField } from "./fields";
 
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c, label: c }));
+
+/**
+ * Dictionary key per standing line. The label stored in Supabase is English
+ * *data*, so a Chinese screen renders these six from their id rather than
+ * translating stored text — nobody's saved row gets silently relabelled, and the
+ * quote that goes to the buyer still says what it always said.
+ */
+const FIXED_LINE_KEY = {
+  farm: "lineFarm",
+  packing: "linePacking",
+  freight: "lineFreight",
+  customs: "lineCustoms",
+  inland: "lineInland",
+  bank: "lineBank",
+} as const;
+
+const UNIT_KEY = {
+  per_kg: "unitPerKg",
+  per_carton: "unitPerCarton",
+  per_container: "unitPerContainer",
+  per_mt: "unitPerMt",
+  flat: "unitFlat",
+} as const;
+
+/** Noun for the "× 19,400 cartons" multiplier. Null for a flat line, which has none. */
+const FACTOR_KEY = {
+  per_kg: "factorKg",
+  per_carton: "factorCartons",
+  per_container: "factorContainers",
+  per_mt: "factorMt",
+  flat: null,
+} as const;
+
+type CalcT = ReturnType<typeof useT<"calc">>;
+
+/** Translated name for a line: dictionary for the six, user's own text otherwise. */
+function lineName(line: CostLine, t: CalcT): string {
+  const key = FIXED_LINE_KEY[line.id as keyof typeof FIXED_LINE_KEY];
+  if (key) return t(key);
+  return line.label.trim() || t("unnamedCost");
+}
 
 interface Props {
   lines: CostLine[];
@@ -43,6 +85,8 @@ export default function CostSheet({
   onRemove,
   children,
 }: Props) {
+  const t = useT("calc");
+  const tc = useT("common");
   const priced = new Map(quote.lines.map((p) => [p.line.id, p]));
 
   return (
@@ -52,7 +96,7 @@ export default function CostSheet({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-4 pb-3">
         <h2 id="cost-sheet-heading" className="font-heading text-base font-semibold">
-          Costs
+          {t("costs")}
         </h2>
         <p
           aria-live="polite"
@@ -61,11 +105,7 @@ export default function CostSheet({
             saveError ? "font-medium text-amber-700 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"
           )}
         >
-          {saveError
-            ? "Not saving — these costs are this session only"
-            : saving
-              ? "Saving…"
-              : "Saved automatically for this product"}
+          {saveError ? t("notSaving") : saving ? t("saving") : t("savedAuto")}
         </p>
       </div>
 
@@ -77,28 +117,26 @@ export default function CostSheet({
           horizontal scroll on a phone. */}
       <div className="relative overflow-x-auto">
         <table className="w-full min-w-[38rem] border-collapse text-sm">
-          <caption className="sr-only">
-            Shipment cost lines with amount, currency, unit and USD equivalent
-          </caption>
+          <caption className="sr-only">{t("costTableCaption")}</caption>
           <thead>
             <tr className="border-y border-foreground/10 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
               <th scope="col" className="py-2 pr-3 pl-4 text-left font-semibold">
-                Cost
+                {t("colCost")}
               </th>
               <th scope="col" className="w-[6.5rem] px-1.5 py-2 text-right font-semibold">
-                Amount
+                {t("colAmount")}
               </th>
               <th scope="col" className="w-[5rem] px-1.5 py-2 text-left font-semibold">
-                Cur
+                {t("colCurrency")}
               </th>
               <th scope="col" className="w-[8.5rem] px-1.5 py-2 text-left font-semibold">
-                Per
+                {t("colPer")}
               </th>
               <th scope="col" className="w-[9rem] px-4 py-2 text-right font-semibold">
-                USD
+                {t("colUsd")}
               </th>
               <th scope="col" className="w-9">
-                <span className="sr-only">Remove</span>
+                <span className="sr-only">{tc("delete")}</span>
               </th>
             </tr>
           </thead>
@@ -120,7 +158,7 @@ export default function CostSheet({
                   className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:text-indigo-400 dark:hover:bg-indigo-500/10"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add cost line
+                  {t("addCostLine")}
                 </button>
               </td>
             </tr>
@@ -128,7 +166,7 @@ export default function CostSheet({
           <tfoot className="border-t border-foreground/10">
             <tr className="bg-slate-50/80 dark:bg-white/5">
               <th scope="row" colSpan={4} className="py-2.5 pr-3 pl-4 text-left font-semibold">
-                Landed cost
+                {t("landedCost")}
               </th>
               <td className="px-4 py-2.5 text-right font-mono text-base font-semibold tabular-nums">
                 {usd(quote.landedCost)}
@@ -137,14 +175,14 @@ export default function CostSheet({
             </tr>
             <tr className="bg-slate-50/80 text-slate-600 dark:bg-white/5 dark:text-slate-400">
               <th scope="row" colSpan={4} className="pr-3 pb-1 pl-4 text-left font-normal">
-                per MT
+                {t("perMt")}
               </th>
               <td className="px-4 pb-1 text-right font-mono tabular-nums">{usd(quote.costPerMT)}</td>
               <td />
             </tr>
             <tr className="bg-slate-50/80 text-slate-600 dark:bg-white/5 dark:text-slate-400">
               <th scope="row" colSpan={4} className="pr-3 pb-3 pl-4 text-left font-normal">
-                per carton
+                {t("perCarton")}
               </th>
               <td className="px-4 pb-3 text-right font-mono tabular-nums">{usd(quote.costPerCarton)}</td>
               <td />
@@ -169,44 +207,54 @@ function CostRow({
   onUpdate: (patch: Partial<CostLine>) => void;
   onRemove?: () => void;
 }) {
-  const name = line.label.trim() || "Unnamed cost";
+  const t = useT("calc");
+  const name = lineName(line, t);
+  const unitOptions = UNITS.map((u) => ({ value: u.value, label: t(UNIT_KEY[u.value]) }));
 
   return (
     <tr className="border-b border-foreground/5 transition-colors last:border-b-0 hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
       <td className="py-2 pr-3 pl-4">
         {onRemove ? (
           <TextField
-            label="Cost name"
+            label={t("costName")}
             value={line.label}
             onChange={(label) => onUpdate({ label })}
-            placeholder="e.g. Insurance"
+            placeholder={t("costNamePlaceholder")}
           />
         ) : (
-          <span className="font-medium text-slate-700 dark:text-slate-200">{line.label}</span>
+          <span className="font-medium text-slate-700 dark:text-slate-200">{name}</span>
         )}
         <LineAge line={line} />
       </td>
       <td className="px-1.5 py-2">
         <NumberField
-          label={`${name} amount`}
+          label={t("amountOf", { name })}
           value={line.amount}
           onChange={(amount) => onUpdate({ amount })}
         />
       </td>
       <td className="px-1.5 py-2">
         <SelectField<Currency>
-          label={`${name} currency`}
+          label={t("currencyOf", { name })}
           value={line.currency}
           onChange={(currency) => onUpdate({ currency })}
           options={CURRENCY_OPTIONS}
         />
+        {/* Freight and bank charges reach us as USD invoices. Entering one in
+            RMB divides it by the FX rate and understates the cost, so say so
+            right beside the field rather than letting it pass. */}
+        {USD_EXPECTED_LINES.includes(line.id) && line.currency !== "USD" && (
+          <span className="mt-0.5 block text-[11px] font-medium text-red-600 dark:text-red-400">
+            {t("shouldBeUsd")}
+          </span>
+        )}
       </td>
       <td className="px-1.5 py-2">
         <SelectField<CostUnit>
-          label={`${name} unit`}
+          label={t("unitOf", { name })}
           value={line.unit}
           onChange={(unit) => onUpdate({ unit })}
-          options={UNITS}
+          options={unitOptions}
         />
       </td>
       <td className="px-4 py-2 text-right">
@@ -217,7 +265,7 @@ function CostRow({
           <button
             type="button"
             onClick={onRemove}
-            aria-label={`Remove ${name}`}
+            aria-label={t("removeCost", { name })}
             className="rounded-md p-1 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:outline-none dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-400"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -241,14 +289,15 @@ function OriginNotice({
   origin: Props["origin"];
   reopenedFrom?: string;
 }) {
+  const t = useT("calc");
   if (origin === "saved") return null;
 
   const text =
     origin === "copied"
-      ? "Started from the last product you costed — check these, then set the farm price."
+      ? t("originCopied")
       : origin === "reopened"
-        ? `Showing the costs saved on ${reopenedFrom}. Editing any line saves it as today's sheet.`
-        : "No saved costs for this product yet — fill in the sheet and it will be remembered.";
+        ? t("originReopened", { date: reopenedFrom ?? "" })
+        : t("originBlank");
 
   return (
     <p className="mx-4 mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-200">
@@ -265,21 +314,28 @@ function OriginNotice({
  * a saved sheet whose farm price is two weeks old.
  */
 function LineAge({ line }: { line: CostLine }) {
+  const t = useT("calc");
+  const fmt = useTeamFormat();
   const age = lineFreshness(line);
   if (!age) return null;
 
+  const label =
+    age.days === 0
+      ? t("ageToday")
+      : age.days === 1
+        ? t("ageYesterday")
+        : age.days < AGE_EXACT_DAYS
+          ? t("ageDays", { days: age.days })
+          : fmt.monthDay(age.at);
+
   if (!age.stale) {
-    return (
-      <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{age.label}</span>
-    );
+    return <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>;
   }
   return (
     <span className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
       <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
-      {age.label} — check
-      <span className="sr-only">
-        (this cost is usually refreshed every {staleAfterDays(line.id)} days)
-      </span>
+      {label} {t("ageStaleSuffix")}
+      <span className="sr-only">{t("ageStaleHint", { days: staleAfterDays(line.id) })}</span>
     </span>
   );
 }
@@ -290,25 +346,28 @@ function LineAge({ line }: { line: CostLine }) {
  * which made a $1,360 error invisible to anyone checking the sheet.
  */
 function LineTotal({ priced }: { priced: PricedLine | undefined }) {
+  const t = useT("calc");
   if (!priced) return <span className="text-slate-400">—</span>;
 
   if (priced.usd === null) {
     return (
       <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
-        no {priced.line.currency} rate
+        {t("noRate", { currency: priced.line.currency })}
       </span>
     );
   }
   if (priced.line.amount === 0) return <span className="text-slate-400">—</span>;
+
+  const noun = FACTOR_KEY[priced.line.unit];
 
   return (
     <>
       <span className="block font-mono tabular-nums text-slate-800 dark:text-slate-200">
         {usd(priced.usd)}
       </span>
-      {priced.factorNoun && (
+      {noun && (
         <span className="block font-mono text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
-          × {qty(priced.factor, priced.factorNoun === "MT" ? 2 : 0)} {priced.factorNoun}
+          × {qty(priced.factor, priced.line.unit === "per_mt" ? 2 : 0)} {t(noun)}
         </span>
       )}
     </>

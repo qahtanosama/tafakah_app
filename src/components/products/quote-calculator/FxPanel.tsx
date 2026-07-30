@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import type { FxRates } from "@/types/quote";
 import { DEFAULT_FX } from "@/lib/quote/defaults";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/team-i18n";
 import { NumberField } from "./fields";
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
  * anything. Silently converting at a stale rate is how a quote goes out wrong.
  */
 export default function FxPanel({ fx, onChange, open, onToggle, usedCurrencies }: Props) {
+  const t = useT("calc");
   const codes = Object.keys(DEFAULT_FX) as (keyof FxRates)[];
 
   return (
@@ -33,11 +35,11 @@ export default function FxPanel({ fx, onChange, open, onToggle, usedCurrencies }
           aria-expanded={open}
           className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:hover:bg-white/5"
         >
-          <span className="text-sm font-semibold">Exchange rates</span>
+          <span className="text-sm font-semibold">{t("exchangeRates")}</span>
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
             {usedCurrencies.length > 0
               ? usedCurrencies.map((c) => `1 USD = ${fx[c] || "—"} ${c}`).join("  ·  ")
-              : "USD only"}
+              : t("usdOnly")}
           </span>
           <ChevronDown
             className={cn(
@@ -57,7 +59,7 @@ export default function FxPanel({ fx, onChange, open, onToggle, usedCurrencies }
               <label key={code} className="flex items-center gap-2 text-sm">
                 <span className="w-24 shrink-0 text-slate-600 dark:text-slate-400">1 USD =</span>
                 <NumberField
-                  label={`US dollars to ${code}`}
+                  label={t("usdTo", { currency: code })}
                   value={fx[code]}
                   onChange={(v) => onChange({ [code]: v } as Partial<FxRates>)}
                   className={cn(invalid && "border-red-400 dark:border-red-500/60")}
