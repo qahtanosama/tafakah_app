@@ -49,7 +49,7 @@ function ProductCard({ product, history, onEdit, onDelete }: {
         <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-[13px] sm:text-sm">
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardNw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultNW} KG</span></div>
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardGw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultGW} KG</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardPerContainer", { unit: product.packUnit === "carton" ? "" : product.packUnit })}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardPerContainer", { unit: packUnitWord(product.packUnit, t) })}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardDefaultPrice")}</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">${product.defaultPriceMT.toLocaleString()} <span className="text-slate-400 text-xs font-sans">/MT</span></span></div>
           <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardContainer")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.containerType}</span></div>
         </div>
@@ -72,6 +72,17 @@ function ProductCard({ product, history, onEdit, onDelete }: {
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Plural noun for a pack format. "carton" and "mesh bag" have proper words in
+ * both languages; anything else the team types falls back to a naive plural,
+ * which beats rendering a bare "/Cont." with no noun at all.
+ */
+function packUnitWord(packUnit: string, t: ReturnType<typeof useT<"products">>): string {
+  if (!packUnit || packUnit === "carton") return t("unitBoxes");
+  if (packUnit === "mesh bag") return t("unitMeshBags");
+  return packUnit.endsWith("s") ? packUnit : packUnit + "s";
 }
 
 export default function ProductManager() {

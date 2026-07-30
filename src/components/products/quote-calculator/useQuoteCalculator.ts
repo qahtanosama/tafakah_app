@@ -29,6 +29,11 @@ import type { QuoteLang } from "@/lib/quote/storage";
 /** Debounce on the auto-save. Long enough that typing a rate is one write. */
 const SAVE_DEBOUNCE_MS = 900;
 
+/** A positive number, or undefined when the field is simply not filled in. */
+function set(n: number | undefined): number | undefined {
+  return typeof n === "number" && n > 0 ? n : undefined;
+}
+
 /** The sheet currently on screen, before it has been saved. */
 interface WorkingSheet {
   productId: string;
@@ -106,14 +111,23 @@ export function useQuoteCalculator() {
     return {
       productId,
       containers,
-      // The product's pack format is the real answer here; the generic default
-      // only applies to a product whose boxes-per-container is not set yet.
+      // Product data outranks the saved sheet. Boxes-per-container and the
+      // carton weights are properties of the pack format that the team
+      // maintains on the Products page; a cost sheet only ever held a snapshot
+      // of them. Letting the snapshot win meant setting 1,445 boxes on Fresh
+      // Apple changed nothing, because a sheet saved earlier still said 9,700 —
+      // which silently mis-states quantity, price per MT and the total.
+      // A value typed on this screen still wins for the session.
+      // `set()` and not `??`: these columns are NOT NULL DEFAULT 0, so 0 means
+      // "not filled in yet", not "zero boxes". Using ?? would let an unset
+      // product default beat a real saved value.
       cartonsPerContainer:
         ownedCartons?.cartons ??
-        savedCargo.cartonsPerContainer ??
-        (product?.defaultCartons || DEFAULT_CARTONS),
-      nwPerCarton: owned?.nw ?? savedCargo.nwPerCarton ?? product?.defaultNW ?? 0,
-      gwPerCarton: owned?.gw ?? savedCargo.gwPerCarton ?? product?.defaultGW ?? 0,
+        set(product?.defaultCartons) ??
+        set(savedCargo.cartonsPerContainer) ??
+        DEFAULT_CARTONS,
+      nwPerCarton: owned?.nw ?? set(product?.defaultNW) ?? set(savedCargo.nwPerCarton) ?? 0,
+      gwPerCarton: owned?.gw ?? set(product?.defaultGW) ?? set(savedCargo.gwPerCarton) ?? 0,
       loadingPort: route?.loadingPort ?? savedCargo.loadingPort ?? fallbackRoute.loadingPort,
       dischargePort: route?.dischargePort ?? savedCargo.dischargePort ?? fallbackRoute.dischargePort,
       // Never inherited from a saved sheet: a departure date is specific to the

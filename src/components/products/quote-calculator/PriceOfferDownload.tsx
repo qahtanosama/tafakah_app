@@ -78,7 +78,7 @@ export default function PriceOfferDownload({
     } finally {
       setBusy(false);
     }
-  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, quote]);
+  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, quote, t]);
 
   return (
     <>
