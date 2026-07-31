@@ -107,7 +107,7 @@ export default function BuyerManager() {
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search buyers..." className="pl-9 h-11 bg-white/50 dark:bg-zinc-900/50 border-slate-200 dark:border-zinc-800 focus:ring-indigo-500/20 shadow-sm transition-all" />
           </div>
           <Button className="gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-6" onClick={() => setEditing(createEmptyBuyer())}>
@@ -124,7 +124,7 @@ export default function BuyerManager() {
               <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"><Users className="h-4 w-4" /></div>
               {buyers.some((b) => b.id === editing.id) ? "Edit Buyer" : "New Buyer"}
             </CardTitle>
-            <button onClick={() => setEditing(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 hover:bg-slate-100 rounded-full p-1.5"><X className="h-5 w-5" /></button>
+            <button onClick={() => setEditing(null)} className="text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 hover:bg-slate-100 rounded-full p-1.5"><X className="h-5 w-5" /></button>
           </CardHeader>
           <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 p-6">
             <div className="sm:col-span-2">
@@ -284,7 +284,7 @@ export default function BuyerManager() {
                       placeholder={msgLang === "en"
                         ? "Leave empty to use the default template. Variables: {buyerName}, {contractNo}, {productList}, {totalQty}, {etd}, {docList}"
                         : "اتركه فارغاً لاستخدام القالب الافتراضي. المتغيرات: {buyerName}, {contractNo}, {productList}, {totalQty}, {etd}, {docList}"}
-                      className="flex w-full rounded-xl border border-slate-200 bg-white/50 px-4 py-3 font-mono text-sm outline-none placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-zinc-950/50 transition-all shadow-inner"
+                      className="flex w-full rounded-xl border border-slate-200 bg-white/50 px-4 py-3 font-mono text-sm outline-none placeholder:text-slate-500 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-zinc-950/50 transition-all shadow-inner"
                     />
                     <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
                       Supports: <span className="font-mono text-indigo-600 dark:text-indigo-400 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded">{"{buyerName}"}</span>, <span className="font-mono text-indigo-600 dark:text-indigo-400 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded">{"{contractNo}"}</span>, <span className="font-mono text-indigo-600 dark:text-indigo-400 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded">{"{productList}"}</span>, <span className="font-mono text-indigo-600 dark:text-indigo-400 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded">{"{totalQty}"}</span>, <span className="font-mono text-indigo-600 dark:text-indigo-400 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded">{"{etd}"}</span>, <span className="font-mono text-indigo-600 dark:text-indigo-400 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded">{"{docList}"}</span>
@@ -315,7 +315,7 @@ export default function BuyerManager() {
       <Card className="bg-white/70 dark:bg-zinc-900/70 border-slate-200/60 dark:border-white/10 shadow-sm overflow-hidden">
         {buyers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-            <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-400 mb-4"><Users className="h-6 w-6" /></div>
+            <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-500 mb-4"><Users className="h-6 w-6" /></div>
             <p className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">No buyers yet</p>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6">Add your first buyer to start creating contracts.</p>
             <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={() => setEditing(createEmptyBuyer())}><Plus className="h-4 w-4" /> Add Buyer</Button>
@@ -343,8 +343,8 @@ export default function BuyerManager() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setEditing({ ...b })} title="Edit" className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)} title="Delete" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setEditing({ ...b })} title="Edit" className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)} title="Delete" className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

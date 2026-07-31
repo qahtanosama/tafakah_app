@@ -140,7 +140,7 @@ export default function AuthBadge() {
           >
             {role}
           </span>
-          <ChevronDown className="hidden h-3.5 w-3.5 text-slate-400 sm:block" />
+          <ChevronDown className="hidden h-3.5 w-3.5 text-slate-500 sm:block" />
         </button>
 
         {open && (

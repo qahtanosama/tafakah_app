@@ -159,8 +159,8 @@ export default function FinanceOverview() {
 
       {/* Search */}
       <div className="relative max-w-md bg-white dark:bg-zinc-900 rounded-xl border border-slate-200/60 dark:border-white/10 shadow-sm p-1.5">
-        <Search className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by contract, invoice, or buyer..." className="pl-10 h-11 bg-transparent border-0 focus-visible:ring-0 shadow-none font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400" />
+        <Search className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by contract, invoice, or buyer..." className="pl-10 h-11 bg-transparent border-0 focus-visible:ring-0 shadow-none font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-500" />
       </div>
 
       {/* Table */}
@@ -193,7 +193,7 @@ export default function FinanceOverview() {
                     <TableCell className="font-medium text-slate-700 dark:text-slate-300">{c.buyer}</TableCell>
                     <TableCell className="text-right font-mono font-bold text-slate-800 dark:text-slate-200">{fmtUSD(s.revenue)}</TableCell>
                     <TableCell className="text-right font-mono font-semibold text-slate-600 dark:text-slate-400">{hasCosts ? fmtUSD(s.totalCost) : "—"}</TableCell>
-                    <TableCell className={`text-right font-mono font-bold ${hasCosts ? (s.grossProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400") : "text-slate-400"}`}>
+                    <TableCell className={`text-right font-mono font-bold ${hasCosts ? (s.grossProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400") : "text-slate-500"}`}>
                       {hasCosts ? fmtUSD(s.grossProfit) : "—"}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-slate-600 dark:text-slate-400">{hasCosts ? s.margin.toFixed(1) + "%" : "—"}</TableCell>

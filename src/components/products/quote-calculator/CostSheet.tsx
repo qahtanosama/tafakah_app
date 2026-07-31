@@ -347,7 +347,7 @@ function LineAge({ line }: { line: CostLine }) {
  */
 function LineTotal({ priced }: { priced: PricedLine | undefined }) {
   const t = useT("calc");
-  if (!priced) return <span className="text-slate-400">—</span>;
+  if (!priced) return <span className="text-slate-500">—</span>;
 
   if (priced.usd === null) {
     return (
@@ -356,7 +356,7 @@ function LineTotal({ priced }: { priced: PricedLine | undefined }) {
       </span>
     );
   }
-  if (priced.line.amount === 0) return <span className="text-slate-400">—</span>;
+  if (priced.line.amount === 0) return <span className="text-slate-500">—</span>;
 
   const noun = FACTOR_KEY[priced.line.unit];
 
@@ -366,7 +366,7 @@ function LineTotal({ priced }: { priced: PricedLine | undefined }) {
         {usd(priced.usd)}
       </span>
       {noun && (
-        <span className="block font-mono text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+        <span className="block font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-500">
           × {qty(priced.factor, priced.line.unit === "per_mt" ? 2 : 0)} {t(noun)}
         </span>
       )}

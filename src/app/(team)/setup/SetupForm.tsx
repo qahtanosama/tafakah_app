@@ -67,7 +67,7 @@ export default function SetupForm() {
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
         {busy ? "Creating..." : "Create Admin Account"}
       </Button>
-      <p className="text-center text-xs text-slate-400">
+      <p className="text-center text-xs text-slate-500">
         This page is only available until the first admin exists.
       </p>
     </form>

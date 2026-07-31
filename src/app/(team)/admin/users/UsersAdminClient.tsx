@@ -281,7 +281,7 @@ export default function UsersAdminClient({
         </Table>
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         To create a client account for a buyer: go to <a href="/buyers" className="text-indigo-600 hover:underline">/buyers</a>, edit the buyer with an email, and use &ldquo;Create Client Login&rdquo;.
       </p>
     </div>

@@ -20,7 +20,7 @@ export default function SignOutIcon() {
       type="button"
       onClick={handleSignOut}
       disabled={signingOut}
-      className="relative p-2 rounded-full text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-300"
+      className="relative p-2 rounded-full text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-300"
       title={t("signOut")}
     >
       {signingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}

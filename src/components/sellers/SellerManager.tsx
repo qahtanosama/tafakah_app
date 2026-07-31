@@ -134,7 +134,7 @@ export default function SellerManager() {
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 sm:max-w-md">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by company, contact, or country..." className="pl-9 h-11 bg-white/50 dark:bg-zinc-900/50 border-slate-200 dark:border-zinc-800 focus:ring-indigo-500/20 shadow-sm transition-all" />
         </div>
         <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-sm font-semibold dark:border-white/10 dark:bg-zinc-900 shadow-sm">
@@ -175,27 +175,27 @@ export default function SellerManager() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-lg font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{s.companyName || "(unnamed)"}</p>
-                  {s.companyNameCn && <p className="truncate text-sm font-medium text-slate-400 dark:text-slate-500 mt-0.5" dir="auto">{s.companyNameCn}</p>}
+                  {s.companyNameCn && <p className="truncate text-sm font-medium text-slate-500 dark:text-slate-500 mt-0.5" dir="auto">{s.companyNameCn}</p>}
                 </div>
                 <span className="text-2xl leading-none opacity-80">{COUNTRY_FLAGS[s.country] ?? "🌍"}</span>
               </div>
               
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <MapPin className="h-4 w-4 text-slate-400" /> {s.country}{s.city ? ` · ${s.city}` : ""}
+                  <MapPin className="h-4 w-4 text-slate-500" /> {s.country}{s.city ? ` · ${s.city}` : ""}
                 </div>
                 <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800 text-xs font-bold text-slate-500">
                     {s.contactName ? s.contactName.charAt(0).toUpperCase() : "?"}
                   </span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300">{s.contactName || "(no contact)"}</span>
-                  {s.contactTitle && <span className="text-slate-400">· {s.contactTitle}</span>}
+                  {s.contactTitle && <span className="text-slate-500">· {s.contactTitle}</span>}
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {s.products.length === 0 ? (
-                  <span className="text-xs font-medium text-slate-400 bg-slate-50 dark:bg-zinc-800 px-2 py-1 rounded-md border border-slate-100 dark:border-white/5">No products assigned</span>
+                  <span className="text-xs font-medium text-slate-500 bg-slate-50 dark:bg-zinc-800 px-2 py-1 rounded-md border border-slate-100 dark:border-white/5">No products assigned</span>
                 ) : (
                   s.products.slice(0, 5).map((pid) => {
                     const p = productMap[pid];

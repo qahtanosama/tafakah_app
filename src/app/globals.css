@@ -6,7 +6,132 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── NAWA FRESH brand palette ──────────────────────────────────────────────
+ * Ported from the nawafresh.com design system (read from source 2026-07-30).
+ * The `alimdad-` prefix is historical and kept deliberately: identical names in
+ * both repos mean a value copied from the public site lands correctly here.
+ *
+ * Only the fifteen load-bearing tokens are defined. The public site carries ten
+ * aliases resolving to values that already have a primary name; those are not
+ * reproduced here, per that document's own instruction to let them die.
+ *
+ * THE GREEN RULE (clause 02). #06D327 measures 2.03:1 on white — it is a FILL,
+ * never text on a light ground. Text-weight greens are #047F17 (5.18:1 on
+ * paper) and #003817 (13.31:1). The ramp mapping below enforces this: every
+ * shade that this codebase uses for text or focus rings on a light ground
+ * resolves to a safe green, and #06D327 is reachable only where it measures
+ * 6.56:1 — as a fill, or as text on the dark ground.
+ */
 @theme inline {
+  --color-alimdad-dark: #003817;
+  --color-alimdad-dark-hover: #00220E;
+  --color-alimdad-forest-ink: #004A27;
+  --color-alimdad-body: #003817;
+  --color-alimdad-ink-70: #3F3F46;
+  --color-alimdad-ink-50: #71717A;
+  --color-alimdad-mint: #F2FAF3;
+  --color-alimdad-paper: #FFFFFF;
+  --color-alimdad-cta: #06D327;
+  --color-alimdad-cta-hover: #05B521;
+  --color-alimdad-link: #047F17;
+  --color-alimdad-link-hover: #036D14;
+  --color-alimdad-border: #D4E6CE;
+  --color-alimdad-line: rgb(0 0 0 / 0.05);
+  --color-alimdad-line-strong: rgb(0 0 0 / 0.08);
+  --color-alimdad-gold-soft: #FCCE5A;
+  --color-alimdad-pomegranate: #863541;
+
+  /* ── Ramp remap ───────────────────────────────────────────────────────────
+   * This app predates any brand token layer: ~2,650 raw palette classes across
+   * 75 files, against 175 semantic-token uses. Rewriting those classes would be
+   * a 75-file diff with a regression in every one, so the ramps themselves are
+   * repointed at the brand instead. Every existing class keeps working and comes
+   * out in brand colour.
+   *
+   * The shade assignments are measured, not guessed — each family's shades were
+   * counted and read in context first:
+   *   · slate  802 uses — neutral ink and edges
+   *   · zinc   753 uses — almost entirely dark-mode surfaces
+   *   · indigo 414 uses — the primary accent
+   *   · emerald 292 uses — the sell side of the calculator
+   *   · red / amber left untouched: they are state colours, not brand.
+   */
+
+  /* Neutral ink, tinted toward the brand green, and deliberately KEEPING the
+   * stock ramp's lightness curve so every existing class behaves the way its
+   * author expected.
+   *
+   * That curve is not cosmetic. slate-300 and slate-400 are overwhelmingly the
+   * dark-mode partner in this codebase — `text-slate-600 dark:text-slate-400`
+   * and friends, 94 and 75 uses against 37 that sit on a light ground. Darkening
+   * them to raise light-mode contrast made every one of those unreadable on the
+   * dark grounds. One value cannot be both dark enough on paper and light enough
+   * on forest-ink, so the ramp follows the majority and stays light here.
+   *
+   * The 37 `text-slate-400` uses on light grounds are therefore still weak
+   * (~2.7:1). That is pre-existing — the stock ramp gave them 2.6:1 — and the
+   * fix is to change those call sites to slate-500, not to bend the ramp. */
+  --color-slate-50: #F2FAF3;
+  --color-slate-100: #E7F4E9;
+  --color-slate-200: #D9E9D5;
+  --color-slate-300: #C5DCC2;
+  --color-slate-400: #9DBCA3;
+  --color-slate-500: #5B7563;
+  --color-slate-600: #3F3F46;
+  --color-slate-700: #2F3A31;
+  --color-slate-800: #17301F;
+  --color-slate-900: #003817;
+  --color-slate-950: #00220E;
+
+  /* Dark-mode surfaces. 800 and 900 carry the most weight (136 + 125 uses) and
+   * land exactly on the document's two dark grounds: forest-ink for panels,
+   * dark for the page behind them. */
+  --color-zinc-50: #F2FAF3;
+  --color-zinc-100: #E7F4E9;
+  --color-zinc-200: #D4E6CE;
+  --color-zinc-300: #BCD4B6;
+  --color-zinc-400: #9CC7A4;
+  --color-zinc-500: #7FAE88;
+  --color-zinc-600: #4E7A5B;
+  --color-zinc-700: #235C39;
+  --color-zinc-800: #004A27;
+  --color-zinc-900: #003817;
+  --color-zinc-950: #00220E;
+
+  /* Primary accent. 500 and 600 are the load-bearing pair — 500 is 38 focus
+   * rings on light grounds (needs 3:1) plus 7 text uses (needs 4.5:1), and 600
+   * fills buttons that carry white text. Both resolve to #047F17: white on it
+   * is 5.18:1, and it is 5.18:1 as text on paper. Mapping either to #06D327
+   * would have put white text at 2.03:1 and focus rings below the UI minimum.
+   * 400 is safe as the vivid green: all 46 uses of the 400 shades in this
+   * codebase sit behind `dark:`, where #06D327 measures 6.56:1. */
+  --color-indigo-50: #EAF7EC;
+  --color-indigo-100: #D4E6CE;
+  --color-indigo-200: #B9DCC0;
+  --color-indigo-300: #7ECB8D;
+  --color-indigo-400: #06D327;
+  --color-indigo-500: #047F17;
+  --color-indigo-600: #047F17;
+  --color-indigo-700: #036D14;
+  --color-indigo-800: #004A27;
+  --color-indigo-900: #003817;
+  --color-indigo-950: #00220E;
+
+  /* Sell side. text-emerald-600 (41 uses) and text-emerald-500 (13) are both
+   * text on light, so neither may be the vivid green. emerald-700 carries the
+   * calculator's hero price. */
+  --color-emerald-50: #F2FAF3;
+  --color-emerald-100: #DCF0E0;
+  --color-emerald-200: #C3E4C9;
+  --color-emerald-300: #7ECB8D;
+  --color-emerald-400: #06D327;
+  --color-emerald-500: #047F17;
+  --color-emerald-600: #047F17;
+  --color-emerald-700: #036D14;
+  --color-emerald-800: #004A27;
+  --color-emerald-900: #003817;
+  --color-emerald-950: #00220E;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -56,24 +181,28 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* The shadcn layer, pointed at the brand so the ~175 semantic-token uses
+   * (bg-card, text-muted-foreground, ring-foreground) move with the ramps
+   * instead of staying neutral grey next to them. Destructive stays red: it is
+   * a state, and pomegranate would read as decoration on an error. */
+  --background: #FFFFFF;
+  --foreground: #003817;
+  --card: #FFFFFF;
+  --card-foreground: #003817;
+  --popover: #FFFFFF;
+  --popover-foreground: #003817;
+  --primary: #047F17;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F2FAF3;
+  --secondary-foreground: #003817;
+  --muted: #F2FAF3;
+  --muted-foreground: #3F3F46;
+  --accent: #EAF7EC;
+  --accent-foreground: #003817;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #D4E6CE;
+  --input: #D4E6CE;
+  --ring: #047F17;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -91,24 +220,28 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Dark mode is built from the document's own dark grounds rather than
+   * invented: #003817 behind the page, forest-ink #004A27 for panels on top of
+   * it, mint as body text at 9.83:1 and paper for headlines at 13.31:1. This is
+   * also the one context where the vivid #06D327 is legal as text (6.56:1). */
+  --background: #003817;
+  --foreground: #F2FAF3;
+  --card: #004A27;
+  --card-foreground: #F2FAF3;
+  --popover: #004A27;
+  --popover-foreground: #F2FAF3;
+  --primary: #06D327;
+  --primary-foreground: #003817;
+  --secondary: #004A27;
+  --secondary-foreground: #F2FAF3;
+  --muted: #004A27;
+  --muted-foreground: #BCD4B6;
+  --accent: #235C39;
+  --accent-foreground: #F2FAF3;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: rgb(242 250 243 / 0.12);
+  --input: rgb(242 250 243 / 0.16);
+  --ring: #FCCE5A;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -127,6 +260,21 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /* Focus rings switch colour by ground — clause 02 of the brand document.
+   *
+   * The rings in this codebase are Tailwind utilities (ring-indigo-500/20 and
+   * friends) that bake the colour in, so the public site's --focus-ring-color
+   * property has no effect here. This is the equivalent: inside dark mode every
+   * focus ring becomes gold-soft, which measures 7.03:1 on forest-ink. Without
+   * it a #047F17 ring at 20% alpha on a #003817 ground is effectively invisible
+   * — the exact failure the document warns about for new dark surfaces.
+   *
+   * Specificity beats the utility class, so no !important is needed. */
+  .dark *:focus-visible,
+  .dark *:focus {
+    --tw-ring-color: var(--color-alimdad-gold-soft);
   }
   body {
     @apply bg-background text-foreground text-base;

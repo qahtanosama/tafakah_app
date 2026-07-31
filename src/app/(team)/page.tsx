@@ -172,7 +172,7 @@ export default async function Home() {
                   </p>
                 </div>
               </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-50 dark:bg-zinc-800 text-slate-400 transition-all duration-300 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-600/30">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-50 dark:bg-zinc-800 text-slate-500 transition-all duration-300 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-600/30">
                 <ChevronRight className="h-6 w-6 transition-transform duration-300 group-hover:translate-x-0.5" />
               </div>
             </div>
@@ -230,7 +230,7 @@ export default async function Home() {
             <div className="h-6 w-6 rounded bg-indigo-600 flex items-center justify-center text-[10px] font-bold text-white">T</div>
             <span className="text-sm font-medium text-slate-500">TAFAKAH Food (Shanghai)</span>
           </div>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             &copy; {new Date().getFullYear()} Export Trade Solutions. All rights reserved.
           </p>
         </div>

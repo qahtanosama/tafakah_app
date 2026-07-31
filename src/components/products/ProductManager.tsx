@@ -41,17 +41,17 @@ function ProductCard({ product, history, onEdit, onDelete }: {
           </div>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" onClick={() => onEdit(product)} title={tc("edit")} className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(product)} title={tc("delete")} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => onEdit(product)} title={tc("edit")} className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(product)} title={tc("delete")} className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-5 pt-5 pb-6">
         <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-[13px] sm:text-sm">
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardNw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultNW} KG</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardGw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultGW} KG</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardPerContainer", { unit: packUnitWord(product.packUnit, t) })}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardDefaultPrice")}</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">${product.defaultPriceMT.toLocaleString()} <span className="text-slate-400 text-xs font-sans">/MT</span></span></div>
-          <div className="flex flex-col gap-1"><span className="text-slate-400 font-semibold tracking-wide uppercase text-[11px]">{t("cardContainer")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.containerType}</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-500 font-semibold tracking-wide uppercase text-[11px]">{t("cardNw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultNW} KG</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-500 font-semibold tracking-wide uppercase text-[11px]">{t("cardGw")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultGW} KG</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-500 font-semibold tracking-wide uppercase text-[11px]">{t("cardPerContainer", { unit: packUnitWord(product.packUnit, t) })}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.defaultCartons ? product.defaultCartons.toLocaleString() : "\u2014"}</span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-500 font-semibold tracking-wide uppercase text-[11px]">{t("cardDefaultPrice")}</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">${product.defaultPriceMT.toLocaleString()} <span className="text-slate-500 text-xs font-sans">/MT</span></span></div>
+          <div className="flex flex-col gap-1"><span className="text-slate-500 font-semibold tracking-wide uppercase text-[11px]">{t("cardContainer")}</span> <span className="font-bold text-slate-700 dark:text-slate-200">{product.containerType}</span></div>
         </div>
 
         {history.length > 0 && (
@@ -63,7 +63,7 @@ function ProductCard({ product, history, onEdit, onDelete }: {
             </div>
             <div className="flex flex-wrap gap-1.5">
               {history.slice(0, 5).map((h, i) => (
-                <span key={i} className="rounded-md bg-white dark:bg-zinc-800 border border-slate-100 dark:border-white/5 px-2 py-1 text-[11px] font-mono font-medium text-slate-600 dark:text-slate-300 shadow-sm">${h.priceMT.toLocaleString()} <span className="font-sans text-slate-400 font-normal">({fmtDate(h.date)})</span></span>
+                <span key={i} className="rounded-md bg-white dark:bg-zinc-800 border border-slate-100 dark:border-white/5 px-2 py-1 text-[11px] font-mono font-medium text-slate-600 dark:text-slate-300 shadow-sm">${h.priceMT.toLocaleString()} <span className="font-sans text-slate-500 font-normal">({fmtDate(h.date)})</span></span>
               ))}
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function ProductManager() {
               <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"><Pencil className="h-4 w-4" /></div>
               {isNew ? t("createNew") : t("editNamed", { name: editing.name })}
             </CardTitle>
-            <button onClick={() => setEditing(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 hover:bg-slate-100 rounded-full p-1.5"><X className="h-5 w-5" /></button>
+            <button onClick={() => setEditing(null)} className="text-slate-500 hover:text-slate-700 dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 hover:bg-slate-100 rounded-full p-1.5"><X className="h-5 w-5" /></button>
           </CardHeader>
           <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 p-6">
             <div className="sm:col-span-2 lg:col-span-2">

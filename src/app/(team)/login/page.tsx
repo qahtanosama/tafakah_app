@@ -59,7 +59,7 @@ export default async function LoginPage({
         <div className="mt-6 text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to all sign-in options
           </Link>

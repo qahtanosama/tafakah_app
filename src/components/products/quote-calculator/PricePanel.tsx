@@ -359,7 +359,7 @@ export function PriceHistory({ rows, quotedPerMT }: HistoryProps) {
               </td>
               <td className="py-2 pr-3 text-right font-mono tabular-nums">{usd0(r.priceMT)}</td>
               <td className="py-2 pr-5 text-right whitespace-nowrap">
-                {quotedPerMT > 0 ? <DiffBadge diffPct={r.diffPct} sameLabel={t("lqSame")} /> : <span className="text-slate-400">—</span>}
+                {quotedPerMT > 0 ? <DiffBadge diffPct={r.diffPct} sameLabel={t("lqSame")} /> : <span className="text-slate-500">—</span>}
               </td>
             </tr>
           ))}

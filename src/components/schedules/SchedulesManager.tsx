@@ -570,7 +570,7 @@ export default function SchedulesManager({ sailings, plans }: Props) {
           {sailings.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
-                <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <Input
                   className="h-9 w-56 ps-8"
                   placeholder="Search vessel, voyage, line…"

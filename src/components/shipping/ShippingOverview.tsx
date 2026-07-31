@@ -306,7 +306,7 @@ export default function ShippingOverview() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-zinc-900 p-3 rounded-xl border border-slate-200/60 dark:border-white/10 shadow-sm">
         <div className="relative min-w-[240px] flex-1 sm:max-w-md">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by contract, vessel, or buyer..." className="pl-9 h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" />
         </div>
         <Button
@@ -409,7 +409,7 @@ export default function ShippingOverview() {
                           <span className="font-bold text-slate-800 dark:text-slate-200">{entry.vesselName}</span>
                           {entry.voyageNumber && <span className="font-mono text-xs text-slate-500 mt-0.5">{entry.voyageNumber}</span>}
                         </div>
-                      ) : <span className="text-slate-400 italic font-medium">Unassigned</span>}
+                      ) : <span className="text-slate-500 italic font-medium">Unassigned</span>}
                     </TableCell>
                     <TableCell className="text-sm font-medium text-slate-700 dark:text-slate-300">{fmtDate(entry?.atd ?? entry?.etd)}</TableCell>
                     <TableCell className="text-sm font-medium text-slate-700 dark:text-slate-300">{fmtDate(entry?.ata ?? entry?.eta)}</TableCell>

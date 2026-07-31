@@ -127,7 +127,7 @@ export default function LoginForm() {
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
         {busy ? "Signing in..." : "Sign In"}
       </Button>
-      <p className="text-center text-xs text-slate-400">
+      <p className="text-center text-xs text-slate-500">
         Accounts are created by an administrator.
       </p>
     </form>
