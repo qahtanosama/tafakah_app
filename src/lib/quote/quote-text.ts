@@ -5,8 +5,8 @@
  * still carry the legal Shanghai entity from getDefaultContractData()
  * ("TAFAKAH Food (SHANGHAI) CO., LTD") — a quote is a commercial offer, a
  * contract names the entity that signs it, and those are deliberately allowed
- * to differ. Contact details are still read from that one seller record so a
- * changed phone number reaches every surface at once.
+ * to differ. The brand's contact details live here too — email, website and
+ * phone are the trading brand's, not the seller record's.
  *
  * Arabic uses Western numerals (1, 2, 3), matching the buyer portal — see the
  * `numberingSystem` note in lib/i18n/format.ts. Traders read prices in Latin
@@ -23,16 +23,25 @@ import { CONTAINER_TYPE } from "./defaults";
 export const QUOTE_VALID_DAYS = 7;
 
 /**
- * Brand shown on quotes, with the Arabic form the team uses. Email is the
- * brand's own rather than the seller record's, so the address a buyer replies to
- * matches the domain printed two lines below it. The phone still comes from the
- * seller record — one place to change it.
+ * Brand shown on quotes, with the Arabic form the team uses. Email and phone are
+ * the brand's own rather than the seller record's, so the address a buyer replies
+ * to matches the domain beside it and the call lands on the trading line.
+ *
+ * Only the website reaches the pasted quote — the buyer already has the number
+ * he is being messaged on, so repeating it under every offer is filler. Email
+ * and phone print on the letterhead price offer, which travels on its own.
  */
 const BRAND = "NAWA FRESH";
 /** The brand written in Arabic, as the team writes it. */
 const BRAND_AR = "نوى فريش";
 const WEBSITE = "nawafresh.com";
 const EMAIL = `info@${WEBSITE}`;
+/**
+ * The trading brand's line, not the Shanghai office line that prints on
+ * contracts (seller.tel in getDefaultContractData, unchanged). Written with the
+ * country code because a Gulf buyer cannot dial it without one.
+ */
+const PHONE = "+86 188 1666 0573";
 
 /**
  * Arabic names for products added before the products table had a name_ar
@@ -49,6 +58,47 @@ const LEGACY_PRODUCT_AR: Record<string, string> = {
 /** Prefers the products table's name_ar, then the legacy map, then English. */
 export function arabicProductName(name: string, nameAr?: string): string {
   return nameAr?.trim() || LEGACY_PRODUCT_AR[name] || name;
+}
+
+/**
+ * The one emoji a quote carries: the goods themselves, so a buyer scrolling a
+ * WhatsApp thread of offers can tell at a glance which one this is.
+ *
+ * Matched on the English name, which every product has — the Arabic quote needs
+ * the same mark and `name_ar` is optional. Substring matching, because rows are
+ * named "Fresh Ginger Black Cat" and "Fresh Garlic 5.5cm", not "Ginger".
+ * Anything unmatched simply gets no emoji rather than a generic box.
+ */
+const PRODUCT_EMOJI: [match: string, emoji: string][] = [
+  ["garlic", "🧄"],
+  ["avocado", "🥑"],
+  ["ginger", "🫚"],
+  ["onion", "🧅"],
+  ["carrot", "🥕"],
+  ["kiwi", "🥝"],
+  ["apple", "🍎"],
+  ["orange", "🍊"],
+  ["lemon", "🍋"],
+  ["potato", "🥔"],
+  ["tomato", "🍅"],
+  ["cabbage", "🥬"],
+  ["broccoli", "🥦"],
+  ["pepper", "🌶️"],
+  ["chilli", "🌶️"],
+  ["mushroom", "🍄"],
+  ["grape", "🍇"],
+  ["pear", "🍐"],
+  ["peach", "🍑"],
+  ["mango", "🥭"],
+  ["banana", "🍌"],
+  ["watermelon", "🍉"],
+  ["melon", "🍈"],
+  ["peanut", "🥜"],
+];
+
+export function productEmoji(name: string): string {
+  const n = name.toLowerCase();
+  return PRODUCT_EMOJI.find(([match]) => n.includes(match))?.[1] ?? "";
 }
 
 export interface QuoteTextInput {
@@ -154,58 +204,103 @@ export function quoteTerms(loadingPort: string, dischargePort: string): { fob: s
   return { fob: fob ? `FOB ${fob}` : "FOB", cif: cif ? `CIF ${cif}` : "CIF" };
 }
 
+/**
+ * The quote as a WhatsApp message — which is what this text is for, and what
+ * shapes every decision below.
+ *
+ * WHATSAPP RENDERS IN A PROPORTIONAL FONT. Padding with runs of spaces to make
+ * price columns line up cannot work: "FOB Shekou" and "CIF Jeddah" are different
+ * widths on screen even though they are the same length in characters, so the
+ * figures land ragged on the buyer's phone however they look in the editor.
+ * Each price line is therefore self-contained — term, then both prices joined by
+ * a separator — and nothing depends on alignment.
+ *
+ * `*asterisks*` are WhatsApp's bold markup and render as bold in the message.
+ * They are deliberate, not stray punctuation: the incoterm, the product and the
+ * total are what a buyer scans for, and bold is the only visual hierarchy the
+ * medium offers. The markers stay literal in the preview box, which is the raw
+ * text that gets copied.
+ *
+ * Lines are kept short because a wrapped line reads as a mess in a chat bubble;
+ * the cargo detail is split across three short lines rather than crammed into
+ * two long ones. Same reason the freight caveat is one sentence.
+ *
+ * The only emoji is the product's own (see `productEmoji`). A quote decorated
+ * with a box, an envelope and a globe reads as something a machine assembled,
+ * which is not the impression a price offer should make; the goods marker earns
+ * its place by making the offer findable in a thread of them.
+ *
+ * Prices are quoted per carton, with ONE ton price — CIF, on its own line,
+ * restated with `=` so it reads as the same offer in another unit rather than a
+ * third price. The carton price is what gets negotiated; the ton price is what a
+ * buyer compares against other suppliers, and if he divides it out himself he
+ * will use the gross weight and land on a different number than ours. FOB per
+ * ton is left off deliberately — it is the carton price that is firm, and a
+ * second ton figure invites the two to be read as competing quotes. The per-MT
+ * figure comes from `computeQuote`, derived from the net weight.
+ *
+ * The bare domain on the last line is left unadorned so WhatsApp auto-links it
+ * and draws its own preview card.
+ */
 export function buildQuoteText(input: QuoteTextInput): string {
-  const { seller } = getDefaultContractData();
   const { quote, containers, gwPerCarton } = input;
   const { fob: fobTerm, cif: cifTerm } = quoteTerms(input.loadingPort, input.dischargePort);
   const cartons = qty(quote.totals.cartons);
   const unit = input.packUnit?.trim() || "carton";
   const unitAr = input.packUnitAr?.trim() || "كرتون";
+  /**
+   * Trimmed because the products table is hand-edited and "Avocado " with a
+   * trailing space is a real row. This is not tidiness: WhatsApp only renders
+   * `*bold*` when the closing marker sits against a non-space character, so
+   * `*Avocado *` reaches the buyer with the asterisks showing.
+   */
+  const productName = input.productName.trim();
+  // Trailing space folded in, so an unmatched product does not leave the line
+  // starting with a gap.
+  const mark = productEmoji(productName);
+  const emoji = mark ? mark + " " : "";
 
   if (input.lang === "ar") {
-    const product = arabicProductName(input.productName, input.productNameAr);
+    const product = arabicProductName(productName, input.productNameAr);
     return [
-      `📦 عرض سعر — ${BRAND_AR}`,
+      `*${BRAND_AR}* — عرض سعر`,
       "",
-      product,
+      `${emoji}*${product}*`,
       // The container type is left off the Arabic quote on purpose — the buyer
       // cares how many containers, not that they are 40'HC.
       `${containers} حاوية · ${cartons} ${unitAr}`,
-      `تاريخ الإبحار (ETD): ${formatEtd(input.etd)}`,
-      `الوزن الإجمالي: ${qty(gwPerCarton, 1)} كجم لكل ${unitAr}`,
+      `${qty(gwPerCarton, 1)} كجم إجمالي لكل ${unitAr}`,
+      `ETD: ${formatEtd(input.etd)}`,
       "",
-      `${fobTerm}   ${usd(quote.fobPerCarton)} / ${unitAr}`,
-      `${cifTerm}   ${usd(quote.cifPerCarton)} / ${unitAr}`,
-      `الإجمالي (${cifTerm})   ${usd0(quote.quotedTotal)}`,
+      `*${fobTerm}* ${usd(quote.fobPerCarton)}/${unitAr}`,
+      `*${cifTerm}* ${usd(quote.cifPerCarton)}/${unitAr}`,
+      `= ${usd0(quote.quotedPerMT)} لكل طن`,
+      `*الإجمالي* ${usd0(quote.quotedTotal)} (${cifTerm})`,
       "",
-      `ملاحظة: أجور الشحن البحري غير مستقرة. سعر ${cifTerm} مبني على أجور الشحن الحالية وسيتم تأكيده عند الحجز. سعر ${fobTerm} ثابت لمدة ${QUOTE_VALID_DAYS} أيام من تاريخ هذا العرض.`,
+      `أجور الشحن البحري متغيرة — سعر CIF يُعاد تأكيده عند الحجز. سعر FOB ثابت لمدة ${QUOTE_VALID_DAYS} أيام.`,
       "",
-      `— ${BRAND_AR}`,
-      `📧 ${EMAIL}`,
-      `📱 ${seller.tel}`,
-      `🌐 ${WEBSITE}`,
+      WEBSITE,
     ].join("\n");
   }
 
   return [
-    `📦 Quote — ${BRAND}`,
+    `*${BRAND}* — Price Offer`,
     "",
-    input.productName,
-    `${containers} × ${CONTAINER_TYPE} · ${cartons} ${plural(unit)} · ${qty(gwPerCarton, 1)} KG gross/${unit}`,
+    `${emoji}*${productName}*`,
+    `${containers} × ${CONTAINER_TYPE} · ${cartons} ${plural(unit)}`,
+    `${qty(gwPerCarton, 1)} KG gross per ${unit}`,
     `ETD: ${formatEtd(input.etd)}`,
     "",
-    `${fobTerm}   ${usd(quote.fobPerCarton)} / ${unit}`,
-    `${cifTerm}   ${usd(quote.cifPerCarton)} / ${unit}`,
-    `Total ${cifTerm}   ${usd0(quote.quotedTotal)}`,
+    `*${fobTerm}* ${usd(quote.fobPerCarton)}/${unit}`,
+    `*${cifTerm}* ${usd(quote.cifPerCarton)}/${unit}`,
+    `= ${usd0(quote.quotedPerMT)} per MT`,
+    `*Total* ${usd0(quote.quotedTotal)} (${cifTerm})`,
     "",
-    `Note: sea freight is unstable. The ${cifTerm} price is based on today's freight rate and will be re-confirmed at the time of booking. The ${fobTerm} price is firm for ${QUOTE_VALID_DAYS} days from the date of this quote.`,
+    `Sea freight is unstable — CIF is re-confirmed at booking. FOB is firm for ${QUOTE_VALID_DAYS} days.`,
     "",
-    `— ${BRAND}`,
-    `📧 ${EMAIL}`,
-    `📱 ${seller.tel}`,
-    `🌐 ${WEBSITE}`,
+    WEBSITE,
   ].join("\n");
 }
 
 /** Brand block, exported so the screen and the quote text cannot drift apart. */
-export const QUOTE_BRAND = { name: BRAND, website: WEBSITE, email: EMAIL };
+export const QUOTE_BRAND = { name: BRAND, website: WEBSITE, email: EMAIL, phone: PHONE };

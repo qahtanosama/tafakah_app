@@ -160,6 +160,11 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
         <Text style={o.cargoLine}>Total quantity: {qty(quote.totals.qtyMTS, 2)} MT net</Text>
         <Text style={o.cargoLine}>ETD: {formatEtd(data.etd)}</Text>
 
+        {/* Prices are quoted per unit, with one ton price: CIF, on its own row.
+            Produce is compared per ton, and a buyer working it out himself would
+            divide by the gross weight and land on a different number. FOB per
+            ton is left off — the per-unit price is the firm one, and a second
+            ton figure reads as a competing quote rather than a restatement. */}
         <View style={o.priceBox}>
           <View style={o.priceRow}>
             <Text style={o.priceTerm}>{fobTerm}</Text>
@@ -175,6 +180,11 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
             <Text style={o.priceTerm}>{cifTerm}</Text>
             <Text style={o.priceUnit}>per {unit}</Text>
             <Text style={o.priceValue}>{usd(quote.cifPerCarton)}</Text>
+          </View>
+          <View style={o.priceRow}>
+            <Text style={o.priceTerm}>{cifTerm}</Text>
+            <Text style={o.priceUnit}>per MT</Text>
+            <Text style={o.priceValue}>{usd0(quote.quotedPerMT)}</Text>
           </View>
           <View style={o.priceRowLast}>
             <Text style={o.priceTerm}>Total {cifTerm}</Text>
@@ -204,7 +214,7 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
             <Text style={o.termValue}>China</Text>
             <Text style={o.termLabel}>CONTACT</Text>
             <Text style={o.termValue}>
-              {QUOTE_BRAND.email} · {seller.tel}
+              {QUOTE_BRAND.email} · {QUOTE_BRAND.phone}
             </Text>
           </View>
         </View>
