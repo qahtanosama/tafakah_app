@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeQuote } from "./pricing";
 import { DEFAULT_FX } from "./defaults";
+import { MARKETS } from "./markets";
 import type { QuoteInput } from "./pricing";
 
 /**
@@ -115,4 +116,89 @@ describe("computeQuote — markup base", () => {
     expect(q.freightUSD).toBe(4800);
     expect(q.freightPerCarton).toBe(0.22);
   });
+});
+
+/**
+ * The team's Russian costing sheet, run through the calculator at zero margin.
+ *
+ * These figures deliberately DO NOT match the spreadsheet:
+ *
+ *  - Garlic and kiwi are far off because the sheet's Total column stops after
+ *    freight on those two rows, silently dropping customs and the transit tax.
+ *  - Ginger — the one row summed correctly — still lands three cents high,
+ *    because the sheet converts the transit tax at 6.70 and everything else at
+ *    6.77. The calculator holds one FX table per sheet, and the tax is entered
+ *    in USD per MT so it never passes through FX at all.
+ *
+ * Matching the spreadsheet exactly would mean reproducing its bugs.
+ */
+const RU_FX = { RMB: 6.77, EUR: 0.92, SAR: 3.75, AED: 3.67, KWD: 0.31 };
+
+function russianSheet(exwPerMT: number, inland: number, taxPerMT: number) {
+  return MARKETS.russia.costLines().map((l) => {
+    if (l.id === "farm") return { ...l, amount: exwPerMT };
+    if (l.id === "inland") return { ...l, amount: inland };
+    // The ~$500 transhipment stays inside the carriage for this fixture, as it
+    // does in the source sheet. Splitting it out must not move the total.
+    if (l.id === "freight") return { ...l, amount: 47570 };
+    if (l.id === "customs") return { ...l, amount: 5000 };
+    if (l.id === "transit") return { ...l, amount: taxPerMT };
+    return l;
+  });
+}
+
+describe.each([
+  { name: "ginger", cartons: 1440, nw: 13.6, gw: 14.2, exw: 8300, inland: 18000, tax: 250, mt: 19.584, landed: 39329.8552, perBox: 27.3124 },
+  { name: "garlic", cartons: 2900, nw: 10.0, gw: 10.5, exw: 8300, inland: 18000, tax: 240, mt: 29.0, landed: 52937.8434, perBox: 18.2544 },
+  { name: "kiwi", cartons: 2400, nw: 9.0, gw: 9.5, exw: 6200, inland: 15000, tax: 150, mt: 21.6, landed: 33002.1861, perBox: 13.7509 },
+])("Russian cost stack — $name", (c) => {
+  const q = computeQuote({
+    lines: russianSheet(c.exw, c.inland, c.tax),
+    cargo: {
+      productId: "p", containers: 1, cartonsPerContainer: c.cartons,
+      nwPerCarton: c.nw, gwPerCarton: c.gw,
+      loadingPort: "KHORGOS, KAZAKHSTAN",
+      dischargePort: "FOOD CITY (MOSCOW), RUSSIA",
+      etd: "2026-09-15",
+    },
+    fx: RU_FX,
+    marginPct: 0,
+    productSelected: true,
+    markupBase: MARKETS.russia.markupBase,
+  });
+
+  it("lands on the corrected quantity and cost", () => {
+    expect(q.totals.qtyMTS).toBeCloseTo(c.mt, 6);
+    expect(q.landedCost).toBeCloseTo(c.landed, 3);
+    expect(q.costPerCarton).toBeCloseTo(c.perBox, 4);
+  });
+
+  it("quotes no base price on a delivered market", () => {
+    expect(q.fobPerCarton).toBeNull();
+    expect(q.fobTotal).toBeNull();
+  });
+
+  it("raises no error — the stack is complete", () => {
+    expect(q.issues.filter((i) => i.level === "error")).toEqual([]);
+  });
+});
+
+it("is unmoved by splitting the transhipment fee out of the carriage", () => {
+  const base = {
+    productId: "p", containers: 1, cartonsPerContainer: 1440,
+    nwPerCarton: 13.6, gwPerCarton: 14.2,
+    loadingPort: "", dischargePort: "", etd: "2026-09-15",
+  };
+  const whole = computeQuote({
+    lines: russianSheet(8300, 18000, 250),
+    cargo: base, fx: RU_FX, marginPct: 0, productSelected: true, markupBase: "landed",
+  });
+  const split = computeQuote({
+    lines: russianSheet(8300, 18000, 250).map((l) =>
+      // $500 at 6.77 is RMB 3,385 — taken off the carriage, added back as USD.
+      l.id === "freight" ? { ...l, amount: 47570 - 3385 } : l.id === "border" ? { ...l, amount: 500 } : l
+    ),
+    cargo: base, fx: RU_FX, marginPct: 0, productSelected: true, markupBase: "landed",
+  });
+  expect(split.landedCost).toBeCloseTo(whole.landedCost, 6);
 });
