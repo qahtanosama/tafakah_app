@@ -37,6 +37,12 @@ export interface MasterDraftInput {
   dischargePort: string;
   /** Supplies the delivered incoterm and how its named place is written. */
   market: Market;
+  /**
+   * Clause 6 wording for the terms the quote stated. Carried so the contract
+   * says what the buyer actually agreed to rather than reverting to the
+   * standing default — the contract's own editor still overrides it.
+   */
+  paymentTerms?: string;
 }
 
 export function sendToMasterData(input: MasterDraftInput): void {
@@ -77,6 +83,7 @@ export function sendToMasterData(input: MasterDraftInput): void {
       ...base.terms,
       containerType: CONTAINER_TYPE,
       numberOfContainers: input.containers,
+      paymentTerms: input.paymentTerms || base.terms.paymentTerms,
     },
   });
 }

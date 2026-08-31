@@ -23,6 +23,7 @@ interface DbCostSheet {
   fx: Partial<FxRates> | null;
   margin_pct: number | string | null;
   quoted_per_mt: number | string | null;
+  payment_term: string | null;
   cargo: Partial<Cargo> | null;
   created_at: string;
   updated_at: string;
@@ -45,6 +46,7 @@ function dbToLocal(row: DbCostSheet): CostSheet {
     fx: { ...DEFAULT_FX, ...(row.fx ?? {}) },
     marginPct: num(row.margin_pct) ?? 20,
     quotedPerMT: num(row.quoted_per_mt),
+    paymentTermId: row.payment_term ?? "",
     cargo: row.cargo ?? {},
     updatedAt: row.updated_at,
   };
@@ -141,6 +143,7 @@ export interface SaveCostSheetInput {
   fx: FxRates;
   marginPct: number;
   quotedPerMT: number | null;
+  paymentTermId: string;
   cargo: Partial<Cargo>;
 }
 
@@ -165,6 +168,7 @@ export function useSaveCostSheet() {
         fx: input.fx,
         margin_pct: input.marginPct,
         quoted_per_mt: input.quotedPerMT,
+        payment_term: input.paymentTermId,
         cargo: input.cargo,
       };
 

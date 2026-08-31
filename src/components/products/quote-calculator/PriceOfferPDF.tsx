@@ -110,6 +110,8 @@ export interface PriceOfferData {
   packUnit: string;
   /** Drives the incoterms, the date label and the carriage caveat. */
   market: Market;
+  /** How the buyer pays — printed in English, as the rest of this document is. */
+  paymentTerms?: string;
   quote: Quote;
 }
 
@@ -209,24 +211,26 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
           </View>
         </View>
 
-        <View style={o.note}>
-          <Text style={o.noteLabel}>{overland ? "Carriage" : "Sea freight"}</Text>
-          {/* A delivered-price market has no firm base price to hold, so the
-              caveat covers the whole quote rather than splitting it in two. */}
-          {quote.fobPerCarton !== null ? (
+        {data.paymentTerms ? (
+          <View style={o.note}>
+            <Text style={o.noteLabel}>Payment</Text>
+            <Text style={o.noteText}>{data.paymentTerms}</Text>
+          </View>
+        ) : null}
+
+        {/* No freight note on an overland offer: there is no sea freight to
+            warn about, and the team asked for that notice gone from Russia. The
+            validity row below still states how long the offer stands. */}
+        {!overland && (
+          <View style={o.note}>
+            <Text style={o.noteLabel}>Sea freight</Text>
             <Text style={o.noteText}>
               Sea freight is unstable. The {deliveredTerm} price is based on today&rsquo;s freight rate
               and will be re-confirmed at the time of booking. The {baseTerm} price is firm for{" "}
               {QUOTE_VALID_DAYS} days from the date of this offer.
             </Text>
-          ) : (
-            <Text style={o.noteText}>
-              Carriage rates move. The {deliveredTerm} price is based on today&rsquo;s rate and is
-              re-confirmed at the time of booking. This offer is valid for {QUOTE_VALID_DAYS} days
-              from its date.
-            </Text>
-          )}
-        </View>
+          </View>
+        )}
 
         <View style={o.termsRow}>
           <View style={o.termsCol}>

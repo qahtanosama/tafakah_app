@@ -133,3 +133,48 @@ describe("formatEtd", () => {
     expect(formatEtd("not-a-date", "ru")).toBe("not-a-date");
   });
 });
+
+describe("payment terms on the quote", () => {
+  const base = {
+    market: MARKETS.russia,
+    productName: "Fresh Ginger",
+    containers: 1,
+    cartonsPerContainer: 1680,
+    gwPerCarton: 14.2,
+    loadingPort: "Anqiu, Shandong",
+    dischargePort: "FOOD CITY (MOSCOW), RUSSIA",
+    etd: "2026-09-14",
+    packUnit: "carton",
+    quote: { ...RU_QUOTE, fobPerCarton: 23.81, fobTotal: 40000 } as unknown as Quote,
+  };
+
+  it("states how the buyer pays, in the quote's language", () => {
+    const text = buildQuoteText({
+      ...base, lang: "ru",
+      paymentTerms: "30% предоплата, 70% после погрузки контейнера",
+    });
+    expect(text).toContain("Оплата: 30% предоплата, 70% после погрузки контейнера");
+  });
+
+  it("drops the sea-freight caveat from a Russian offer", () => {
+    const text = buildQuoteText({ ...base, lang: "ru", paymentTerms: "x" });
+    expect(text).not.toMatch(/морск|Стоимость перевозки меняется/);
+    // The offer still says how long it stands.
+    expect(text).toMatch(/Предложение действительно/);
+  });
+
+  it("keeps the sea-freight caveat on a Gulf offer", () => {
+    const text = buildQuoteText({
+      ...base, market: MARKETS.gulf, lang: "en",
+      loadingPort: "SHEKOU PORT, CHINA", dischargePort: "JEDDAH PORT, SAUDI ARABIA",
+      paymentTerms: "50% advance, 50% before arrival of the goods",
+    });
+    expect(text).toContain("Sea freight is unstable");
+    expect(text).toContain("Payment: 50% advance, 50% before arrival of the goods");
+  });
+
+  it("omits the line entirely when no terms are given", () => {
+    const text = buildQuoteText({ ...base, lang: "ru" });
+    expect(text).not.toMatch(/Оплата:/);
+  });
+});

@@ -15,6 +15,7 @@ import {
 import { stampIfAmountChanged } from "@/lib/quote/freshness";
 import { DEFAULT_MARKET, type Market, marketOf } from "@/lib/quote/markets";
 import { type PackPatch, packFor } from "@/lib/quote/pack";
+import { DEFAULT_PAYMENT_TERM_ID, paymentTermById } from "@/lib/payment-terms";
 import { defaultRoute } from "@/lib/quote/quote-text";
 import { computeQuote } from "@/lib/quote/pricing";
 import {
@@ -97,6 +98,8 @@ export function useQuoteCalculator() {
   >(null);
   const [route, setRoute] = useState<{ loadingPort: string; dischargePort: string } | null>(null);
   const [etd, setEtd] = useState<string | null>(null);
+  // null until chosen this session, so a saved sheet's terms win first.
+  const [paymentTerm, setPaymentTerm] = useState<string | null>(null);
   const [working, setWorking] = useState<WorkingSheet | null>(null);
 
   /* ── the sheet on screen ───────────────────────────────────────────── */
@@ -167,6 +170,14 @@ export function useQuoteCalculator() {
     };
   }, [productId, marketId, containers, cartonsOverride, weights, route, etd, savedSheet, pack, market, product?.origin]);
 
+  /**
+   * How the buyer pays. Chosen this session, else whatever this product's last
+   * session in this market agreed, else the standing default.
+   */
+  const paymentTermId =
+    paymentTerm ?? (savedSheet?.paymentTermId || DEFAULT_PAYMENT_TERM_ID);
+  const paymentTerm_ = paymentTermById(paymentTermId);
+
   const quote = useMemo(
     () =>
       computeQuote({
@@ -183,13 +194,18 @@ export function useQuoteCalculator() {
   /* ── auto-save ─────────────────────────────────────────────────────── */
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<{ sheet: WorkingSheet; cargo: Cargo; quotedPerMT: number } | null>(null);
+  const pending = useRef<{
+    sheet: WorkingSheet;
+    cargo: Cargo;
+    quotedPerMT: number;
+    paymentTermId: string;
+  } | null>(null);
 
   const scheduleSave = useCallback(
-    (next: WorkingSheet, nextCargo: Cargo, quotedPerMT: number) => {
+    (next: WorkingSheet, nextCargo: Cargo, quotedPerMT: number, termId: string) => {
       // Nothing costed yet — do not file an empty session.
       if (!next.productId || !next.lines.some((l) => l.amount > 0)) return;
-      pending.current = { sheet: next, cargo: nextCargo, quotedPerMT };
+      pending.current = { sheet: next, cargo: nextCargo, quotedPerMT, paymentTermId: termId };
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         const p = pending.current;
@@ -203,6 +219,7 @@ export function useQuoteCalculator() {
           fx: p.sheet.fx,
           marginPct: p.sheet.marginPct,
           quotedPerMT: p.quotedPerMT,
+          paymentTermId: p.paymentTermId,
           cargo: {
             containers: p.cargo.containers,
             cartonsPerContainer: p.cargo.cartonsPerContainer,
@@ -240,9 +257,9 @@ export function useQuoteCalculator() {
         productSelected: Boolean(product),
         markupBase: market.markupBase,
       });
-      scheduleSave(next, cargo, q.quotedPerMT);
+      scheduleSave(next, cargo, q.quotedPerMT, paymentTermId);
     },
-    [sheet, productId, marketId, cargo, product, market.markupBase, scheduleSave]
+    [sheet, productId, marketId, cargo, product, market.markupBase, paymentTermId, scheduleSave]
   );
 
   /* ── mutators ──────────────────────────────────────────────────────── */
@@ -377,6 +394,19 @@ export function useQuoteCalculator() {
 
   const setLang = useCallback((next: QuoteLang) => setStoredLang(next), []);
 
+  /**
+   * Choosing terms files the session on its own, so the choice survives a
+   * reload even when no cost line was touched. `edit` funnels every other
+   * mutation; this one has no line to change, so it re-saves the sheet as is.
+   */
+  const setPaymentTermId = useCallback(
+    (next: string) => {
+      setPaymentTerm(next);
+      scheduleSave({ ...sheet, market: marketId }, cargo, quote.quotedPerMT, next);
+    },
+    [sheet, marketId, cargo, quote.quotedPerMT, scheduleSave]
+  );
+
   // A market offers only some quote languages, and the stored preference is
   // global — so Arabic must not survive a switch to Russia.
   const lang = market.langs.includes(langState.lang) ? langState.lang : market.langs[0];
@@ -387,6 +417,9 @@ export function useQuoteCalculator() {
     market,
     setMarket,
     pack,
+    paymentTermId,
+    paymentTerm: paymentTerm_,
+    setPaymentTermId,
     /** True until products, this product's sheets and the seed sheet are all in hand. */
     loading: productsLoading || sheetsLoading || latestLoading || !langHydrated(langState),
     cargo,

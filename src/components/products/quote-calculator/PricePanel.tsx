@@ -139,7 +139,8 @@ export default function PricePanel({
                 </div>
                 <div className="mt-1 flex items-baseline justify-between gap-3 text-sm">
                   <dt className="text-slate-600 dark:text-slate-400">
-                    {t("plusSeaFreight")} <span className="text-xs">{t("atCost")}</span>
+                    {market.mode === "overland" ? t("plusCarriage") : t("plusSeaFreight")}{" "}
+                    <span className="text-xs">{t("atCost")}</span>
                   </dt>
                   <dd className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
                     {usd(quote.freightPerCarton)}

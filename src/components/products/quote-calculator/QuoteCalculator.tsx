@@ -81,13 +81,14 @@ export default function QuoteCalculator() {
       dischargePort: cargo.dischargePort,
       etd: cargo.etd,
       origin: product.origin,
+      paymentTerms: calc.paymentTerm.text[lang],
       // From the resolved pack, not the product row — that is what makes a
       // Russian garlic offer name the Russian pack's unit.
       packUnit: calc.pack.packUnit,
       packUnitAr: calc.pack.packUnitAr,
       quote,
     });
-  }, [product, lang, cargo, quote, calc.market, calc.pack]);
+  }, [product, lang, cargo, quote, calc.market, calc.pack, calc.paymentTerm]);
 
   useEffect(() => {
     if (!copied) return;
@@ -125,12 +126,13 @@ export default function QuoteCalculator() {
       loadingPort: cargo.loadingPort,
       dischargePort: cargo.dischargePort,
       market: calc.market,
+      paymentTerms: calc.paymentTerm.contract,
       // The to-the-cent figure, so the contract's carton price matches the
       // carton price the buyer actually agreed to.
       pricePerMT: quote.contractPerMT,
     });
     setToast(t("sentToMaster"));
-  }, [product, cargo, quote.contractPerMT, calc.market, t]);
+  }, [product, cargo, quote.contractPerMT, calc.market, calc.paymentTerm, t]);
 
   if (calc.loading) return <CalculatorSkeleton />;
 
@@ -143,6 +145,8 @@ export default function QuoteCalculator() {
         totals={quote.totals}
         market={calc.market}
         onMarketChange={calc.setMarket}
+        paymentTerm={calc.paymentTerm}
+        onPaymentTermChange={calc.setPaymentTermId}
         onChange={calc.updateCargo}
       />
 
@@ -206,6 +210,7 @@ export default function QuoteCalculator() {
                   etd={cargo.etd}
                   packUnit={calc.pack.packUnit}
                   market={calc.market}
+                  paymentTerms={calc.paymentTerm.text.en}
                   quote={quote}
                   disabled={!quote.ready}
                 />

@@ -158,6 +158,8 @@ export interface QuoteTextInput {
   market: Market;
   /** Where the goods are grown, printed as provenance on an overland quote. */
   origin?: string;
+  /** How the buyer pays, in this quote's language. */
+  paymentTerms?: string;
   quote: Quote;
 }
 
@@ -372,6 +374,7 @@ export function buildQuoteText(input: QuoteTextInput): string {
       `= ${usd0(quote.quotedPerMT)} لكل طن`,
       `*الإجمالي* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
       "",
+      ...(input.paymentTerms ? [`الدفع: ${input.paymentTerms}`, ""] : []),
       `أجور الشحن البحري متغيرة — سعر CIF يُعاد تأكيده عند الحجز. سعر FOB ثابت لمدة ${QUOTE_VALID_DAYS} أيام.`,
       "",
       WEBSITE,
@@ -400,7 +403,10 @@ export function buildQuoteText(input: QuoteTextInput): string {
       `= ${usd0(quote.quotedPerMT)} за тонну`,
       `*Итого* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
       "",
-      `Стоимость перевозки меняется — цена ${deliveredTerm} подтверждается при бронировании. Цена ${baseTerm} фиксирована ${QUOTE_VALID_DAYS} дней.`,
+      // No freight caveat on an overland offer: there is no sea freight to warn
+      // about, and the team asked for that notice gone from the Russian market.
+      ...(input.paymentTerms ? [`Оплата: ${input.paymentTerms}`] : []),
+      `Предложение действительно ${QUOTE_VALID_DAYS} дней.`,
       "",
       WEBSITE,
     ].join("\n");
@@ -420,6 +426,7 @@ export function buildQuoteText(input: QuoteTextInput): string {
     `= ${usd0(quote.quotedPerMT)} per MT`,
     `*Total* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
     "",
+    ...(input.paymentTerms ? [`Payment: ${input.paymentTerms}`, ""] : []),
     `Sea freight is unstable — CIF is re-confirmed at booking. FOB is firm for ${QUOTE_VALID_DAYS} days.`,
     "",
     WEBSITE,

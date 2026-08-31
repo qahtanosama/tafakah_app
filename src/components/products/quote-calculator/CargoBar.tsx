@@ -7,9 +7,10 @@ import PortCombobox from "@/components/ui/port-combobox";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
 import { MARKETS, MARKET_IDS, type Market } from "@/lib/quote/markets";
 import { placesFor } from "@/lib/places";
+import { PAYMENT_TERMS, type PaymentTermOption } from "@/lib/payment-terms";
 import { quoteTerms } from "@/lib/quote/quote-text";
 import { qty } from "@/lib/money";
-import { useT } from "@/lib/team-i18n";
+import { useT, useTeamLocale } from "@/lib/team-i18n";
 import { FieldLabel, NumberField } from "./fields";
 
 interface Props {
@@ -19,6 +20,8 @@ interface Props {
   totals: CargoTotals;
   market: Market;
   onMarketChange: (id: MarketId) => void;
+  paymentTerm: PaymentTermOption;
+  onPaymentTermChange: (id: string) => void;
   onChange: (patch: Partial<Cargo>) => void;
 }
 
@@ -37,9 +40,12 @@ export default function CargoBar({
   totals,
   market,
   onMarketChange,
+  paymentTerm,
+  onPaymentTermChange,
   onChange,
 }: Props) {
   const t = useT("calc");
+  const locale = useTeamLocale();
   // Overland markets have no ports and no vessel, so the route row relabels.
   const overland = market.mode === "overland";
   const terms = quoteTerms(market, cargo.loadingPort, cargo.dischargePort);
@@ -133,7 +139,7 @@ export default function CargoBar({
       {/* The route decides what the quote says: "FOB Shekou" / "CIF Jeddah".
           A wrong destination is a factual error in a client-facing offer, so it
           is chosen per quote rather than inherited from a global default. */}
-      <div className="grid gap-x-4 gap-y-3 border-t border-foreground/10 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
+      <div className="grid gap-x-4 gap-y-3 border-t border-foreground/10 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_minmax(12rem,1fr)]">
         <div>
           <FieldLabel>{overland ? t("originPlace") : t("loadingPort")}</FieldLabel>
           {/* Overland origins are farm towns kept per product, not a fixed list
@@ -181,9 +187,35 @@ export default function CargoBar({
             className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-zinc-800/60 dark:text-slate-200"
           />
         </label>
+        {/* How the buyer pays. Stated on the offer, and carried into the
+            contract's clause 6 when the quote is handed over. */}
+        <label className="block">
+          <FieldLabel>{t("payment")}</FieldLabel>
+          <Select value={paymentTerm.id} onValueChange={(v) => v && onPaymentTermChange(v)}>
+            <SelectTrigger
+              aria-label={t("paymentA11y")}
+              className="h-9 w-full bg-white text-sm font-medium dark:bg-zinc-800/60"
+            >
+              <SelectValue>{paymentTerm.label[locale]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {PAYMENT_TERMS.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.label[locale]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
       </div>
 
       <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-foreground/10 px-4 py-2.5 text-sm">
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-slate-500 dark:text-slate-400">{t("payment")}</dt>
+          <dd className="font-medium text-slate-700 dark:text-slate-200">
+            {paymentTerm.label[locale]}
+          </dd>
+        </div>
         <div className="flex items-baseline gap-1.5">
           <dt className="text-slate-500 dark:text-slate-400">{t("container")}</dt>
           <dd className="font-mono font-medium text-slate-700 dark:text-slate-200">{CONTAINER_TYPE}</dd>

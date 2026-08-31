@@ -24,6 +24,8 @@ interface Props {
   packUnit: string;
   /** Drives the incoterms and the carriage caveat on the letterhead. */
   market: Market;
+  /** How the buyer pays — printed in English, as the rest of the PDF is. */
+  paymentTerms?: string;
   quote: Quote;
   disabled?: boolean;
 }
@@ -46,6 +48,7 @@ export default function PriceOfferDownload({
   etd,
   packUnit,
   market,
+  paymentTerms,
   quote,
   disabled,
 }: Props) {
@@ -67,7 +70,7 @@ export default function PriceOfferDownload({
 
       const blob = await pdf(
         <PriceOfferPDF
-          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, quote }}
+          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, paymentTerms, quote }}
         />
       ).toBlob();
 
@@ -82,7 +85,7 @@ export default function PriceOfferDownload({
     } finally {
       setBusy(false);
     }
-  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, quote, t]);
+  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, paymentTerms, quote, t]);
 
   return (
     <>

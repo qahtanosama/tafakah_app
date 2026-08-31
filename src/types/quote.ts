@@ -215,6 +215,8 @@ export interface CostSheet {
   marginPct: number;
   /** What this session ended up quoting, for the history list. */
   quotedPerMT: number | null;
+  /** PaymentTermId chosen for this offer; "" until one is picked. */
+  paymentTermId: string;
   cargo: Partial<Cargo>;
   updatedAt: string;
 }
