@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Cargo, CostLine, CostSheet, FxRates } from "@/types/quote";
+import type { Cargo, CostLine, CostSheet, FxRates, MarketId } from "@/types/quote";
+import { DEFAULT_MARKET } from "@/lib/quote/markets";
 import { createClient } from "@/lib/supabase/client";
 import { withRetryQueue } from "@/lib/db/helpers";
 import { DEFAULT_FX } from "@/lib/quote/defaults";
@@ -16,6 +17,7 @@ import { DEFAULT_FX } from "@/lib/quote/defaults";
 interface DbCostSheet {
   id: string;
   product_id: string;
+  market: string | null;
   session_date: string;
   lines: CostLine[] | null;
   fx: Partial<FxRates> | null;
@@ -37,6 +39,7 @@ function dbToLocal(row: DbCostSheet): CostSheet {
   return {
     id: row.id,
     productId: row.product_id,
+    market: (row.market ?? DEFAULT_MARKET) as MarketId,
     sessionDate: row.session_date,
     lines: Array.isArray(row.lines) ? row.lines : [],
     fx: { ...DEFAULT_FX, ...(row.fx ?? {}) },
@@ -60,10 +63,10 @@ const HISTORY_LIMIT = 12;
  * Disabled until a product is selected so switching products does not fire a
  * query for the empty id.
  */
-export function useCostSheets(productId: string | undefined) {
+export function useCostSheets(productId: string | undefined, market: MarketId) {
   useRealtimeCostSheets();
   return useQuery<CostSheet[]>({
-    queryKey: ["cost-sheets", productId ?? ""],
+    queryKey: ["cost-sheets", productId ?? "", market],
     enabled: Boolean(productId),
     // One attempt: if the table is missing (migration not yet run) or RLS
     // refuses, retrying cannot help — the calculator falls back to defaults and
@@ -75,6 +78,7 @@ export function useCostSheets(productId: string | undefined) {
         .from("product_cost_sheets")
         .select("*")
         .eq("product_id", productId!)
+        .eq("market", market)
         .order("session_date", { ascending: false })
         .limit(HISTORY_LIMIT);
       if (error) throw error;
@@ -84,20 +88,25 @@ export function useCostSheets(productId: string | undefined) {
 }
 
 /**
- * The most recently saved sheet for ANY product — used to seed a product that
- * has never been costed, so the team retypes only the farm price instead of all
- * six lines. Customs, inland and bank charges are usually identical across
- * products and freight is close.
+ * The most recently saved sheet for any product IN THIS MARKET — used to seed a
+ * product that has never been costed, so the team retypes only the farm price
+ * instead of every line. Customs, inland and bank charges are usually identical
+ * across products and freight is close.
+ *
+ * Scoped to the market deliberately. Across markets these costs have nothing to
+ * do with each other: seeding a Gulf quote from a Russian sheet would hand it a
+ * RMB overland freight and a Kazakh transit tax.
  */
-export function useLatestCostSheet() {
+export function useLatestCostSheet(market: MarketId) {
   return useQuery<CostSheet | null>({
-    queryKey: ["cost-sheets", "latest-any"],
+    queryKey: ["cost-sheets", "latest-any", market],
     retry: false,
     queryFn: async () => {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("product_cost_sheets")
         .select("*")
+        .eq("market", market)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -127,6 +136,7 @@ function useRealtimeCostSheets() {
 
 export interface SaveCostSheetInput {
   productId: string;
+  market: MarketId;
   lines: CostLine[];
   fx: FxRates;
   marginPct: number;
@@ -135,9 +145,10 @@ export interface SaveCostSheetInput {
 }
 
 /**
- * Upserts today's session for a product. The unique (product_id, session_date)
- * constraint is what makes this a single round trip: same-day edits update
- * today's row, and the first save on a new day inserts the next session.
+ * Upserts today's session for a product in a market. The unique
+ * (product_id, market, session_date) constraint is what makes this a single
+ * round trip: same-day edits update today's row, and the first save on a new
+ * day inserts the next session.
  */
 export function useSaveCostSheet() {
   const qc = useQueryClient();
@@ -148,6 +159,7 @@ export function useSaveCostSheet() {
       const sessionDate = todayKey();
       const row = {
         product_id: input.productId,
+        market: input.market,
         session_date: sessionDate,
         lines: input.lines,
         fx: input.fx,
@@ -160,7 +172,7 @@ export function useSaveCostSheet() {
         async () => {
           const { data, error } = await supabase
             .from("product_cost_sheets")
-            .upsert(row as never, { onConflict: "product_id,session_date" })
+            .upsert(row as never, { onConflict: "product_id,market,session_date" })
             .select()
             .single();
           if (error) throw error;
@@ -170,18 +182,19 @@ export function useSaveCostSheet() {
           entity: "product_cost_sheets",
           operation: "upsert",
           payload: row,
-          conflictTarget: "product_id,session_date",
-          // Stable per product per day, so a queued offline save replays once
-          // rather than filing a duplicate session.
-          idempotencyKey: `cost-sheet-${input.productId}-${sessionDate}`,
+          conflictTarget: "product_id,market,session_date",
+          // Stable per product per market per day, so a queued offline save
+          // replays once rather than filing a duplicate session — and never
+          // replays into the other market.
+          idempotencyKey: `cost-sheet-${input.productId}-${input.market}-${sessionDate}`,
           originPath: "/products/calculator",
         }
       );
       return result === "queued" ? null : result;
     },
     onSettled: (_data, _err, input) => {
-      qc.invalidateQueries({ queryKey: ["cost-sheets", input.productId] });
-      qc.invalidateQueries({ queryKey: ["cost-sheets", "latest-any"] });
+      qc.invalidateQueries({ queryKey: ["cost-sheets", input.productId, input.market] });
+      qc.invalidateQueries({ queryKey: ["cost-sheets", "latest-any", input.market] });
     },
   });
 }

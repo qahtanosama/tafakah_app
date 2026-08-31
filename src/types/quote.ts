@@ -198,14 +198,16 @@ export interface MarginScenario {
 }
 
 /**
- * One product's costing on one day — a "session". The newest sheet for a
- * product is the working one; older sheets are history that can be reopened.
- * Persisted in public.product_cost_sheets (team-only).
+ * One product's costing for one market on one day — a "session". The newest
+ * sheet for a product in a market is the working one; older sheets are history
+ * that can be reopened. Persisted in public.product_cost_sheets (team-only).
  */
 export interface CostSheet {
   id: string;
   productId: string;
-  /** YYYY-MM-DD. One session per product per day. */
+  /** Which market this sheet costs for. Rows saved before markets are `gulf`. */
+  market: MarketId;
+  /** YYYY-MM-DD. One session per product per market per day. */
   sessionDate: string;
   lines: CostLine[];
   /** Rates this sheet was costed at, so reopening it reproduces its figures. */
