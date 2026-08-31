@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Cargo, CostLine, CostSheet, FxRates, MarketId } from "@/types/quote";
-import { useProducts } from "@/lib/data/products";
+import { useProducts, useSaveProduct } from "@/lib/data/products";
 import { useCostSheets, useLatestCostSheet, useSaveCostSheet, todayKey } from "@/lib/data/cost-sheets";
 import {
   DEFAULT_CARTONS,
@@ -14,7 +14,7 @@ import {
 } from "@/lib/quote/defaults";
 import { stampIfAmountChanged } from "@/lib/quote/freshness";
 import { DEFAULT_MARKET, type Market, marketOf } from "@/lib/quote/markets";
-import { packFor } from "@/lib/quote/pack";
+import { type PackPatch, packFor, withPack } from "@/lib/quote/pack";
 import { defaultRoute } from "@/lib/quote/quote-text";
 import { computeQuote } from "@/lib/quote/pricing";
 import {
@@ -83,13 +83,18 @@ export function useQuoteCalculator() {
   const sheets = useMemo(() => sheetsData ?? [], [sheetsData]);
   const { data: latestAnySheet, isLoading: latestLoading } = useLatestCostSheet(marketId);
   const saveSheet = useSaveCostSheet();
+  const saveProduct = useSaveProduct();
 
   const langState = useSyncExternalStore(subscribeLang, getLangSnapshot, getServerLangSnapshot);
 
   const [containers, setContainers] = useState(1);
   // null until the user types one, so the product's own boxes-per-container wins.
-  const [cartonsOverride, setCartonsOverride] = useState<{ productId: string; cartons: number } | null>(null);
-  const [weights, setWeights] = useState<{ productId: string; nw: number; gw: number } | null>(null);
+  const [cartonsOverride, setCartonsOverride] = useState<
+    { productId: string; market: MarketId; cartons: number } | null
+  >(null);
+  const [weights, setWeights] = useState<
+    { productId: string; market: MarketId; nw: number; gw: number } | null
+  >(null);
   const [route, setRoute] = useState<{ loadingPort: string; dischargePort: string } | null>(null);
   const [etd, setEtd] = useState<string | null>(null);
   const [working, setWorking] = useState<WorkingSheet | null>(null);
@@ -114,8 +119,11 @@ export function useQuoteCalculator() {
   }, [working, productId, marketId, market, pack.transitTaxPerMT, savedSheet, latestAnySheet]);
 
   const cargo: Cargo = useMemo(() => {
-    const owned = weights?.productId === productId ? weights : null;
-    const ownedCartons = cartonsOverride?.productId === productId ? cartonsOverride : null;
+    const owned = weights?.productId === productId && weights.market === marketId ? weights : null;
+    const ownedCartons =
+      cartonsOverride?.productId === productId && cartonsOverride.market === marketId
+        ? cartonsOverride
+        : null;
     // A reopened or saved sheet remembers the shipment it was costed for.
     const savedCargo = savedSheet?.cargo ?? {};
     // An overland market states its own route; the Gulf takes the contract default.
@@ -138,7 +146,9 @@ export function useQuoteCalculator() {
       // of them. Letting the snapshot win meant setting 1,445 boxes on Fresh
       // Apple changed nothing, because a sheet saved earlier still said 9,700 —
       // which silently mis-states quantity, price per MT and the total.
-      // A value typed on this screen still wins for the session.
+      // A value typed on this screen wins immediately AND is written back to
+      // the product's pack for this market (see savePack), so it is still there
+      // next session rather than reverting to the stored default.
       // `set()` and not `??`: these columns are NOT NULL DEFAULT 0, so 0 means
       // "not filled in yet", not "zero boxes". Using ?? would let an unset
       // product default beat a real saved value.
@@ -155,7 +165,7 @@ export function useQuoteCalculator() {
       // already in the past on a live offer.
       etd: etd ?? "",
     };
-  }, [productId, containers, cartonsOverride, weights, route, etd, savedSheet, pack, market, product?.origin]);
+  }, [productId, marketId, containers, cartonsOverride, weights, route, etd, savedSheet, pack, market, product?.origin]);
 
   const quote = useMemo(
     () =>
@@ -237,6 +247,37 @@ export function useQuoteCalculator() {
 
   /* ── mutators ──────────────────────────────────────────────────────── */
 
+  /**
+   * Packaging typed on the shipment bar is written back to the product, so it
+   * is there again next session and on the Products page instead of being lost
+   * with the tab. The Gulf writes the product's own columns; another market
+   * writes its entry in `market_packs` — see withPack.
+   *
+   * Debounced like the cost-sheet save, so typing "1500" is one write and not
+   * four. Skipped entirely when nothing actually changed, which withPack
+   * reports by returning the same object.
+   */
+  const packTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPack = useRef<PackPatch | null>(null);
+
+  const savePack = useCallback(
+    (patch: PackPatch) => {
+      if (!product) return;
+      pendingPack.current = { ...pendingPack.current, ...patch };
+      if (packTimer.current) clearTimeout(packTimer.current);
+      packTimer.current = setTimeout(() => {
+        const p = pendingPack.current;
+        packTimer.current = null;
+        pendingPack.current = null;
+        if (!p || !product) return;
+        const next = withPack(product, marketId, p);
+        if (next === product) return;
+        saveProduct.mutate({ payload: next, isUpdate: true });
+      }, SAVE_DEBOUNCE_MS);
+    },
+    [product, marketId, saveProduct]
+  );
+
   const updateCargo = useCallback(
     (patch: Partial<Cargo>) => {
       if (patch.productId !== undefined) setProductChoice(patch.productId);
@@ -244,8 +285,10 @@ export function useQuoteCalculator() {
       if (patch.cartonsPerContainer !== undefined) {
         setCartonsOverride({
           productId: patch.productId ?? productId,
+          market: marketId,
           cartons: patch.cartonsPerContainer,
         });
+        savePack({ cartons: patch.cartonsPerContainer });
       }
       if (patch.etd !== undefined) setEtd(patch.etd);
       if (patch.loadingPort !== undefined || patch.dischargePort !== undefined) {
@@ -257,12 +300,14 @@ export function useQuoteCalculator() {
       if (patch.nwPerCarton !== undefined || patch.gwPerCarton !== undefined) {
         setWeights({
           productId: patch.productId ?? productId,
+          market: marketId,
           nw: patch.nwPerCarton ?? cargo.nwPerCarton,
           gw: patch.gwPerCarton ?? cargo.gwPerCarton,
         });
+        savePack({ nw: patch.nwPerCarton, gw: patch.gwPerCarton });
       }
     },
-    [productId, cargo.nwPerCarton, cargo.gwPerCarton, cargo.loadingPort, cargo.dischargePort]
+    [productId, marketId, savePack, cargo.nwPerCarton, cargo.gwPerCarton, cargo.loadingPort, cargo.dischargePort]
   );
 
   const updateLine = useCallback(

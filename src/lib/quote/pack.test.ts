@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { packFor } from "./pack";
+import { packFor, withPack } from "./pack";
 import type { ProductProfile } from "@/types/product";
 
 const GINGER: ProductProfile = {
@@ -55,5 +55,41 @@ describe("packFor", () => {
 
   it("survives no product at all", () => {
     expect(packFor(undefined, "russia").cartons).toBe(9700);
+  });
+});
+
+describe("withPack", () => {
+  it("writes the Gulf pack to the product's own columns", () => {
+    const next = withPack(GINGER, "gulf", { cartons: 11500, nw: 2.4 });
+    expect(next.defaultCartons).toBe(11500);
+    expect(next.defaultNW).toBe(2.4);
+    expect(next.defaultGW).toBe(2.5); // untouched
+    // The Gulf IS the default pack — nothing lands in market_packs.
+    expect(next.marketPacks.gulf).toBeUndefined();
+  });
+
+  it("writes a non-default market into its own pack", () => {
+    const next = withPack(GINGER, "russia", { cartons: 1500 });
+    expect(next.marketPacks.russia).toEqual({
+      cartons: 1500, nw: 13.6, gw: 14.2, packUnit: "carton", transitTaxPerMT: 250,
+    });
+    // The Gulf pack is untouched.
+    expect(next.defaultCartons).toBe(11088);
+    expect(next.defaultNW).toBe(2.3);
+  });
+
+  it("creates the market pack when the product has none", () => {
+    const bare = { ...GINGER, marketPacks: {} };
+    expect(withPack(bare, "russia", { nw: 10 }).marketPacks.russia).toEqual({ nw: 10 });
+  });
+
+  it("ignores zero and negative values rather than storing 'unset'", () => {
+    const next = withPack(GINGER, "russia", { cartons: 0, nw: -1, gw: 15 });
+    expect(next.marketPacks.russia).toMatchObject({ cartons: 1440, nw: 13.6, gw: 15 });
+  });
+
+  it("returns the same object when nothing actually changed", () => {
+    expect(withPack(GINGER, "russia", { cartons: 1440, nw: 13.6 })).toBe(GINGER);
+    expect(withPack(GINGER, "gulf", { cartons: 11088 })).toBe(GINGER);
   });
 });
