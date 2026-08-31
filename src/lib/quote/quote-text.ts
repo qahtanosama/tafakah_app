@@ -14,6 +14,7 @@
  */
 
 import type { Quote } from "@/types/quote";
+import type { QuoteLang } from "./storage";
 import { splitIncoterm } from "@/types/sales-contract";
 import { getDefaultContractData } from "@/lib/sales-contract";
 import { PORTS, formatPortValue } from "@/lib/ports";
@@ -102,7 +103,7 @@ export function productEmoji(name: string): string {
 }
 
 export interface QuoteTextInput {
-  lang: "en" | "ar";
+  lang: QuoteLang;
   productName: string;
   productNameAr?: string;
   containers: number;
@@ -272,7 +273,8 @@ export function buildQuoteText(input: QuoteTextInput): string {
       `${qty(gwPerCarton, 1)} كجم إجمالي لكل ${unitAr}`,
       `ETD: ${formatEtd(input.etd)}`,
       "",
-      `*${fobTerm}* ${usd(quote.fobPerCarton)}/${unitAr}`,
+      // Omitted on a delivered-price market, which quotes one figure.
+      ...(quote.fobPerCarton !== null ? [`*${fobTerm}* ${usd(quote.fobPerCarton)}/${unitAr}`] : []),
       `*${cifTerm}* ${usd(quote.cifPerCarton)}/${unitAr}`,
       `= ${usd0(quote.quotedPerMT)} لكل طن`,
       `*الإجمالي* ${usd0(quote.quotedTotal)} (${cifTerm})`,
@@ -291,7 +293,8 @@ export function buildQuoteText(input: QuoteTextInput): string {
     `${qty(gwPerCarton, 1)} KG gross per ${unit}`,
     `ETD: ${formatEtd(input.etd)}`,
     "",
-    `*${fobTerm}* ${usd(quote.fobPerCarton)}/${unit}`,
+    // Omitted on a delivered-price market, which quotes one figure.
+    ...(quote.fobPerCarton !== null ? [`*${fobTerm}* ${usd(quote.fobPerCarton)}/${unit}`] : []),
     `*${cifTerm}* ${usd(quote.cifPerCarton)}/${unit}`,
     `= ${usd0(quote.quotedPerMT)} per MT`,
     `*Total* ${usd0(quote.quotedTotal)} (${cifTerm})`,

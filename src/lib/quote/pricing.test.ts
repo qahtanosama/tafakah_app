@@ -80,6 +80,39 @@ describe("computeQuote — Gulf regression pin", () => {
   // The property that lets a freight rise be restated without reopening the
   // margin. Task 3 must keep this true for the Gulf market.
   it("keeps CIF - FOB exactly equal to the freight per carton", () => {
-    expect(Math.round((q.cifPerCarton - q.fobPerCarton) * 100) / 100).toBe(q.freightPerCarton);
+    expect(q.fobPerCarton).not.toBeNull();
+    expect(Math.round((q.cifPerCarton - q.fobPerCarton!) * 100) / 100).toBe(q.freightPerCarton);
+  });
+});
+
+describe("computeQuote — markup base", () => {
+  it("defaults to the Gulf rule when markupBase is 'goods'", () => {
+    const q = computeQuote({ ...GULF_FIXTURE, markupBase: "goods" });
+    expect(q.cifPerCarton).toBe(2.88);
+    expect(q.fobPerCarton).toBe(2.66);
+    expect(q.fobTotal).toBe(58988.16);
+  });
+
+  it("marks up the whole landed cost when markupBase is 'landed'", () => {
+    const q = computeQuote({ ...GULF_FIXTURE, markupBase: "landed" });
+    // costPerCarton 2.342676… / 0.8 = 2.9283… -> 2.93
+    expect(q.cifPerCarton).toBe(2.93);
+    expect(q.quotedPerCarton).toBe(2.93);
+    expect(q.quotedTotal).toBe(64975.68);
+    expect(q.quotedPerMT).toBe(1274);
+    expect(q.contractPerMT).toBe(1273.91);
+    expect(q.profit).toBe(13024.49);
+  });
+
+  it("returns no base price under 'landed', rather than a misleading one", () => {
+    const q = computeQuote({ ...GULF_FIXTURE, markupBase: "landed" });
+    expect(q.fobPerCarton).toBeNull();
+    expect(q.fobTotal).toBeNull();
+  });
+
+  it("still reports the carriage under 'landed', for information", () => {
+    const q = computeQuote({ ...GULF_FIXTURE, markupBase: "landed" });
+    expect(q.freightUSD).toBe(4800);
+    expect(q.freightPerCarton).toBe(0.22);
   });
 });

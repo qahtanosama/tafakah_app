@@ -166,16 +166,22 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
             ton is left off — the per-unit price is the firm one, and a second
             ton figure reads as a competing quote rather than a restatement. */}
         <View style={o.priceBox}>
-          <View style={o.priceRow}>
-            <Text style={o.priceTerm}>{fobTerm}</Text>
-            <Text style={o.priceUnit}>per {unit}</Text>
-            <Text style={o.priceValue}>{usd(quote.fobPerCarton)}</Text>
-          </View>
-          <View style={o.priceRow}>
-            <Text style={o.priceTermPlain}>Sea freight (at cost)</Text>
-            <Text style={o.priceUnit}>per {unit}</Text>
-            <Text style={o.priceValuePlain}>{usd(quote.freightPerCarton)}</Text>
-          </View>
+          {/* A delivered-price market quotes one figure — there is no base
+              price, and no carriage shown at cost beneath it. */}
+          {quote.fobPerCarton !== null && (
+            <>
+              <View style={o.priceRow}>
+                <Text style={o.priceTerm}>{fobTerm}</Text>
+                <Text style={o.priceUnit}>per {unit}</Text>
+                <Text style={o.priceValue}>{usd(quote.fobPerCarton)}</Text>
+              </View>
+              <View style={o.priceRow}>
+                <Text style={o.priceTermPlain}>Sea freight (at cost)</Text>
+                <Text style={o.priceUnit}>per {unit}</Text>
+                <Text style={o.priceValuePlain}>{usd(quote.freightPerCarton)}</Text>
+              </View>
+            </>
+          )}
           <View style={o.priceRow}>
             <Text style={o.priceTerm}>{cifTerm}</Text>
             <Text style={o.priceUnit}>per {unit}</Text>

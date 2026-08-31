@@ -114,6 +114,11 @@ export interface QuoteInput {
   marginPct: number;
   /** False while the product list is still loading or nothing is selected. */
   productSelected: boolean;
+  /**
+   * What the margin is applied to — see the Market profile. Optional so every
+   * existing caller keeps the Gulf behaviour it was written against.
+   */
+  markupBase?: "goods" | "landed";
 }
 
 export function computeQuote(input: QuoteInput): Quote {
@@ -128,15 +133,20 @@ export function computeQuote(input: QuoteInput): Quote {
   const marginPct = clampMargin(input.marginPct);
   const sellPerMT = markUp(costPerMT, marginPct);
 
-  /* ── FOB / CIF split ──────────────────────────────────────────────────
-   * Sea freight is quoted as a pass-through at cost, and the margin is earned
-   * on the goods only. That is what makes CIF − FOB exactly equal the freight:
-   * when the rate jumps mid-negotiation the freight figure is restated on its
-   * own and the margin never enters the conversation.
+  /* ── base / delivered split ───────────────────────────────────────────
+   * Under `markupBase: "goods"` (the Gulf) the main carriage is a pass-through
+   * at cost and the margin is earned on the goods only. That is what makes
+   * CIF − FOB exactly equal the freight: when the rate jumps mid-negotiation
+   * the freight figure is restated on its own and the margin never enters the
+   * conversation. Marking up the full CIF cost instead would leave CIF − FOB
+   * larger than the freight, so a buyer subtracting one from the other would
+   * derive a freight number that does not match the invoice.
    *
-   * Marking up the full CIF cost instead would leave CIF − FOB larger than the
-   * freight, so a buyer subtracting one from the other would derive a freight
-   * number that does not match the invoice.
+   * Under `markupBase: "landed"` (Russia) there is no such conversation — the
+   * whole price is renegotiated weekly — so the margin sits on the entire
+   * landed cost and no base price is reported at all. Marking up only the goods
+   * there would quietly earn LESS than the margin control says, because the
+   * carriage would ride along at cost inside a single quoted figure.
    *
    * Everything is quoted per carton in whole cents, because that is the figure
    * the buyer negotiates and checks. The total is carton price × cartons, so
@@ -147,9 +157,18 @@ export function computeQuote(input: QuoteInput): Quote {
   const fobCost = landedCost - freightUSD;
   const fobCostPerCarton = totals.cartons > 0 ? fobCost / totals.cartons : 0;
 
-  const fobPerCarton = roundCents(markUp2(fobCostPerCarton, marginPct));
+  const markupBase = input.markupBase ?? "goods";
+  const delivered = markupBase === "landed";
+
+  // "landed": the margin sits on the whole cost, so the delivered price is the
+  // marked-up per-carton cost outright and there is no base price to report.
+  // "goods": the margin sits on everything but the carriage, which is added at
+  // cost — that is what keeps CIF - FOB exactly equal to the freight.
+  const fobPerCarton = delivered ? null : roundCents(markUp2(fobCostPerCarton, marginPct));
   const freightPerCarton = roundCents(totals.cartons > 0 ? freightUSD / totals.cartons : 0);
-  const cifPerCarton = roundCents(fobPerCarton + freightPerCarton);
+  const cifPerCarton = delivered
+    ? roundCents(markUp2(costPerCarton, marginPct))
+    : roundCents((fobPerCarton ?? 0) + freightPerCarton);
 
   const quotedPerCarton = cifPerCarton;
   const quotedTotal = roundCents(cifPerCarton * totals.cartons);
@@ -173,7 +192,7 @@ export function computeQuote(input: QuoteInput): Quote {
     freightUSD,
     fobCost,
     fobPerCarton,
-    fobTotal: roundCents(fobPerCarton * totals.cartons),
+    fobTotal: fobPerCarton === null ? null : roundCents(fobPerCarton * totals.cartons),
     freightPerCarton,
     cifPerCarton,
     quotedPerMT,

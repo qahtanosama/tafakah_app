@@ -143,18 +143,30 @@ export interface Quote {
   /** Exact per-MT sell price before rounding — reference only. */
   sellPerMT: number;
 
-  /* ── FOB / CIF ────────────────────────────────────────────────────────
-   * Margin is earned on the goods; sea freight is passed through at cost. So
-   * `cifPerCarton - fobPerCarton === freightPerCarton` exactly, which is what
-   * lets a freight rise be restated without reopening the price.
+  /* ── base / delivered price ───────────────────────────────────────────
+   * Under `markupBase: "goods"` the margin is earned on the goods and the
+   * carriage is passed through at cost, so `cifPerCarton - fobPerCarton ===
+   * freightPerCarton` exactly — which is what lets a freight rise be restated
+   * without reopening the price.
+   *
+   * THAT IDENTITY HOLDS ONLY UNDER "goods". Under `markupBase: "landed"` the
+   * margin sits on the whole landed cost and there is no base price at all.
    */
-  /** Sea freight for the whole shipment, in USD. */
+  /** Main carriage for the whole shipment, in USD. */
   freightUSD: number;
-  /** Landed cost excluding sea freight. */
+  /** Landed cost excluding the main carriage. */
   fobCost: number;
-  /** The firm price: FOB cost per carton plus margin, in whole cents. */
-  fobPerCarton: number;
-  fobTotal: number;
+  /**
+   * The firm price before carriage, per carton, in whole cents — FOB on a sea
+   * market.
+   *
+   * NULL when the market quotes one delivered price (`markupBase: "landed"`).
+   * Reporting a plausible number there would invite a buyer to subtract it from
+   * the delivered price and derive a carriage figure matching no invoice.
+   * Nullable so the compiler forces every consumer to say what it does instead.
+   */
+  fobPerCarton: number | null;
+  fobTotal: number | null;
   /** Freight per carton at cost — the volatile component. */
   freightPerCarton: number;
   /** fobPerCarton + freightPerCarton. */

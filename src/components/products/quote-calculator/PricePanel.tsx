@@ -104,19 +104,30 @@ export default function PricePanel({
               freight is passed at cost, so CIF − FOB is exactly the freight —
               the number to restate when the rate moves. */}
           <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-white/5">
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <dt className="text-slate-600 dark:text-slate-400">{t("fobPerCarton")}</dt>
-              <dd className="font-mono font-semibold tabular-nums">{usd(quote.fobPerCarton)}</dd>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between gap-3 text-sm">
-              <dt className="text-slate-600 dark:text-slate-400">
-                {t("plusSeaFreight")} <span className="text-xs">{t("atCost")}</span>
-              </dt>
-              <dd className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
-                {usd(quote.freightPerCarton)}
-              </dd>
-            </div>
-            <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t border-foreground/10 pt-1.5 text-sm">
+            {/* A delivered-price market has no base price and no pass-through
+                carriage to show beneath it — see Quote.fobPerCarton. */}
+            {quote.fobPerCarton !== null && (
+              <>
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <dt className="text-slate-600 dark:text-slate-400">{t("fobPerCarton")}</dt>
+                  <dd className="font-mono font-semibold tabular-nums">{usd(quote.fobPerCarton)}</dd>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between gap-3 text-sm">
+                  <dt className="text-slate-600 dark:text-slate-400">
+                    {t("plusSeaFreight")} <span className="text-xs">{t("atCost")}</span>
+                  </dt>
+                  <dd className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                    {usd(quote.freightPerCarton)}
+                  </dd>
+                </div>
+              </>
+            )}
+            <div
+              className={cn(
+                "flex items-baseline justify-between gap-3 text-sm",
+                quote.fobPerCarton !== null && "mt-1.5 border-t border-foreground/10 pt-1.5"
+              )}
+            >
               <dt className="font-medium">{t("cifPerCarton")}</dt>
               <dd className="font-mono font-semibold tabular-nums">{usd(quote.cifPerCarton)}</dd>
             </div>
@@ -127,10 +138,12 @@ export default function PricePanel({
               <dt className="text-slate-600 dark:text-slate-400">{t("totalCif")}</dt>
               <dd className="font-mono font-medium tabular-nums">{usd0(quote.quotedTotal)}</dd>
             </div>
-            <div>
-              <dt className="text-slate-600 dark:text-slate-400">{t("totalFob")}</dt>
-              <dd className="font-mono font-medium tabular-nums">{usd0(quote.fobTotal)}</dd>
-            </div>
+            {quote.fobTotal !== null && (
+              <div>
+                <dt className="text-slate-600 dark:text-slate-400">{t("totalFob")}</dt>
+                <dd className="font-mono font-medium tabular-nums">{usd0(quote.fobTotal)}</dd>
+              </div>
+            )}
             <div className="col-span-2 flex items-baseline justify-between border-t border-foreground/10 pt-2">
               <dt className="text-slate-600 dark:text-slate-400">{t("profit")}</dt>
               <dd
