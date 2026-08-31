@@ -14,7 +14,8 @@ import { joinIncoterm, splitIncoterm } from "@/types/sales-contract";
 import { loadMasterData, saveMasterData } from "@/lib/master-data";
 import { calcPricePerCarton, calcQtyMTS, getDefaultContractData, getHSCode } from "@/lib/sales-contract";
 import { CONTAINER_TYPE } from "./defaults";
-import { portShortName } from "./quote-text";
+import { placeShortName } from "./quote-text";
+import type { Market } from "./markets";
 
 export interface MasterDraftInput {
   productName: string;
@@ -34,6 +35,8 @@ export interface MasterDraftInput {
    */
   loadingPort: string;
   dischargePort: string;
+  /** Supplies the delivered incoterm and how its named place is written. */
+  market: Market;
 }
 
 export function sendToMasterData(input: MasterDraftInput): void {
@@ -60,11 +63,15 @@ export function sendToMasterData(input: MasterDraftInput): void {
       ...base.shipping,
       loadingPort: input.loadingPort || base.shipping.loadingPort,
       dischargePort: input.dischargePort || base.shipping.dischargePort,
-      // The quote was made CIF that port, so the contract's incoterm names the
-      // same place. The term itself (CIF/FOB/…) is whatever the draft already had.
+      // The quote was made on this market's delivered term to this place, so
+      // the contract names both. Taking the term from the draft (as this once
+      // did) meant a Russian DAP quote handed over a contract still saying CIF.
       incoterm: input.dischargePort
-        ? joinIncoterm(splitIncoterm(base.shipping.incoterm).term, portShortName(input.dischargePort).toUpperCase())
-        : base.shipping.incoterm,
+        ? joinIncoterm(
+            input.market.terms.delivered,
+            placeShortName(input.market, input.dischargePort).toUpperCase()
+          )
+        : joinIncoterm(input.market.terms.delivered, splitIncoterm(base.shipping.incoterm).place),
     },
     terms: {
       ...base.terms,

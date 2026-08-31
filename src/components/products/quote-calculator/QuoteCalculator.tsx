@@ -123,12 +123,13 @@ export default function QuoteCalculator() {
       containers: cargo.containers,
       loadingPort: cargo.loadingPort,
       dischargePort: cargo.dischargePort,
+      market: calc.market,
       // The to-the-cent figure, so the contract's carton price matches the
       // carton price the buyer actually agreed to.
       pricePerMT: quote.contractPerMT,
     });
     setToast(t("sentToMaster"));
-  }, [product, cargo, quote.contractPerMT, t]);
+  }, [product, cargo, quote.contractPerMT, calc.market, t]);
 
   if (calc.loading) return <CalculatorSkeleton />;
 
