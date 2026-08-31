@@ -18,6 +18,11 @@ interface PortComboboxProps {
    * loading versus discharge.
    */
   ariaLabel?: string;
+  /**
+   * The list to offer. Defaults to sea ports; an overland market passes its own
+   * inland places instead — see lib/places.ts.
+   */
+  places?: Port[];
 }
 
 export default function PortCombobox({
@@ -26,6 +31,7 @@ export default function PortCombobox({
   buyerAddress,
   placeholder = "Search ports...",
   ariaLabel,
+  places = PORTS,
 }: PortComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -39,13 +45,13 @@ export default function PortCombobox({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return PORTS.filter(
+    return places.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.country.toLowerCase().includes(q) ||
         p.code.toLowerCase().includes(q)
     );
-  }, [search]);
+  }, [search, places]);
 
   const { recommended, other } = useMemo(() => {
     if (!detectedCountry) return { recommended: [], other: filtered };

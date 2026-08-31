@@ -15,6 +15,7 @@
 
 import type { Quote } from "@/types/quote";
 import type { QuoteLang } from "./storage";
+import type { Market } from "./markets";
 import { splitIncoterm } from "@/types/sales-contract";
 import { getDefaultContractData } from "@/lib/sales-contract";
 import { PORTS, formatPortValue } from "@/lib/ports";
@@ -198,11 +199,51 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
-/** "FOB Shekou" / "CIF Jeddah", or the bare term when no port is chosen. */
-export function quoteTerms(loadingPort: string, dischargePort: string): { fob: string; cif: string } {
-  const fob = portShortName(loadingPort);
-  const cif = portShortName(dischargePort);
-  return { fob: fob ? `FOB ${fob}` : "FOB", cif: cif ? `CIF ${cif}` : "CIF" };
+/**
+ * The name a quote prints for a place.
+ *
+ * Sea ports go through portShortName, which strips the country and the word
+ * PORT: "CIF Jeddah" is how the term is written. Overland places are already
+ * written as they should be read and are used verbatim — running "FOOD CITY
+ * (MOSCOW), RUSSIA" through portShortName would drop the parenthetical and
+ * quote "DAP Food City", losing the city entirely.
+ */
+export function placeShortName(market: Market, stored: string): string {
+  if (!stored) return "";
+  if (market.destinations !== "overland") return portShortName(stored);
+  return titleCasePlace(stored.split(",")[0]);
+}
+
+/**
+ * Like titleCase, but capitalises the first LETTER of each word rather than the
+ * first character — so "(moscow)" becomes "(Moscow)" and not "(moscow)".
+ *
+ * Overland names carry their qualifier into the incoterm ("DAP Food City
+ * (Moscow)"), where titleCase would leave the city lowercased. Kept separate
+ * from titleCase because portShortName's output is pinned by tests and strips
+ * parentheticals before it ever gets here.
+ */
+function titleCasePlace(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/\p{L}/u, (c) => c.toUpperCase()))
+    .join(" ");
+}
+
+/** "FOB Shekou" / "CIF Jeddah", or "FCA Khorgos (border)" / "DAP Moscow". */
+export function quoteTerms(
+  market: Market,
+  origin: string,
+  destination: string
+): { base: string; delivered: string } {
+  const from = placeShortName(market, origin);
+  const to = placeShortName(market, destination);
+  return {
+    base: from ? `${market.terms.base} ${from}` : market.terms.base,
+    delivered: to ? `${market.terms.delivered} ${to}` : market.terms.delivered,
+  };
 }
 
 /**
