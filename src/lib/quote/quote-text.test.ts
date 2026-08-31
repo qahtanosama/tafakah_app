@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildQuoteText, quoteTerms } from "./quote-text";
+import { buildQuoteText, formatEtd, quoteTerms } from "./quote-text";
 import type { Quote } from "@/types/quote";
 import { MARKETS } from "./markets";
 
@@ -116,3 +116,20 @@ describe("buildQuoteText — Gulf is unchanged", () => {
 });
 
 
+
+describe("formatEtd", () => {
+  it("keeps the abbreviated English month by default", () => {
+    expect(formatEtd("2026-09-14")).toBe("14 Sept 2026");
+  });
+
+  it("formats a Russian quote's date in Russian", () => {
+    // An English month name mid-sentence in Cyrillic reads as machine output.
+    expect(formatEtd("2026-09-14", "ru")).toMatch(/сент/);
+    expect(formatEtd("2026-09-14", "ru")).not.toMatch(/Sept/);
+  });
+
+  it("survives an empty or unparseable date", () => {
+    expect(formatEtd("")).toBe("—");
+    expect(formatEtd("not-a-date", "ru")).toBe("not-a-date");
+  });
+});

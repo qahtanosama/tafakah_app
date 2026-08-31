@@ -161,12 +161,20 @@ export interface QuoteTextInput {
   quote: Quote;
 }
 
-/** ETD for a quote: "15 Aug 2026" — unambiguous for Gulf and Chinese readers. */
-export function formatEtd(iso: string): string {
+/**
+ * The departure date on a quote: "15 Aug 2026".
+ *
+ * en-GB by default — an abbreviated month is unambiguous for Gulf and Chinese
+ * readers in a way that 08/09/2026 is not. A Russian quote formats in ru-RU
+ * instead, because an English month name mid-sentence in Cyrillic reads as a
+ * machine assembled it.
+ */
+export function formatEtd(iso: string, lang: QuoteLang = "en"): string {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const locale = lang === "ru" ? "ru-RU" : "en-GB";
+  return d.toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** English plural of a pack unit. All of them pluralise with a trailing s. */
@@ -381,7 +389,7 @@ export function buildQuoteText(input: QuoteTextInput): string {
       // Where the goods are grown — provenance, not the handover point.
       ...(input.origin?.trim() ? [`Происхождение: ${input.origin.trim()}`] : []),
       // Overland: the cargo is dispatched from the packhouse, not sailed.
-      `Отгрузка: ${formatEtd(input.etd)}`,
+      `Отгрузка: ${formatEtd(input.etd, "ru")}`,
       "",
       // Two prices, so the buyer can either collect at the border or take it
       // delivered. Delivered − base is exactly the onward leg at cost.
