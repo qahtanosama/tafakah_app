@@ -152,7 +152,7 @@ export interface Quote {
    * THAT IDENTITY HOLDS ONLY UNDER "goods". Under `markupBase: "landed"` the
    * margin sits on the whole landed cost and there is no base price at all.
    */
-  /** Main carriage for the whole shipment, in USD. */
+  /** The whole leg between the two prices, in USD — the sum of carriageLines. */
   freightUSD: number;
   /** Landed cost excluding the main carriage. */
   fobCost: number;

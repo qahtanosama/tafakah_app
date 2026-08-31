@@ -30,12 +30,27 @@ export interface Market {
   terms: { base: string; delivered: string };
   /** Which list the destination picker offers. */
   destinations: "ports" | "overland";
-  /**
-   * Whether the quote prints both prices or only the delivered one. The Gulf
-   * prints two so a freight rise can be restated on its own; Russia reprices
-   * weekly in full, so a second figure would only invite confusion.
-   */
+  /** Whether the quote prints both prices or only the delivered one. */
   priceShape: "two" | "delivered";
+  /**
+   * Where the base price is handed over, when that is NOT where the goods
+   * originate. A sea quote hands over at the loading port, so this is unset and
+   * the base term names that port. The Russian route hands over at the Khorgos
+   * border — the buyer can either collect there or take it delivered — while
+   * the goods themselves come from Anqiu or Jining, which is provenance, not an
+   * incoterm place.
+   */
+  basePlace?: string;
+  /**
+   * Cost lines that make up the leg BETWEEN the base price and the delivered
+   * price. They are passed through at cost, so delivered − base is exactly
+   * their sum and a rate rise can be restated without reopening the margin.
+   *
+   * The Gulf splits on sea freight alone. The Russian route splits at Khorgos,
+   * so the Kazakh transit tax belongs here too — it is levied beyond the border,
+   * on the onward leg, and a buyer collecting at Khorgos never pays it.
+   */
+  carriageLines: readonly string[];
   /**
    * What the margin is applied to. "goods" marks up everything except sea
    * freight and passes the freight through at cost, which is what makes
@@ -98,6 +113,7 @@ export const MARKETS: Record<MarketId, Market> = {
     terms: { base: "FOB", delivered: "CIF" },
     destinations: "ports",
     priceShape: "two",
+    carriageLines: ["freight"],
     markupBase: "goods",
     langs: ["en", "ar"],
     costLines: defaultCostLines,
@@ -109,9 +125,14 @@ export const MARKETS: Record<MarketId, Market> = {
     mode: "overland",
     terms: { base: "FCA", delivered: "DAP" },
     destinations: "overland",
-    priceShape: "delivered",
-    markupBase: "landed",
-    // Values as OVERLAND_PLACES stores them — see formatPortValue.
+    // Two prices: the buyer either collects at Khorgos or takes it delivered to
+    // Moscow, and the offer puts both in front of him.
+    priceShape: "two",
+    basePlace: "KHORGOS, KAZAKHSTAN",
+    carriageLines: ["freight", "transit"],
+    markupBase: "goods",
+    // Values as OVERLAND_PLACES stores them — see formatPortValue. The loading
+    // place is only a fallback: a product with an origin recorded uses that.
     defaultRoute: { loadingPort: "KHORGOS, KAZAKHSTAN", dischargePort: "FOOD CITY (MOSCOW), RUSSIA" },
     langs: ["ru", "en"],
     costLines: russianCostLines,

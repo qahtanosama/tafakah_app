@@ -17,20 +17,30 @@ describe("quoteTerms", () => {
   it("uses overland place names verbatim", () => {
     // portShortName() would strip the parenthetical and leave "DAP Food City",
     // losing the city the buyer is actually being quoted to.
-    expect(quoteTerms(MARKETS.russia, "KHORGOS, KAZAKHSTAN", "FOOD CITY (MOSCOW), RUSSIA"))
+    expect(quoteTerms(MARKETS.russia, "Anqiu, Shandong", "FOOD CITY (MOSCOW), RUSSIA"))
       .toEqual({ base: "FCA Khorgos", delivered: "DAP Food City (Moscow)" });
   });
 
-  it("falls back to the bare term when no place is chosen", () => {
-    expect(quoteTerms(MARKETS.russia, "", "")).toEqual({ base: "FCA", delivered: "DAP" });
+  it("hands over at the border whatever the goods' origin is", () => {
+    // The base price is collected at Khorgos; Anqiu and Jining are provenance.
+    // "FCA Anqiu" would offer a handover nobody is actually offering.
+    for (const origin of ["Anqiu, Shandong", "Jining, Shandong", "Shaanxi", ""]) {
+      expect(quoteTerms(MARKETS.russia, origin, "MOSCOW, RUSSIA").base).toBe("FCA Khorgos");
+    }
+  });
+
+  it("still names the loading port on a sea market", () => {
+    // The Gulf has no basePlace, so the base term names where it loads.
+    expect(quoteTerms(MARKETS.gulf, "QINGDAO PORT, CHINA", "").base).toBe("FOB Qingdao");
+    expect(quoteTerms(MARKETS.gulf, "", "")).toEqual({ base: "FOB", delivered: "CIF" });
   });
 });
 
 
 const RU_QUOTE = {
   totals: { cartons: 1440, netKg: 19584, grossKg: 20448, qtyMTS: 19.584 },
-  fobPerCarton: null,
-  fobTotal: null,
+  fobPerCarton: 29.26,
+  fobTotal: 42134.4,
   freightPerCarton: 4.88,
   cifPerCarton: 34.14,
   quotedPerCarton: 34.14,
@@ -50,14 +60,19 @@ describe("buildQuoteText — Russian", () => {
     dischargePort: "FOOD CITY (MOSCOW), RUSSIA",
     etd: "2026-09-15",
     packUnit: "carton",
+    origin: "Anqiu, Shandong",
     quote: RU_QUOTE,
   });
 
-  it("prints one delivered price, not two", () => {
+  it("offers both the border price and the delivered price", () => {
+    expect(text).toContain("*FCA Khorgos*");
     expect(text).toContain("*DAP Food City (Moscow)*");
-    expect(text).not.toContain("FCA");
     expect(text).not.toContain("FOB");
     expect(text).not.toContain("CIF");
+  });
+
+  it("names where the goods are grown, as provenance", () => {
+    expect(text).toContain("Происхождение: Anqiu, Shandong");
   });
 
   it("restates the price per ton", () => {
@@ -100,17 +115,4 @@ describe("buildQuoteText — Gulf is unchanged", () => {
   });
 });
 
-describe("quoteTerms — overland origin from the product", () => {
-  it("names the producing town as the FCA place", () => {
-    expect(quoteTerms(MARKETS.russia, "Anqiu, Shandong", "FOOD CITY (MOSCOW), RUSSIA"))
-      .toEqual({ base: "FCA Anqiu", delivered: "DAP Food City (Moscow)" });
-  });
 
-  it("drops the province — the incoterm names a place, not a region pair", () => {
-    expect(quoteTerms(MARKETS.russia, "Jining, Shandong", "").base).toBe("FCA Jining");
-  });
-
-  it("handles a bare province for a product recorded without a town", () => {
-    expect(quoteTerms(MARKETS.russia, "Shaanxi", "").base).toBe("FCA Shaanxi");
-  });
-});

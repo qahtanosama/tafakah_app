@@ -165,6 +165,7 @@ describe.each([
     marginPct: 0,
     productSelected: true,
     markupBase: MARKETS.russia.markupBase,
+    carriageLines: MARKETS.russia.carriageLines,
   });
 
   it("lands on the corrected quantity and cost", () => {
@@ -173,9 +174,21 @@ describe.each([
     expect(q.costPerCarton).toBeCloseTo(c.perBox, 4);
   });
 
-  it("quotes no base price on a delivered market", () => {
-    expect(q.fobPerCarton).toBeNull();
-    expect(q.fobTotal).toBeNull();
+  it("hands over at Khorgos, with the onward leg passed through at cost", () => {
+    expect(q.fobPerCarton).not.toBeNull();
+    // Delivered − base is exactly the carriage, so a rate rise on the Moscow
+    // leg can be restated without reopening the price of the goods.
+    expect(Math.round((q.cifPerCarton - q.fobPerCarton!) * 100) / 100).toBe(q.freightPerCarton);
+  });
+
+  it("counts the Kazakh transit tax as carriage, not as goods", () => {
+    // Khorgos is the China-Kazakhstan border: a buyer collecting there pays
+    // neither the onward freight nor the Kazakh tax, so both sit beyond the
+    // base price. freightUSD is the whole onward leg, not the freight line.
+    const freightOnly = 47570 / RU_FX.RMB;
+    const transitOnly = c.tax * c.mt;
+    expect(q.freightUSD).toBeCloseTo(freightOnly + transitOnly, 3);
+    expect(q.freightUSD).toBeGreaterThan(freightOnly);
   });
 
   it("raises no error — the stack is complete", () => {

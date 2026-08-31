@@ -18,9 +18,22 @@ describe("market profiles", () => {
     expect(ru.mode).toBe("overland");
     expect(ru.terms).toEqual({ base: "FCA", delivered: "DAP" });
     expect(ru.destinations).toBe("overland");
-    expect(ru.priceShape).toBe("delivered");
-    expect(ru.markupBase).toBe("landed");
     expect(ru.langs).toEqual(["ru", "en"]);
+  });
+
+  it("quotes two prices, handing over at the border", () => {
+    const ru = MARKETS.russia;
+    // The buyer either collects at Khorgos or takes it delivered to Moscow.
+    expect(ru.priceShape).toBe("two");
+    expect(ru.basePlace).toBe("KHORGOS, KAZAKHSTAN");
+    expect(ru.markupBase).toBe("goods");
+  });
+
+  it("puts the Kazakh transit tax on the onward leg, not the base price", () => {
+    // Khorgos is the China-Kazakhstan border, so a buyer collecting there never
+    // pays the Kazakh transit tax — it belongs beyond the handover.
+    expect(MARKETS.russia.carriageLines).toEqual(["freight", "transit"]);
+    expect(MARKETS.gulf.carriageLines).toEqual(["freight"]);
   });
 
   it("costs the Russian stack in journey order", () => {

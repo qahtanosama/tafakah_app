@@ -119,6 +119,12 @@ export interface QuoteInput {
    * existing caller keeps the Gulf behaviour it was written against.
    */
   markupBase?: "goods" | "landed";
+  /**
+   * Line ids forming the leg between the base and delivered prices, passed
+   * through at cost. Defaults to sea freight alone, which is what every caller
+   * written before markets existed meant.
+   */
+  carriageLines?: readonly string[];
 }
 
 export function computeQuote(input: QuoteInput): Quote {
@@ -153,7 +159,13 @@ export function computeQuote(input: QuoteInput): Quote {
    * the two always reconcile; price per MT is derived for display and for the
    * contract, where produce is written per MT.
    */
-  const freightUSD = lines.find((p) => p.line.id === "freight")?.usd ?? 0;
+  // The whole leg between the two quoted prices, not just the sea freight: the
+  // Russian route splits at Khorgos, so the Kazakh transit tax levied beyond it
+  // rides with the carriage rather than with the goods.
+  const carriage = input.carriageLines ?? ["freight"];
+  const freightUSD = lines
+    .filter((p) => carriage.includes(p.line.id))
+    .reduce((sum, p) => sum + (p.usd ?? 0), 0);
   const fobCost = landedCost - freightUSD;
   const fobCostPerCarton = totals.cartons > 0 ? fobCost / totals.cartons : 0;
 

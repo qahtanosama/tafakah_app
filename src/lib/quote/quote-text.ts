@@ -156,6 +156,8 @@ export interface QuoteTextInput {
   packUnitAr?: string;
   /** Drives the incoterms, the destination vocabulary and the caveat. */
   market: Market;
+  /** Where the goods are grown, printed as provenance on an overland quote. */
+  origin?: string;
   quote: Quote;
 }
 
@@ -262,13 +264,21 @@ function titleCasePlace(s: string): string {
     .join(" ");
 }
 
-/** "FOB Shekou" / "CIF Jeddah", or "FCA Khorgos (border)" / "DAP Moscow". */
+/**
+ * "FOB Shekou" / "CIF Jeddah", or "FCA Khorgos" / "DAP Food City (Moscow)".
+ *
+ * A sea market hands over at the port it loads from, so the base term names the
+ * origin. An overland market with a `basePlace` hands over there instead — the
+ * Russian route is collected at the Khorgos border, while the goods themselves
+ * come from Anqiu or Jining. That origin is provenance, not an incoterm place,
+ * and printing "FCA Anqiu" would offer a handover nobody is actually offering.
+ */
 export function quoteTerms(
   market: Market,
   origin: string,
   destination: string
 ): { base: string; delivered: string } {
-  const from = placeShortName(market, origin);
+  const from = placeShortName(market, market.basePlace ?? origin);
   const to = placeShortName(market, destination);
   return {
     base: from ? `${market.terms.base} ${from}` : market.terms.base,
@@ -368,17 +378,21 @@ export function buildQuoteText(input: QuoteTextInput): string {
       `${emoji}*${product}*`,
       `${containers} × ${CONTAINER_TYPE} · ${cartons} ${RU_UNIT}`,
       `${qty(gwPerCarton, 1)} кг брутто за ${RU_UNIT_GEN}`,
-      // Overland: the cargo is dispatched from the factory, not sailed.
+      // Where the goods are grown — provenance, not the handover point.
+      ...(input.origin?.trim() ? [`Происхождение: ${input.origin.trim()}`] : []),
+      // Overland: the cargo is dispatched from the packhouse, not sailed.
       `Отгрузка: ${formatEtd(input.etd)}`,
       "",
-      // One delivered price. The whole quote is repriced weekly, so a second
-      // figure would read as a competing offer rather than the same one
-      // restated in another unit.
+      // Two prices, so the buyer can either collect at the border or take it
+      // delivered. Delivered − base is exactly the onward leg at cost.
+      ...(quote.fobPerCarton !== null
+        ? [`*${baseTerm}* ${usd(quote.fobPerCarton)}/${RU_UNIT_GEN}`]
+        : []),
       `*${deliveredTerm}* ${usd(quote.cifPerCarton)}/${RU_UNIT_GEN}`,
       `= ${usd0(quote.quotedPerMT)} за тонну`,
       `*Итого* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
       "",
-      `Стоимость перевозки меняется — цена подтверждается при бронировании. Предложение действительно ${QUOTE_VALID_DAYS} дней.`,
+      `Стоимость перевозки меняется — цена ${deliveredTerm} подтверждается при бронировании. Цена ${baseTerm} фиксирована ${QUOTE_VALID_DAYS} дней.`,
       "",
       WEBSITE,
     ].join("\n");

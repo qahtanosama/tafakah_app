@@ -80,6 +80,7 @@ export default function QuoteCalculator() {
       loadingPort: cargo.loadingPort,
       dischargePort: cargo.dischargePort,
       etd: cargo.etd,
+      origin: product.origin,
       // From the resolved pack, not the product row — that is what makes a
       // Russian garlic offer name the Russian pack's unit.
       packUnit: calc.pack.packUnit,
