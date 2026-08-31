@@ -41,6 +41,13 @@ export interface ProductProfile {
   packUnit: string;
   packUnitAr: string;
   defaultPriceMT: number;
+  /**
+   * Producing town/region, e.g. "Anqiu, Shandong". The FCA named place on an
+   * overland quote — the truck loads at the packhouse, so that is where our
+   * obligation ends. Sea quotes name the loading port instead and ignore this.
+   * Free text: these are farm towns maintained per product, not a fixed list.
+   */
+  origin: string;
   containerType: string;
   notes: string;
   /**

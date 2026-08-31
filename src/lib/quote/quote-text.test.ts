@@ -99,3 +99,18 @@ describe("buildQuoteText — Gulf is unchanged", () => {
     expect(text).toContain("ETD:");
   });
 });
+
+describe("quoteTerms — overland origin from the product", () => {
+  it("names the producing town as the FCA place", () => {
+    expect(quoteTerms(MARKETS.russia, "Anqiu, Shandong", "FOOD CITY (MOSCOW), RUSSIA"))
+      .toEqual({ base: "FCA Anqiu", delivered: "DAP Food City (Moscow)" });
+  });
+
+  it("drops the province — the incoterm names a place, not a region pair", () => {
+    expect(quoteTerms(MARKETS.russia, "Jining, Shandong", "").base).toBe("FCA Jining");
+  });
+
+  it("handles a bare province for a product recorded without a town", () => {
+    expect(quoteTerms(MARKETS.russia, "Shaanxi", "").base).toBe("FCA Shaanxi");
+  });
+});

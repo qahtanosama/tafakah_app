@@ -14,6 +14,7 @@ const GINGER: ProductProfile = {
   packUnit: "carton",
   packUnitAr: "كرتون",
   defaultPriceMT: 0,
+  origin: "Anqiu, Shandong",
   containerType: "40'HC",
   notes: "",
   marketPacks: {

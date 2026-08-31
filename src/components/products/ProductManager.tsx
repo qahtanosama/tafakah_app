@@ -129,7 +129,7 @@ export default function ProductManager() {
     setEditing({
       id: crypto.randomUUID(), name: "", nameAr: "", hsCode: "", prefix: "",
       defaultNW: 0, defaultGW: 0, defaultCartons: 0, packUnit: "carton", packUnitAr: "كرتون",
-      marketPacks: {},
+      marketPacks: {}, origin: "",
       defaultPriceMT: 0, containerType: "40'RH", notes: "",
     });
     setIsNew(true);
@@ -241,6 +241,7 @@ export default function ProductManager() {
             {/* Russia packs the same product differently — a bigger box, fewer
                 per container — and carries a published per-ton transit tax.
                 Blank fields fall through to the default pack above, per field. */}
+            <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fOrigin")}</Label><Input value={editing.origin} onChange={(e) => setEditing({ ...editing, origin: e.target.value })} placeholder={t("fOriginPlaceholder")} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div className="sm:col-span-2 lg:col-span-4 mt-2 rounded-lg border border-slate-200 p-3 dark:border-white/10">
               <div className="mb-2">
                 <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t("russianPack")}</Label>

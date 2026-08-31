@@ -136,13 +136,27 @@ export default function CargoBar({
       <div className="grid gap-x-4 gap-y-3 border-t border-foreground/10 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
         <div>
           <FieldLabel>{overland ? t("originPlace") : t("loadingPort")}</FieldLabel>
-          <PortCombobox
-            value={cargo.loadingPort}
-            places={places}
-            onChange={(loadingPort) => onChange({ loadingPort })}
-            ariaLabel={overland ? t("originPlaceA11y") : t("loadingPortA11y")}
-            placeholder={overland ? t("originPlaceSearch") : t("loadingPortSearch")}
-          />
+          {/* Overland origins are farm towns kept per product, not a fixed list
+              of ports — so this is free text, seeded from the product's own
+              origin. A sea quote still picks a real loading port. */}
+          {overland ? (
+            <input
+              type="text"
+              value={cargo.loadingPort}
+              aria-label={t("originPlaceA11y")}
+              placeholder={t("originPlacePlaceholder")}
+              onChange={(e) => onChange({ loadingPort: e.target.value })}
+              className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-zinc-800/60 dark:text-slate-200"
+            />
+          ) : (
+            <PortCombobox
+              value={cargo.loadingPort}
+              places={places}
+              onChange={(loadingPort) => onChange({ loadingPort })}
+              ariaLabel={t("loadingPortA11y")}
+              placeholder={t("loadingPortSearch")}
+            />
+          )}
         </div>
         <div>
           <FieldLabel>{overland ? t("destPlace") : t("dischargePort")}</FieldLabel>

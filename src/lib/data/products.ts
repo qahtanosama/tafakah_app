@@ -19,6 +19,7 @@ interface DbProduct {
   pack_unit: string | null;
   pack_unit_ar: string | null;
   default_price_mt: number;
+  origin: string | null;
   container_type: string;
   notes: string;
   market_packs: Record<string, MarketPack> | null;
@@ -39,6 +40,7 @@ function dbToLocal(row: DbProduct): ProductProfile {
     packUnit: row.pack_unit || "carton",
     packUnitAr: row.pack_unit_ar || "كرتون",
     defaultPriceMT: Number(row.default_price_mt ?? 0),
+    origin: row.origin ?? "",
     containerType: row.container_type ?? "",
     notes: row.notes ?? "",
     marketPacks: row.market_packs ?? {},
@@ -59,6 +61,7 @@ function localToDb(p: ProductProfile): Omit<DbProduct, "created_at" | "updated_a
     pack_unit: p.packUnit || "carton",
     pack_unit_ar: p.packUnitAr || "كرتون",
     default_price_mt: p.defaultPriceMT,
+    origin: p.origin ?? "",
     container_type: p.containerType,
     notes: p.notes,
     market_packs: p.marketPacks ?? {},
@@ -116,6 +119,7 @@ export function useSaveProduct() {
               pack_unit: row.pack_unit,
               pack_unit_ar: row.pack_unit_ar,
               default_price_mt: row.default_price_mt,
+              origin: row.origin,
               container_type: row.container_type,
               notes: row.notes,
               market_packs: row.market_packs,

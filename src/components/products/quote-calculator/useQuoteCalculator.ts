@@ -119,7 +119,16 @@ export function useQuoteCalculator() {
     // A reopened or saved sheet remembers the shipment it was costed for.
     const savedCargo = savedSheet?.cargo ?? {};
     // An overland market states its own route; the Gulf takes the contract default.
-    const fallbackRoute = market.defaultRoute ?? defaultRoute();
+    const marketRoute = market.defaultRoute ?? defaultRoute();
+    // Overland loads at the packhouse, so the FCA named place is the product's
+    // own origin — "FCA Anqiu" for ginger, not the border crossing it passes
+    // through later. A product with no origin recorded falls back to the
+    // market's default place rather than quoting FCA with no place at all.
+    const fallbackRoute = {
+      loadingPort:
+        (market.mode === "overland" && product?.origin?.trim()) || marketRoute.loadingPort,
+      dischargePort: marketRoute.dischargePort,
+    };
     return {
       productId,
       containers,
@@ -146,7 +155,7 @@ export function useQuoteCalculator() {
       // already in the past on a live offer.
       etd: etd ?? "",
     };
-  }, [productId, containers, cartonsOverride, weights, route, etd, savedSheet, pack, market]);
+  }, [productId, containers, cartonsOverride, weights, route, etd, savedSheet, pack, market, product?.origin]);
 
   const quote = useMemo(
     () =>
