@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { packFor, withPack } from "./pack";
+import { mergePack, packFor, withPack } from "./pack";
 import type { ProductProfile } from "@/types/product";
 
 const GINGER: ProductProfile = {
@@ -91,5 +91,20 @@ describe("withPack", () => {
   it("returns the same object when nothing actually changed", () => {
     expect(withPack(GINGER, "russia", { cartons: 1440, nw: 13.6 })).toBe(GINGER);
     expect(withPack(GINGER, "gulf", { cartons: 11088 })).toBe(GINGER);
+  });
+});
+
+describe("mergePack", () => {
+  it("carries fields the calculator cannot edit", () => {
+    const current = { cartons: 1440, nw: 13.6, gw: 14.2, packUnit: "carton", transitTaxPerMT: 250 };
+    expect(mergePack(current, { cartons: 1680, nw: 13.5 })).toEqual({
+      cartons: 1680, nw: 13.5, gw: 14.2, packUnit: "carton", transitTaxPerMT: 250,
+    });
+  });
+
+  it("reports null when nothing moved, so the caller can skip the write", () => {
+    const current = { cartons: 1440, nw: 13.6, gw: 14.2, transitTaxPerMT: 250 };
+    expect(mergePack(current, { cartons: 1440 })).toBeNull();
+    expect(mergePack(current, {})).toBeNull();
   });
 });

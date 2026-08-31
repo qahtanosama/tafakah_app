@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Cargo, CostLine, CostSheet, FxRates, MarketId } from "@/types/quote";
-import { useProducts, useSaveProduct } from "@/lib/data/products";
+import { useProducts, useSavePack } from "@/lib/data/products";
 import { useCostSheets, useLatestCostSheet, useSaveCostSheet, todayKey } from "@/lib/data/cost-sheets";
 import {
   DEFAULT_CARTONS,
@@ -14,7 +14,7 @@ import {
 } from "@/lib/quote/defaults";
 import { stampIfAmountChanged } from "@/lib/quote/freshness";
 import { DEFAULT_MARKET, type Market, marketOf } from "@/lib/quote/markets";
-import { type PackPatch, packFor, withPack } from "@/lib/quote/pack";
+import { type PackPatch, packFor } from "@/lib/quote/pack";
 import { defaultRoute } from "@/lib/quote/quote-text";
 import { computeQuote } from "@/lib/quote/pricing";
 import {
@@ -83,7 +83,7 @@ export function useQuoteCalculator() {
   const sheets = useMemo(() => sheetsData ?? [], [sheetsData]);
   const { data: latestAnySheet, isLoading: latestLoading } = useLatestCostSheet(marketId);
   const saveSheet = useSaveCostSheet();
-  const saveProduct = useSaveProduct();
+  const savePackMutation = useSavePack();
 
   const langState = useSyncExternalStore(subscribeLang, getLangSnapshot, getServerLangSnapshot);
 
@@ -251,11 +251,11 @@ export function useQuoteCalculator() {
    * Packaging typed on the shipment bar is written back to the product, so it
    * is there again next session and on the Products page instead of being lost
    * with the tab. The Gulf writes the product's own columns; another market
-   * writes its entry in `market_packs` — see withPack.
+   * writes its entry in `market_packs`.
    *
    * Debounced like the cost-sheet save, so typing "1500" is one write and not
-   * four. Skipped entirely when nothing actually changed, which withPack
-   * reports by returning the same object.
+   * four. The mutation touches only the pack columns and merges against what
+   * the database holds — see useSavePack for why that matters.
    */
   const packTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPack = useRef<PackPatch | null>(null);
@@ -269,13 +269,16 @@ export function useQuoteCalculator() {
         const p = pendingPack.current;
         packTimer.current = null;
         pendingPack.current = null;
-        if (!p || !product) return;
-        const next = withPack(product, marketId, p);
-        if (next === product) return;
-        saveProduct.mutate({ payload: next, isUpdate: true });
+        if (!p || !productId) return;
+        savePackMutation.mutate({
+          productId,
+          market: marketId,
+          isDefaultMarket: marketId === DEFAULT_MARKET,
+          patch: p,
+        });
       }, SAVE_DEBOUNCE_MS);
     },
-    [product, marketId, saveProduct]
+    [product, productId, marketId, savePackMutation]
   );
 
   const updateCargo = useCallback(

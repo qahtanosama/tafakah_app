@@ -32,6 +32,16 @@ const ISSUE_KEY = {
   noEtd: "issueNoEtd",
 } as const satisfies Record<QuoteIssue["code"], string>;
 
+/**
+ * The wording for one issue on this market. Only the missing-date message
+ * differs so far: an overland quote has no vessel and no sailing, so the sea
+ * wording would describe a journey this cargo never makes.
+ */
+function issueKey(issue: QuoteIssue, market: Market) {
+  if (issue.code === "noEtd" && market.mode === "overland") return "issueNoDispatch" as const;
+  return ISSUE_KEY[issue.code];
+}
+
 interface Props {
   quote: Quote;
   scenarios: MarginScenario[];
@@ -284,13 +294,13 @@ export default function PricePanel({
             {errors.map((issue) => (
               <li key={issue.code} className="flex gap-2 text-red-700 dark:text-red-400">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{t(ISSUE_KEY[issue.code], issue.params)}</span>
+                <span>{t(issueKey(issue, market), issue.params)}</span>
               </li>
             ))}
             {warnings.map((issue) => (
               <li key={issue.code} className="flex gap-2 text-amber-700 dark:text-amber-400">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{t(ISSUE_KEY[issue.code], issue.params)}</span>
+                <span>{t(issueKey(issue, market), issue.params)}</span>
               </li>
             ))}
           </ul>

@@ -199,6 +199,12 @@ export const en = {
     lineCustoms: "Customs & agent fee",
     lineInland: "Inland transport",
     lineBank: "Bank charges",
+    lineBorder: "Border transhipment",
+    lineTransit: "Kazakhstan transit tax",
+    // Overland renames the two carriage legs — no vessel, and the inland leg
+    // runs to the border rather than to a port.
+    lineFreightOverland: "Freight to destination",
+    lineInlandOverland: "Inland to border",
 
     issueNoProduct: "Pick a product.",
     issueContainers: "Enter at least 1 container.",
@@ -212,6 +218,7 @@ export const en = {
     issueWeightsSwapped: "Gross weight is below net weight — check the two are not swapped.",
     issueUnnamedLine: "An added cost line has an amount but no name.",
     issueNoEtd: "Pick the vessel ETD — the quote states which sailing the price is for.",
+    issueNoDispatch: "Pick the dispatch date — the quote states when the cargo leaves.",
   },
   products: {
     catalog: "Product Catalog",
@@ -454,6 +461,10 @@ export const zh: Dict = {
     lineCustoms: "报关代理费",
     lineInland: "内陆运输费",
     lineBank: "银行费用",
+    lineBorder: "口岸换装费",
+    lineTransit: "哈萨克斯坦过境税",
+    lineFreightOverland: "至目的地运费",
+    lineInlandOverland: "至口岸内陆运输费",
 
     issueNoProduct: "请选择产品。",
     issueContainers: "柜数至少为 1。",
@@ -467,6 +478,7 @@ export const zh: Dict = {
     issueWeightsSwapped: "毛重低于净重 — 请检查两者是否填反。",
     issueUnnamedLine: "有一项新增成本填了金额但未填名称。",
     issueNoEtd: "请选择开船日（ETD）— 报价单需标明对应的船期。",
+    issueNoDispatch: "请选择发货日期 — 报价单需标明货物发出时间。",
   },
   products: {
     catalog: "产品目录",

@@ -89,6 +89,22 @@ export function withPack(
   }
 
   const current: MarketPack = product.marketPacks?.[market] ?? {};
+  const merged = mergePack(current, patch);
+  return merged === null
+    ? product
+    : { ...product, marketPacks: { ...product.marketPacks, [market]: merged } };
+}
+
+/**
+ * One market pack with the typed figures merged in, or NULL when nothing
+ * changed. Only the three measured fields are touched — `packUnit` and
+ * `transitTaxPerMT` are carried through untouched, because the calculator has
+ * no control for them and a write that dropped them would be silent data loss.
+ */
+export function mergePack(current: MarketPack, patch: PackPatch): MarketPack | null {
+  const cartons = set(patch.cartons);
+  const nw = set(patch.nw);
+  const gw = set(patch.gw);
   const merged: MarketPack = {
     ...current,
     ...(cartons === undefined ? {} : { cartons }),
@@ -97,7 +113,5 @@ export function withPack(
   };
   const unchanged =
     merged.cartons === current.cartons && merged.nw === current.nw && merged.gw === current.gw;
-  return unchanged
-    ? product
-    : { ...product, marketPacks: { ...product.marketPacks, [market]: merged } };
+  return unchanged ? null : merged;
 }

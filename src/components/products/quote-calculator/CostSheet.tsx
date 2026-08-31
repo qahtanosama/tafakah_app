@@ -25,6 +25,18 @@ const FIXED_LINE_KEY = {
   customs: "lineCustoms",
   inland: "lineInland",
   bank: "lineBank",
+  border: "lineBorder",
+  transit: "lineTransit",
+} as const;
+
+/**
+ * Overland renames the two carriage legs. There is no sea freight on a truck,
+ * and the inland leg runs to the border rather than to a port — so a Russian
+ * sheet that says "Sea freight" is simply describing the wrong thing.
+ */
+const OVERLAND_LINE_KEY = {
+  freight: "lineFreightOverland",
+  inland: "lineInlandOverland",
 } as const;
 
 const UNIT_KEY = {
@@ -46,9 +58,12 @@ const FACTOR_KEY = {
 
 type CalcT = ReturnType<typeof useT<"calc">>;
 
-/** Translated name for a line: dictionary for the six, user's own text otherwise. */
-function lineName(line: CostLine, t: CalcT): string {
-  const key = FIXED_LINE_KEY[line.id as keyof typeof FIXED_LINE_KEY];
+/** Translated name for a standing line; the user's own text for an added one. */
+function lineName(line: CostLine, market: Market, t: CalcT): string {
+  const key =
+    (market.mode === "overland"
+      ? OVERLAND_LINE_KEY[line.id as keyof typeof OVERLAND_LINE_KEY]
+      : undefined) ?? FIXED_LINE_KEY[line.id as keyof typeof FIXED_LINE_KEY];
   if (key) return t(key);
   return line.label.trim() || t("unnamedCost");
 }
@@ -215,7 +230,7 @@ function CostRow({
   onRemove?: () => void;
 }) {
   const t = useT("calc");
-  const name = lineName(line, t);
+  const name = lineName(line, market, t);
   const unitOptions = UNITS.map((u) => ({ value: u.value, label: t(UNIT_KEY[u.value]) }));
 
   return (

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MarketPack, ProductProfile } from "@/types/product";
 import { createClient } from "@/lib/supabase/client";
 import { withRetryQueue } from "@/lib/db/helpers";
+import { type PackPatch, mergePack } from "@/lib/quote/pack";
 
 interface DbProduct {
   id: string;
@@ -157,6 +158,72 @@ export function useSaveProduct() {
     },
     onError: (_err, _product, ctx) => {
       if (ctx?.previous) qc.setQueryData([...key], ctx.previous);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+/**
+ * Writes ONLY a product's pack figures, for the calculator's write-back.
+ *
+ * Deliberately not useSaveProduct: that names every column, so a client holding
+ * a partial product — a query cache from before a column existed, a row fetched
+ * by an older bundle — silently blanks the fields it does not know about. A
+ * background write triggered by typing must not be able to do that. This
+ * touches the three measured columns, or the one market_packs key, and nothing
+ * else; a product's name, HS code and origin are untouchable from here.
+ *
+ * For a non-default market it re-reads that row's market_packs immediately
+ * before writing and merges into what the DATABASE holds, not into what this
+ * tab happens to have cached — so `packUnit` and `transitTaxPerMT`, which the
+ * calculator has no control for, survive a stale client.
+ */
+export interface SavePackInput {
+  productId: string;
+  market: string;
+  /** True when this market's pack IS the product's own columns. */
+  isDefaultMarket: boolean;
+  patch: PackPatch;
+}
+
+export function useSavePack() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ productId, market, isDefaultMarket, patch }: SavePackInput) => {
+      const supabase = createClient();
+
+      if (isDefaultMarket) {
+        const columns: Record<string, number> = {};
+        if (patch.cartons !== undefined && patch.cartons > 0) columns.default_cartons = patch.cartons;
+        if (patch.nw !== undefined && patch.nw > 0) columns.default_nw = patch.nw;
+        if (patch.gw !== undefined && patch.gw > 0) columns.default_gw = patch.gw;
+        if (Object.keys(columns).length === 0) return null;
+        const { error } = await supabase.from("products").update(columns).eq("id", productId);
+        if (error) throw error;
+        return null;
+      }
+
+      const { data: row, error: readErr } = await supabase
+        .from("products")
+        .select("market_packs")
+        .eq("id", productId)
+        .single();
+      if (readErr) throw readErr;
+
+      const packs = ((row as { market_packs: Record<string, MarketPack> | null })?.market_packs ??
+        {}) as Record<string, MarketPack>;
+      const merged = mergePack(packs[market] ?? {}, patch);
+      if (merged === null) return null;
+
+      const { error } = await supabase
+        .from("products")
+        .update({ market_packs: { ...packs, [market]: merged } })
+        .eq("id", productId);
+      if (error) throw error;
+      return null;
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
