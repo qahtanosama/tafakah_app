@@ -19,12 +19,16 @@ import { DEFAULT_FX, DEFAULT_MARGIN, defaultCostLines, isFixedLine } from "./def
 const LEGACY_KEY = "calculator.defaults";
 const LANG_KEY = "calculator.quoteLanguage";
 
-export type QuoteLang = "en" | "ar";
+export type QuoteLang = "en" | "ar" | "ru";
+
+const QUOTE_LANGS: QuoteLang[] = ["en", "ar", "ru"];
 
 export function loadLang(): QuoteLang {
   try {
-    const stored = localStorage.getItem(LANG_KEY);
-    return stored === "ar" ? "ar" : "en";
+    const stored = localStorage.getItem(LANG_KEY) as QuoteLang | null;
+    // Anything unrecognised falls back to English. The old check compared
+    // against "ar" alone, which would have swallowed a stored "ru".
+    return stored && QUOTE_LANGS.includes(stored) ? stored : "en";
   } catch {
     return "en";
   }

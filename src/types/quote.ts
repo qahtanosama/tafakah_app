@@ -15,14 +15,34 @@ export type ForeignCurrency = Exclude<Currency, "USD">;
 export type CostUnit = "per_kg" | "per_mt" | "per_carton" | "per_container" | "flat";
 
 /**
- * The six cost lines every shipment carries, in the order the team thinks
- * about them: farm gate -> packed -> on the water -> cleared -> delivered ->
- * paid. The sheet always renders these six; they cannot be renamed or removed.
- * Anything else (insurance, phyto, fumigation, a one-off port charge) is added
- * per shipment as an extra line.
+ * Every standing cost line, across every market, in journey order: farm gate ->
+ * packed -> carried -> cleared -> taxed -> paid. A market renders its own
+ * subset and they cannot be renamed or removed. Anything else (insurance,
+ * phyto, fumigation, a one-off port charge) is added per shipment as an extra
+ * line.
+ *
+ * The Gulf ships the first six by sea. The Russian overland route adds `border`
+ * (transhipment at the Khorgos gauge break) and `transit` (the Kazakh per-ton
+ * tax) — see src/lib/quote/markets.ts.
  */
-export const FIXED_COST_IDS = ["farm", "packing", "freight", "customs", "inland", "bank"] as const;
+export const FIXED_COST_IDS = [
+  "farm",
+  "packing",
+  "freight",
+  "customs",
+  "inland",
+  "bank",
+  // Overland only — see src/lib/quote/markets.ts. This tuple is the UNION
+  // across every market so `isFixedLine()` stays a single global check; which
+  // lines a market actually renders, and in what order, comes from its own
+  // `costLines()`.
+  "border",
+  "transit",
+] as const;
 export type FixedCostId = (typeof FIXED_COST_IDS)[number];
+
+/** Which market a quote, cost sheet or pack format belongs to. */
+export type MarketId = "gulf" | "russia";
 
 export interface CostLine {
   /** A FixedCostId for the six standing lines, `x-<random>` for added ones. */

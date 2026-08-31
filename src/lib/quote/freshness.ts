@@ -22,6 +22,10 @@ const STALE_AFTER_DAYS: Record<string, number> = {
   customs: 90,
   inland: 90,
   bank: 90,
+  // Both administratively fixed — a transhipment tariff and a published
+  // per-ton tax move on their own schedule, not with the market.
+  border: 90,
+  transit: 90,
 };
 
 /** Added lines are one-off shipment charges — judged on the loose window. */
