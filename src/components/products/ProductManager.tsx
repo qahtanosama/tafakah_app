@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useT } from "@/lib/team-i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Save, X, TrendingUp, Calculator, Package } from "lucide-react";
-import type { ProductProfile, PriceHistoryEntry } from "@/types/product";
+import type { MarketPack, ProductProfile, PriceHistoryEntry } from "@/types/product";
 import { useProducts, useSaveProduct, useDeleteProduct } from "@/lib/data/products";
 import { useContracts } from "@/lib/data/contracts";
 import { priceHistoryFor, productUsageCount } from "@/lib/data/contract-analytics";
@@ -99,6 +99,20 @@ export default function ProductManager() {
   const [editing, setEditing] = useState<ProductProfile | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [prefixError, setPrefixError] = useState("");
+
+  /**
+   * The row's Russian pack, and a setter that merges one field at a time.
+   * Null-safe because `editing` is null whenever the form is closed; the form
+   * itself only renders inside `{editing && …}`.
+   */
+  const ruPack: MarketPack = editing?.marketPacks?.russia ?? {};
+  const setRu = (patch: Partial<MarketPack>) => {
+    if (!editing) return;
+    setEditing({
+      ...editing,
+      marketPacks: { ...editing.marketPacks, russia: { ...ruPack, ...patch } },
+    });
+  };
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -224,6 +238,48 @@ export default function ProductManager() {
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fUnitAr")}</Label><Input value={editing.packUnitAr} onChange={(e) => setEditing({ ...editing, packUnitAr: e.target.value })} placeholder="كرتون / كيس شبكي" dir="rtl" className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fPrice")}</Label><Input type="number" value={editing.defaultPriceMT || ""} onChange={(e) => setEditing({ ...editing, defaultPriceMT: parseFloat(e.target.value) || 0 })} className="h-11 bg-white dark:bg-zinc-800 font-mono focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fContainerType")}</Label><Input value={editing.containerType} onChange={(e) => setEditing({ ...editing, containerType: e.target.value })} className="h-11 bg-white dark:bg-zinc-800 font-medium focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
+            {/* Russia packs the same product differently — a bigger box, fewer
+                per container — and carries a published per-ton transit tax.
+                Blank fields fall through to the default pack above, per field. */}
+            <div className="sm:col-span-2 lg:col-span-4 mt-2 rounded-lg border border-slate-200 p-3 dark:border-white/10">
+              <div className="mb-2">
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t("russianPack")}</Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("russianPackHint")}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <div>
+                  <Label className="mb-1.5 block text-xs">{t("fBoxes")}</Label>
+                  <Input type="number" value={ruPack.cartons || ""} placeholder={t("fBoxesPlaceholder")}
+                    onChange={(e) => setRu({ cartons: parseInt(e.target.value) || 0 })}
+                    className="h-10 bg-white dark:bg-zinc-800 font-mono border-slate-200 dark:border-white/10" />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-xs">{t("fNw")}</Label>
+                  <Input type="number" step="0.1" value={ruPack.nw || ""}
+                    onChange={(e) => setRu({ nw: parseFloat(e.target.value) || 0 })}
+                    className="h-10 bg-white dark:bg-zinc-800 font-mono border-slate-200 dark:border-white/10" />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-xs">{t("fGw")}</Label>
+                  <Input type="number" step="0.1" value={ruPack.gw || ""}
+                    onChange={(e) => setRu({ gw: parseFloat(e.target.value) || 0 })}
+                    className="h-10 bg-white dark:bg-zinc-800 font-mono border-slate-200 dark:border-white/10" />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-xs">{t("fUnit")}</Label>
+                  <Input value={ruPack.packUnit ?? ""} placeholder={t("fUnitPlaceholder")}
+                    onChange={(e) => setRu({ packUnit: e.target.value })}
+                    className="h-10 bg-white dark:bg-zinc-800 font-medium border-slate-200 dark:border-white/10" />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-xs">{t("fTaxPerMT")}</Label>
+                  <Input type="number" value={ruPack.transitTaxPerMT || ""} placeholder={t("fTaxPerMTPlaceholder")}
+                    onChange={(e) => setRu({ transitTaxPerMT: parseFloat(e.target.value) || 0 })}
+                    className="h-10 bg-white dark:bg-zinc-800 font-mono border-slate-200 dark:border-white/10" />
+                </div>
+              </div>
+            </div>
+
             <div className="sm:col-span-2 lg:col-span-4"><Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{t("fNotes")}</Label><Input value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} placeholder={t("fNotesPlaceholder")} className="h-11 bg-white dark:bg-zinc-800 focus:ring-indigo-500/20 border-slate-200 dark:border-white/10" /></div>
             <div className="sm:col-span-2 lg:col-span-4 mt-2 border-t border-slate-100 dark:border-white/5 pt-6 flex justify-end">
               <Button className="gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8" onClick={handleSave} disabled={!editing.name.trim() || !editing.prefix.trim() || !editing.hsCode.trim()}>
