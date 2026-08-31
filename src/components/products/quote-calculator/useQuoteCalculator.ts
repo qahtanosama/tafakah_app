@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { Cargo, CostLine, CostSheet, FxRates } from "@/types/quote";
+import type { Cargo, CostLine, CostSheet, FxRates, MarketId } from "@/types/quote";
 import { useProducts } from "@/lib/data/products";
 import { useCostSheets, useLatestCostSheet, useSaveCostSheet, todayKey } from "@/lib/data/cost-sheets";
 import {
@@ -10,10 +10,11 @@ import {
   DEFAULT_MARGIN,
   MARGIN_MAX,
   MARGIN_MIN,
-  defaultCostLines,
   newCostLine,
 } from "@/lib/quote/defaults";
 import { stampIfAmountChanged } from "@/lib/quote/freshness";
+import { DEFAULT_MARKET, type Market, marketOf } from "@/lib/quote/markets";
+import { packFor } from "@/lib/quote/pack";
 import { defaultRoute } from "@/lib/quote/quote-text";
 import { computeQuote } from "@/lib/quote/pricing";
 import {
@@ -37,6 +38,8 @@ function set(n: number | undefined): number | undefined {
 /** The sheet currently on screen, before it has been saved. */
 interface WorkingSheet {
   productId: string;
+  /** Which market these costs are for — a Gulf sheet is not a Russian one. */
+  market: MarketId;
   lines: CostLine[];
   fx: FxRates;
   marginPct: number;
@@ -47,11 +50,11 @@ interface WorkingSheet {
 }
 
 /**
- * All calculator state: the shipment, the working cost sheet, and the derived
- * quote.
+ * All calculator state: the market, the shipment, the working cost sheet, and
+ * the derived quote.
  *
- * Cost sheets are per product and shared with the team (Supabase), one session
- * per product per day. Opening a product restores its last costs, so a re-quote
+ * Cost sheets are per product PER MARKET and shared with the team (Supabase),
+ * one session per product per market per day. Opening a product restores its last costs, so a re-quote
  * is usually just a farm-price edit. A product never costed before is seeded
  * from the most recent sheet of any product — customs, inland and bank charges
  * are effectively constant across products, so only the farm price needs typing.
@@ -66,6 +69,9 @@ export function useQuoteCalculator() {
   const { data: productsData, isLoading: productsLoading } = useProducts();
   const products = useMemo(() => productsData ?? [], [productsData]);
 
+  const [marketId, setMarketId] = useState<MarketId>(DEFAULT_MARKET);
+  const market = useMemo(() => marketOf(marketId), [marketId]);
+
   const [productChoice, setProductChoice] = useState("");
   const product = useMemo(
     () => products.find((p) => p.id === productChoice) ?? products[0],
@@ -73,9 +79,9 @@ export function useQuoteCalculator() {
   );
   const productId = product?.id ?? "";
 
-  const { data: sheetsData, isLoading: sheetsLoading } = useCostSheets(productId || undefined);
+  const { data: sheetsData, isLoading: sheetsLoading } = useCostSheets(productId || undefined, marketId);
   const sheets = useMemo(() => sheetsData ?? [], [sheetsData]);
-  const { data: latestAnySheet, isLoading: latestLoading } = useLatestCostSheet();
+  const { data: latestAnySheet, isLoading: latestLoading } = useLatestCostSheet(marketId);
   const saveSheet = useSaveCostSheet();
 
   const langState = useSyncExternalStore(subscribeLang, getLangSnapshot, getServerLangSnapshot);
@@ -93,21 +99,27 @@ export function useQuoteCalculator() {
   // Newest saved session for this product, if any.
   const savedSheet = sheets[0];
 
+  /** This product's pack format in this market — boxes, weights, unit, tax. */
+  const pack = useMemo(() => packFor(product, marketId), [product, marketId]);
+
   /**
    * Seeded during render rather than in an effect. `working` is only set once
    * the user edits something, so merely browsing products never files a session.
+   * Keyed on market as well as product: switching market re-seeds from that
+   * market's own template rather than carrying the other one's cost lines over.
    */
   const sheet: WorkingSheet = useMemo(() => {
-    if (working?.productId === productId) return working;
-    return seedSheet(productId, savedSheet, latestAnySheet ?? null);
-  }, [working, productId, savedSheet, latestAnySheet]);
+    if (working?.productId === productId && working.market === marketId) return working;
+    return seedSheet(productId, market, pack.transitTaxPerMT, savedSheet, latestAnySheet ?? null);
+  }, [working, productId, marketId, market, pack.transitTaxPerMT, savedSheet, latestAnySheet]);
 
   const cargo: Cargo = useMemo(() => {
     const owned = weights?.productId === productId ? weights : null;
     const ownedCartons = cartonsOverride?.productId === productId ? cartonsOverride : null;
     // A reopened or saved sheet remembers the shipment it was costed for.
     const savedCargo = savedSheet?.cargo ?? {};
-    const fallbackRoute = defaultRoute();
+    // An overland market states its own route; the Gulf takes the contract default.
+    const fallbackRoute = market.defaultRoute ?? defaultRoute();
     return {
       productId,
       containers,
@@ -121,13 +133,12 @@ export function useQuoteCalculator() {
       // `set()` and not `??`: these columns are NOT NULL DEFAULT 0, so 0 means
       // "not filled in yet", not "zero boxes". Using ?? would let an unset
       // product default beat a real saved value.
+      // `pack` already applies the market override, the product default and the
+      // generic fallback in that order — see lib/quote/pack.ts.
       cartonsPerContainer:
-        ownedCartons?.cartons ??
-        set(product?.defaultCartons) ??
-        set(savedCargo.cartonsPerContainer) ??
-        DEFAULT_CARTONS,
-      nwPerCarton: owned?.nw ?? set(product?.defaultNW) ?? set(savedCargo.nwPerCarton) ?? 0,
-      gwPerCarton: owned?.gw ?? set(product?.defaultGW) ?? set(savedCargo.gwPerCarton) ?? 0,
+        ownedCartons?.cartons ?? set(pack.cartons) ?? set(savedCargo.cartonsPerContainer) ?? DEFAULT_CARTONS,
+      nwPerCarton: owned?.nw ?? set(pack.nw) ?? set(savedCargo.nwPerCarton) ?? 0,
+      gwPerCarton: owned?.gw ?? set(pack.gw) ?? set(savedCargo.gwPerCarton) ?? 0,
       loadingPort: route?.loadingPort ?? savedCargo.loadingPort ?? fallbackRoute.loadingPort,
       dischargePort: route?.dischargePort ?? savedCargo.dischargePort ?? fallbackRoute.dischargePort,
       // Never inherited from a saved sheet: a departure date is specific to the
@@ -135,7 +146,7 @@ export function useQuoteCalculator() {
       // already in the past on a live offer.
       etd: etd ?? "",
     };
-  }, [productId, containers, cartonsOverride, weights, route, etd, savedSheet, product]);
+  }, [productId, containers, cartonsOverride, weights, route, etd, savedSheet, pack, market]);
 
   const quote = useMemo(
     () =>
@@ -145,8 +156,9 @@ export function useQuoteCalculator() {
         fx: sheet.fx,
         marginPct: sheet.marginPct,
         productSelected: Boolean(product),
+        markupBase: market.markupBase,
       }),
-    [sheet, cargo, product]
+    [sheet, cargo, product, market.markupBase]
   );
 
   /* ── auto-save ─────────────────────────────────────────────────────── */
@@ -167,6 +179,7 @@ export function useQuoteCalculator() {
         if (!p) return;
         saveSheet.mutate({
           productId: p.sheet.productId,
+          market: p.sheet.market,
           lines: p.sheet.lines,
           fx: p.sheet.fx,
           marginPct: p.sheet.marginPct,
@@ -192,7 +205,13 @@ export function useQuoteCalculator() {
    */
   const edit = useCallback(
     (change: (prev: WorkingSheet) => WorkingSheet) => {
-      const next = { ...change(sheet), productId, origin: "saved" as const, reopenedFrom: undefined };
+      const next = {
+        ...change(sheet),
+        productId,
+        market: marketId,
+        origin: "saved" as const,
+        reopenedFrom: undefined,
+      };
       setWorking(next);
       const q = computeQuote({
         lines: next.lines,
@@ -200,10 +219,11 @@ export function useQuoteCalculator() {
         fx: next.fx,
         marginPct: next.marginPct,
         productSelected: Boolean(product),
+        markupBase: market.markupBase,
       });
       scheduleSave(next, cargo, q.quotedPerMT);
     },
-    [sheet, productId, cargo, product, scheduleSave]
+    [sheet, productId, marketId, cargo, product, market.markupBase, scheduleSave]
   );
 
   /* ── mutators ──────────────────────────────────────────────────────── */
@@ -274,9 +294,19 @@ export function useQuoteCalculator() {
   );
 
   /** Load an older session's costs onto the sheet, without saving over today's. */
+  const setMarket = useCallback((next: MarketId) => {
+    setMarketId(next);
+    // The route belongs to the market: a Gulf port on a Russian quote, or the
+    // reverse, is a factual error on a client-facing offer. Same for the
+    // working sheet, whose cost lines are the other market's entirely.
+    setRoute(null);
+    setWorking(null);
+  }, []);
+
   const reopenSession = useCallback((older: CostSheet) => {
     setWorking({
       productId: older.productId,
+      market: older.market,
       lines: older.lines,
       fx: older.fx,
       marginPct: older.marginPct,
@@ -290,9 +320,16 @@ export function useQuoteCalculator() {
 
   const setLang = useCallback((next: QuoteLang) => setStoredLang(next), []);
 
+  // A market offers only some quote languages, and the stored preference is
+  // global — so Arabic must not survive a switch to Russia.
+  const lang = market.langs.includes(langState.lang) ? langState.lang : market.langs[0];
+
   return {
     products,
     product,
+    market,
+    setMarket,
+    pack,
     /** True until products, this product's sheets and the seed sheet are all in hand. */
     loading: productsLoading || sheetsLoading || latestLoading || !langHydrated(langState),
     cargo,
@@ -307,7 +344,7 @@ export function useQuoteCalculator() {
     setFx,
     marginPct: sheet.marginPct,
     setMargin,
-    lang: langState.lang,
+    lang,
     setLang,
     quote,
     /** Saved sessions, newest first. `[0]` is today's if one has been saved. */
@@ -333,20 +370,28 @@ export function useQuoteCalculator() {
  */
 function seedSheet(
   productId: string,
+  market: Market,
+  transitTaxPerMT: number,
   own: CostSheet | undefined,
   latestAny: CostSheet | null
 ): WorkingSheet {
+  const id = market.id;
   if (own) {
-    return { productId, lines: own.lines, fx: own.fx, marginPct: own.marginPct, origin: "saved" };
+    return { productId, market: id, lines: own.lines, fx: own.fx, marginPct: own.marginPct, origin: "saved" };
   }
   if (latestAny) {
     return {
       productId,
+      market: id,
       // Carry the cost structure across, but not the farm price — that is
-      // product-specific and the one number that must not be inherited.
-      lines: latestAny.lines.map((l) =>
-        l.id === "farm" ? { ...l, amount: 0, updatedAt: undefined } : l
-      ),
+      // product-specific and the one number that must not be inherited. The
+      // transit tax is the opposite: a published per-ton rate that belongs to
+      // the product, so it is seeded rather than carried.
+      lines: latestAny.lines.map((l) => {
+        if (l.id === "farm") return { ...l, amount: 0, updatedAt: undefined };
+        if (l.id === "transit") return { ...l, amount: transitTaxPerMT, updatedAt: undefined };
+        return l;
+      }),
       fx: latestAny.fx,
       marginPct: latestAny.marginPct,
       origin: "copied",
@@ -354,13 +399,16 @@ function seedSheet(
   }
   // First run on a machine that used the pre-Supabase calculator: adopt the
   // fees that were sitting in localStorage so they are not silently lost.
-  const legacy = legacyLocalSheet();
+  // Gulf only — those were sea costs, and handing them to a Russian sheet is
+  // exactly the cross-market contamination the market key exists to prevent.
+  const legacy = id === "gulf" ? legacyLocalSheet() : null;
   if (legacy) {
-    return { productId, lines: legacy.lines, fx: legacy.fx, marginPct: legacy.marginPct, origin: "copied" };
+    return { productId, market: id, lines: legacy.lines, fx: legacy.fx, marginPct: legacy.marginPct, origin: "copied" };
   }
   return {
     productId,
-    lines: defaultCostLines(),
+    market: id,
+    lines: market.costLines().map((l) => (l.id === "transit" ? { ...l, amount: transitTaxPerMT } : l)),
     fx: { ...DEFAULT_FX },
     marginPct: DEFAULT_MARGIN,
     origin: "blank",

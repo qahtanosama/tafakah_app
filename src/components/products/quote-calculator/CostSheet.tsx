@@ -2,7 +2,8 @@
 
 import { AlertTriangle, Plus, X } from "lucide-react";
 import type { CostLine, CostUnit, Currency, PricedLine, Quote } from "@/types/quote";
-import { CURRENCIES, UNITS, USD_EXPECTED_LINES, isFixedLine } from "@/lib/quote/defaults";
+import { CURRENCIES, UNITS, isFixedLine } from "@/lib/quote/defaults";
+import type { Market } from "@/lib/quote/markets";
 import { AGE_EXACT_DAYS, lineFreshness, staleAfterDays } from "@/lib/quote/freshness";
 import { qty, usd } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,8 @@ function lineName(line: CostLine, t: CalcT): string {
 interface Props {
   lines: CostLine[];
   quote: Quote;
+  /** Decides which lines are expected in USD — see Market.usdExpected. */
+  market: Market;
   /** Where these numbers came from — a copied or reopened sheet says so. */
   origin: "saved" | "copied" | "blank" | "reopened";
   reopenedFrom?: string;
@@ -76,6 +79,7 @@ interface Props {
 export default function CostSheet({
   lines,
   quote,
+  market,
   origin,
   reopenedFrom,
   saving,
@@ -146,6 +150,7 @@ export default function CostSheet({
                 key={line.id}
                 line={line}
                 priced={priced.get(line.id)}
+                market={market}
                 onUpdate={(patch) => onUpdate(line.id, patch)}
                 onRemove={isFixedLine(line.id) ? undefined : () => onRemove(line.id)}
               />
@@ -199,11 +204,13 @@ export default function CostSheet({
 function CostRow({
   line,
   priced,
+  market,
   onUpdate,
   onRemove,
 }: {
   line: CostLine;
   priced: PricedLine | undefined;
+  market: Market;
   onUpdate: (patch: Partial<CostLine>) => void;
   onRemove?: () => void;
 }) {
@@ -242,8 +249,11 @@ function CostRow({
         />
         {/* Freight and bank charges reach us as USD invoices. Entering one in
             RMB divides it by the FX rate and understates the cost, so say so
-            right beside the field rather than letting it pass. */}
-        {USD_EXPECTED_LINES.includes(line.id) && line.currency !== "USD" && (
+            right beside the field rather than letting it pass.
+
+            Which lines those are is per market: Russian freight is genuinely
+            quoted in RMB, and a global list would flag it on every quote. */}
+        {market.usdExpected.includes(line.id) && line.currency !== "USD" && (
           <span className="mt-0.5 block text-[11px] font-medium text-red-600 dark:text-red-400">
             {t("shouldBeUsd")}
           </span>

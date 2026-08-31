@@ -1,10 +1,12 @@
 "use client";
 
 import type { ProductProfile } from "@/types/product";
-import type { Cargo, CargoTotals } from "@/types/quote";
+import type { Cargo, CargoTotals, MarketId } from "@/types/quote";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PortCombobox from "@/components/ui/port-combobox";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
+import { MARKETS, MARKET_IDS, type Market } from "@/lib/quote/markets";
+import { placesFor } from "@/lib/places";
 import { quoteTerms } from "@/lib/quote/quote-text";
 import { qty } from "@/lib/money";
 import { useT } from "@/lib/team-i18n";
@@ -15,6 +17,8 @@ interface Props {
   product: ProductProfile | undefined;
   cargo: Cargo;
   totals: CargoTotals;
+  market: Market;
+  onMarketChange: (id: MarketId) => void;
   onChange: (patch: Partial<Cargo>) => void;
 }
 
@@ -26,16 +30,47 @@ interface Props {
  * Container type is stated, not chosen: ~99% of shipments are 40'HC, so the one
  * exception is not worth a control that every quote has to step past.
  */
-export default function CargoBar({ products, product, cargo, totals, onChange }: Props) {
+export default function CargoBar({
+  products,
+  product,
+  cargo,
+  totals,
+  market,
+  onMarketChange,
+  onChange,
+}: Props) {
   const t = useT("calc");
-  const terms = quoteTerms(cargo.loadingPort, cargo.dischargePort);
+  // Overland markets have no ports and no vessel, so the route row relabels.
+  const overland = market.mode === "overland";
+  const terms = quoteTerms(market, cargo.loadingPort, cargo.dischargePort);
+  const places = placesFor(market);
 
   return (
     <section
       aria-label={t("shipment")}
       className="rounded-xl bg-slate-50/80 ring-1 ring-foreground/10 dark:bg-white/[0.03]"
     >
-      <div className="grid gap-x-4 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(11rem,1.4fr)_repeat(4,minmax(0,1fr))] lg:items-end">
+      <div className="grid gap-x-4 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(9rem,1fr)_minmax(11rem,1.4fr)_repeat(4,minmax(0,1fr))] lg:items-end">
+        {/* First, because the market decides which pack the product even has. */}
+        <label className="block">
+          <FieldLabel>{t("market")}</FieldLabel>
+          <Select value={market.id} onValueChange={(v) => v && onMarketChange(v as MarketId)}>
+            <SelectTrigger
+              aria-label={t("marketA11y")}
+              className="h-9 w-full bg-white text-sm font-medium dark:bg-zinc-800/60"
+            >
+              <SelectValue>{t(market.labelKey)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {MARKET_IDS.map((id) => (
+                <SelectItem key={id} value={id}>
+                  {t(MARKETS[id].labelKey)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+
         <label className="block">
           <FieldLabel>{t("product")}</FieldLabel>
           <Select value={cargo.productId} onValueChange={(v) => v && onChange({ productId: v })}>
@@ -100,32 +135,34 @@ export default function CargoBar({ products, product, cargo, totals, onChange }:
           is chosen per quote rather than inherited from a global default. */}
       <div className="grid gap-x-4 gap-y-3 border-t border-foreground/10 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
         <div>
-          <FieldLabel>{t("loadingPort")}</FieldLabel>
+          <FieldLabel>{overland ? t("originPlace") : t("loadingPort")}</FieldLabel>
           <PortCombobox
             value={cargo.loadingPort}
+            places={places}
             onChange={(loadingPort) => onChange({ loadingPort })}
-            ariaLabel={t("loadingPortA11y")}
-            placeholder={t("loadingPortSearch")}
+            ariaLabel={overland ? t("originPlaceA11y") : t("loadingPortA11y")}
+            placeholder={overland ? t("originPlaceSearch") : t("loadingPortSearch")}
           />
         </div>
         <div>
-          <FieldLabel>{t("dischargePort")}</FieldLabel>
+          <FieldLabel>{overland ? t("destPlace") : t("dischargePort")}</FieldLabel>
           <PortCombobox
             value={cargo.dischargePort}
+            places={places}
             onChange={(dischargePort) => onChange({ dischargePort })}
-            ariaLabel={t("dischargePortA11y")}
-            placeholder={t("dischargePortSearch")}
+            ariaLabel={overland ? t("destPlaceA11y") : t("dischargePortA11y")}
+            placeholder={overland ? t("destPlaceSearch") : t("dischargePortSearch")}
           />
         </div>
         {/* Which sailing the price is tied to. Required, because sea freight
             moves between sailings and a price with no departure is not an offer
             anyone can act on. */}
         <label className="block">
-          <FieldLabel>{t("etd")}</FieldLabel>
+          <FieldLabel>{overland ? t("dispatch") : t("etd")}</FieldLabel>
           <input
             type="date"
             value={cargo.etd}
-            aria-label={t("etdA11y")}
+            aria-label={overland ? t("dispatchA11y") : t("etdA11y")}
             onChange={(e) => onChange({ etd: e.target.value })}
             className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-zinc-800/60 dark:text-slate-200"
           />
@@ -140,7 +177,7 @@ export default function CargoBar({ products, product, cargo, totals, onChange }:
         <div className="flex items-baseline gap-1.5">
           <dt className="text-slate-500 dark:text-slate-400">{t("terms")}</dt>
           <dd className="font-medium text-slate-700 dark:text-slate-200">
-            {terms.fob} / {terms.cif}
+            {terms.base} / {terms.delivered}
           </dd>
         </div>
         <div className="flex items-baseline gap-1.5">

@@ -5,6 +5,7 @@ import SellerSignatureBlock from "@/components/pdf/SellerSignatureBlock";
 import { getDefaultContractData } from "@/lib/sales-contract";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
 import { QUOTE_BRAND, QUOTE_VALID_DAYS, formatEtd, quoteTerms } from "@/lib/quote/quote-text";
+import type { Market } from "@/lib/quote/markets";
 import { qty, usd, usd0 } from "@/lib/money";
 
 /**
@@ -107,12 +108,19 @@ export interface PriceOfferData {
   dischargePort: string;
   etd: string;
   packUnit: string;
+  /** Drives the incoterms, the date label and the carriage caveat. */
+  market: Market;
   quote: Quote;
 }
 
 export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
   const { seller } = getDefaultContractData();
-  const { fob: fobTerm, cif: cifTerm } = quoteTerms(data.loadingPort, data.dischargePort);
+  const { base: baseTerm, delivered: deliveredTerm } = quoteTerms(
+    data.market,
+    data.loadingPort,
+    data.dischargePort
+  );
+  const overland = data.market.mode === "overland";
   const { quote } = data;
   const unit = data.packUnit?.trim() || "carton";
   const units = unit.endsWith("s") ? unit : unit + "s";
@@ -121,7 +129,7 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
     <Document
       title={`Price Offer ${data.offerNo}`}
       author={QUOTE_BRAND.name}
-      subject={`${data.productName} — ${fobTerm} / ${cifTerm}`}
+      subject={`${data.productName} — ${baseTerm} / ${deliveredTerm}`}
     >
       {/* Letterhead and Footer are declared first, before the flowing content —
           both are `fixed`, and this is the order the contract and invoice PDFs
@@ -158,7 +166,9 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
           {qty(data.gwPerCarton, 1)} KG gross per {unit}
         </Text>
         <Text style={o.cargoLine}>Total quantity: {qty(quote.totals.qtyMTS, 2)} MT net</Text>
-        <Text style={o.cargoLine}>ETD: {formatEtd(data.etd)}</Text>
+        <Text style={o.cargoLine}>
+          {overland ? "Dispatch" : "ETD"}: {formatEtd(data.etd)}
+        </Text>
 
         {/* Prices are quoted per unit, with one ton price: CIF, on its own row.
             Produce is compared per ton, and a buyer working it out himself would
@@ -171,7 +181,7 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
           {quote.fobPerCarton !== null && (
             <>
               <View style={o.priceRow}>
-                <Text style={o.priceTerm}>{fobTerm}</Text>
+                <Text style={o.priceTerm}>{baseTerm}</Text>
                 <Text style={o.priceUnit}>per {unit}</Text>
                 <Text style={o.priceValue}>{usd(quote.fobPerCarton)}</Text>
               </View>
@@ -183,29 +193,39 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
             </>
           )}
           <View style={o.priceRow}>
-            <Text style={o.priceTerm}>{cifTerm}</Text>
+            <Text style={o.priceTerm}>{deliveredTerm}</Text>
             <Text style={o.priceUnit}>per {unit}</Text>
             <Text style={o.priceValue}>{usd(quote.cifPerCarton)}</Text>
           </View>
           <View style={o.priceRow}>
-            <Text style={o.priceTerm}>{cifTerm}</Text>
+            <Text style={o.priceTerm}>{deliveredTerm}</Text>
             <Text style={o.priceUnit}>per MT</Text>
             <Text style={o.priceValue}>{usd0(quote.quotedPerMT)}</Text>
           </View>
           <View style={o.priceRowLast}>
-            <Text style={o.priceTerm}>Total {cifTerm}</Text>
+            <Text style={o.priceTerm}>Total {deliveredTerm}</Text>
             <Text style={o.priceUnit}>{qty(data.cartons)} {units}</Text>
             <Text style={o.priceValue}>{usd0(quote.quotedTotal)}</Text>
           </View>
         </View>
 
         <View style={o.note}>
-          <Text style={o.noteLabel}>Sea freight</Text>
-          <Text style={o.noteText}>
-            Sea freight is unstable. The {cifTerm} price is based on today&rsquo;s freight rate and will
-            be re-confirmed at the time of booking. The {fobTerm} price is firm for {QUOTE_VALID_DAYS}{" "}
-            days from the date of this offer.
-          </Text>
+          <Text style={o.noteLabel}>{overland ? "Carriage" : "Sea freight"}</Text>
+          {/* A delivered-price market has no firm base price to hold, so the
+              caveat covers the whole quote rather than splitting it in two. */}
+          {quote.fobPerCarton !== null ? (
+            <Text style={o.noteText}>
+              Sea freight is unstable. The {deliveredTerm} price is based on today&rsquo;s freight rate
+              and will be re-confirmed at the time of booking. The {baseTerm} price is firm for{" "}
+              {QUOTE_VALID_DAYS} days from the date of this offer.
+            </Text>
+          ) : (
+            <Text style={o.noteText}>
+              Carriage rates move. The {deliveredTerm} price is based on today&rsquo;s rate and is
+              re-confirmed at the time of booking. This offer is valid for {QUOTE_VALID_DAYS} days
+              from its date.
+            </Text>
+          )}
         </View>
 
         <View style={o.termsRow}>

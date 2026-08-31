@@ -71,6 +71,7 @@ export default function QuoteCalculator() {
     if (!product) return "";
     return buildQuoteText({
       lang,
+      market: calc.market,
       productName: product.name,
       productNameAr: product.nameAr,
       containers: cargo.containers,
@@ -79,11 +80,13 @@ export default function QuoteCalculator() {
       loadingPort: cargo.loadingPort,
       dischargePort: cargo.dischargePort,
       etd: cargo.etd,
-      packUnit: product.packUnit,
-      packUnitAr: product.packUnitAr,
+      // From the resolved pack, not the product row — that is what makes a
+      // Russian garlic offer name the Russian pack's unit.
+      packUnit: calc.pack.packUnit,
+      packUnitAr: calc.pack.packUnitAr,
       quote,
     });
-  }, [product, lang, cargo, quote]);
+  }, [product, lang, cargo, quote, calc.market, calc.pack]);
 
   useEffect(() => {
     if (!copied) return;
@@ -136,6 +139,8 @@ export default function QuoteCalculator() {
         product={product}
         cargo={cargo}
         totals={quote.totals}
+        market={calc.market}
+        onMarketChange={calc.setMarket}
         onChange={calc.updateCargo}
       />
 
@@ -148,6 +153,7 @@ export default function QuoteCalculator() {
           <CostSheet
             lines={calc.lines}
             quote={quote}
+            market={calc.market}
             origin={calc.origin}
             reopenedFrom={calc.reopenedFrom}
             saving={calc.saving}
@@ -180,6 +186,7 @@ export default function QuoteCalculator() {
             fx={calc.fx}
             lang={lang}
             onLangChange={calc.setLang}
+            market={calc.market}
             onPreview={handlePreview}
             onCopy={handleCopy}
             onSendToMaster={handleSendToMaster}
@@ -195,7 +202,8 @@ export default function QuoteCalculator() {
                   loadingPort={cargo.loadingPort}
                   dischargePort={cargo.dischargePort}
                   etd={cargo.etd}
-                  packUnit={product.packUnit}
+                  packUnit={calc.pack.packUnit}
+                  market={calc.market}
                   quote={quote}
                   disabled={!quote.ready}
                 />

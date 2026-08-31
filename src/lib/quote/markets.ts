@@ -43,6 +43,13 @@ export interface Market {
    * which is what makes a one-price market's 20% actually mean 20%.
    */
   markupBase: "goods" | "landed";
+  /**
+   * Route a fresh quote starts on, as stored port/place values. Absent on the
+   * Gulf, which takes its default from the contract defaults (see
+   * `defaultRoute()` in quote-text.ts) — kept there rather than here to avoid a
+   * cycle, since quote-text imports this module.
+   */
+  defaultRoute?: { loadingPort: string; dischargePort: string };
   /** Offered quote languages, most likely first. */
   langs: QuoteLang[];
   /** The standing cost lines, in the order the team thinks about them. */
@@ -104,6 +111,8 @@ export const MARKETS: Record<MarketId, Market> = {
     destinations: "overland",
     priceShape: "delivered",
     markupBase: "landed",
+    // Values as OVERLAND_PLACES stores them — see formatPortValue.
+    defaultRoute: { loadingPort: "KHORGOS, KAZAKHSTAN", dischargePort: "FOOD CITY (MOSCOW), RUSSIA" },
     langs: ["ru", "en"],
     costLines: russianCostLines,
     usdExpected: ["border", "transit", "bank"],

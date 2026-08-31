@@ -8,6 +8,7 @@ import { convertFromUSD } from "@/lib/quote/pricing";
 import { qty, usd, usd0 } from "@/lib/money";
 import type { QuoteIssue } from "@/types/quote";
 import type { QuoteLang } from "@/lib/quote/storage";
+import type { Market } from "@/lib/quote/markets";
 import { cn } from "@/lib/utils";
 import { useT, useTeamFormat } from "@/lib/team-i18n";
 
@@ -39,6 +40,8 @@ interface Props {
   fx: FxRates;
   lang: QuoteLang;
   onLangChange: (lang: QuoteLang) => void;
+  /** Drives the price labels, the offered languages and the riyal block. */
+  market: Market;
   onPreview: () => void;
   onCopy: () => void;
   onSendToMaster: () => void;
@@ -53,6 +56,13 @@ interface Props {
  * the sticky column — not below a re-listing of the costs, which the sheet on
  * the left already itemises.
  */
+/** Quote-language button labels, each written in its own script. */
+const LANG_LABEL: Record<QuoteLang, (t: ReturnType<typeof useT<"calc">>) => string> = {
+  en: (t) => t("langEn"),
+  ar: (t) => t("langAr"),
+  ru: (t) => t("langRu"),
+};
+
 export default function PricePanel({
   quote,
   scenarios,
@@ -61,6 +71,7 @@ export default function PricePanel({
   fx,
   lang,
   onLangChange,
+  market,
   onPreview,
   onCopy,
   onSendToMaster,
@@ -68,6 +79,8 @@ export default function PricePanel({
   offerPdf,
 }: Props) {
   const t = useT("calc");
+  // A delivered-price market quotes one figure; the labels say so.
+  const delivered = market.priceShape === "delivered";
   const errors = quote.issues.filter((i) => i.level === "error");
   const warnings = quote.issues.filter((i) => i.level === "warning");
   const blocked = !quote.ready;
@@ -95,7 +108,9 @@ export default function PricePanel({
           not jump once the inputs are complete. */}
       <div className={cn("px-5 pt-3 pb-5", blocked && "opacity-45")}>
         <dl>
-          <dt className="text-sm text-slate-600 dark:text-slate-400">{t("cifPricePerMt")}</dt>
+          <dt className="text-sm text-slate-600 dark:text-slate-400">
+            {delivered ? t("deliveredPricePerMt") : t("cifPricePerMt")}
+          </dt>
           <dd className="mt-0.5 font-mono text-[2.75rem] leading-none font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400">
             {usd0(quote.quotedPerMT)}
           </dd>
@@ -128,14 +143,18 @@ export default function PricePanel({
                 quote.fobPerCarton !== null && "mt-1.5 border-t border-foreground/10 pt-1.5"
               )}
             >
-              <dt className="font-medium">{t("cifPerCarton")}</dt>
+              <dt className="font-medium">
+                {delivered ? t("deliveredPerCarton") : t("cifPerCarton")}
+              </dt>
               <dd className="font-mono font-semibold tabular-nums">{usd(quote.cifPerCarton)}</dd>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <dt className="text-slate-600 dark:text-slate-400">{t("totalCif")}</dt>
+              <dt className="text-slate-600 dark:text-slate-400">
+                {delivered ? t("totalDelivered") : t("totalCif")}
+              </dt>
               <dd className="font-mono font-medium tabular-nums">{usd0(quote.quotedTotal)}</dd>
             </div>
             {quote.fobTotal !== null && (
@@ -158,7 +177,7 @@ export default function PricePanel({
               </dd>
             </div>
 
-            {sarPerCarton !== null && sarTotal !== null && (
+            {market.id === "gulf" && sarPerCarton !== null && sarTotal !== null && (
               <div className="col-span-2 border-t border-foreground/10 pt-2">
                 <dt className="text-slate-600 dark:text-slate-400">
                   {t("inRiyal")} <span className="text-xs">· {t("riyalRate", { rate: fx.SAR })}</span>
@@ -285,7 +304,7 @@ export default function PricePanel({
             aria-label={t("quoteLanguage")}
             className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-zinc-800"
           >
-            {(["en", "ar"] as const).map((code) => (
+            {market.langs.map((code) => (
               <button
                 key={code}
                 type="button"
@@ -298,7 +317,7 @@ export default function PricePanel({
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 )}
               >
-                {code === "en" ? t("langEn") : t("langAr")}
+                {LANG_LABEL[code](t)}
               </button>
             ))}
           </div>

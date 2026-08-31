@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { FileDown, Loader2 } from "lucide-react";
 import type { Quote } from "@/types/quote";
+import type { Market } from "@/lib/quote/markets";
 import { Button } from "@/components/ui/button";
 import { saveBlobWithDownload, saveBlobWithPicker, supportsSaveFilePicker } from "@/lib/quick-share/save-file";
 import { useT } from "@/lib/team-i18n";
@@ -21,6 +22,8 @@ interface Props {
   etd: string;
   /** "carton" / "mesh bag" — pluralised for display. */
   packUnit: string;
+  /** Drives the incoterms and the carriage caveat on the letterhead. */
+  market: Market;
   quote: Quote;
   disabled?: boolean;
 }
@@ -42,6 +45,7 @@ export default function PriceOfferDownload({
   dischargePort,
   etd,
   packUnit,
+  market,
   quote,
   disabled,
 }: Props) {
@@ -63,7 +67,7 @@ export default function PriceOfferDownload({
 
       const blob = await pdf(
         <PriceOfferPDF
-          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, quote }}
+          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, quote }}
         />
       ).toBlob();
 
@@ -78,7 +82,7 @@ export default function PriceOfferDownload({
     } finally {
       setBusy(false);
     }
-  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, quote, t]);
+  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, quote, t]);
 
   return (
     <>
