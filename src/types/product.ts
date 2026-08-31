@@ -1,3 +1,24 @@
+/**
+ * A product's pack format in one market, overriding the row's default columns.
+ * Every field is optional and falls through independently — a market that only
+ * changes the box count keeps the product's weights.
+ */
+export interface MarketPack {
+  /** Boxes/bags that fill one container in this market. */
+  cartons?: number;
+  /** Net kg per unit. */
+  nw?: number;
+  /** Gross kg per unit. */
+  gw?: number;
+  packUnit?: string;
+  packUnitAr?: string;
+  /**
+   * Published per-ton transit tax for this commodity in this market, in USD.
+   * Seeds the `transit` cost line. Russia only; 0 or absent elsewhere.
+   */
+  transitTaxPerMT?: number;
+}
+
 export interface ProductProfile {
   id: string;
   name: string;
@@ -22,6 +43,11 @@ export interface ProductProfile {
   defaultPriceMT: number;
   containerType: string;
   notes: string;
+  /**
+   * Pack format per market, keyed by market id (products.market_packs). The
+   * columns above stay the DEFAULT pack, which is the Gulf one.
+   */
+  marketPacks: Record<string, MarketPack>;
 }
 
 export interface PriceHistoryEntry {

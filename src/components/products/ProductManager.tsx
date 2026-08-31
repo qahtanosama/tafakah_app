@@ -115,6 +115,7 @@ export default function ProductManager() {
     setEditing({
       id: crypto.randomUUID(), name: "", nameAr: "", hsCode: "", prefix: "",
       defaultNW: 0, defaultGW: 0, defaultCartons: 0, packUnit: "carton", packUnitAr: "كرتون",
+      marketPacks: {},
       defaultPriceMT: 0, containerType: "40'RH", notes: "",
     });
     setIsNew(true);

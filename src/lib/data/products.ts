@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ProductProfile } from "@/types/product";
+import type { MarketPack, ProductProfile } from "@/types/product";
 import { createClient } from "@/lib/supabase/client";
 import { withRetryQueue } from "@/lib/db/helpers";
 
@@ -21,6 +21,7 @@ interface DbProduct {
   default_price_mt: number;
   container_type: string;
   notes: string;
+  market_packs: Record<string, MarketPack> | null;
   created_at: string;
   updated_at: string;
 }
@@ -40,6 +41,7 @@ function dbToLocal(row: DbProduct): ProductProfile {
     defaultPriceMT: Number(row.default_price_mt ?? 0),
     containerType: row.container_type ?? "",
     notes: row.notes ?? "",
+    marketPacks: row.market_packs ?? {},
   };
 }
 
@@ -59,6 +61,7 @@ function localToDb(p: ProductProfile): Omit<DbProduct, "created_at" | "updated_a
     default_price_mt: p.defaultPriceMT,
     container_type: p.containerType,
     notes: p.notes,
+    market_packs: p.marketPacks ?? {},
   };
 }
 
@@ -115,6 +118,7 @@ export function useSaveProduct() {
               default_price_mt: row.default_price_mt,
               container_type: row.container_type,
               notes: row.notes,
+              market_packs: row.market_packs,
             })
             .eq("id", product.id)
             .select()
