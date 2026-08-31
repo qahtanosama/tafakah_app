@@ -63,6 +63,34 @@ export function arabicProductName(name: string, nameAr?: string): string {
 }
 
 /**
+ * Russian names for rows added before the products table carried one. Keyed on
+ * the English name, which every product has.
+ */
+const RU_PRODUCT: Record<string, string> = {
+  "Fresh Garlic": "Чеснок свежий",
+  "Fresh Ginger": "Имбирь свежий",
+  "Fresh Kiwi": "Киви свежий",
+  "Fresh Apple": "Яблоко свежее",
+  "Fresh Onion": "Лук свежий",
+  "Fresh Lemon": "Лимон свежий",
+  "FRESH CARROTS": "Морковь свежая",
+};
+
+/** Matches on a substring so "Fresh Garlic-Mesh" resolves like "Fresh Garlic". */
+export function russianProductName(name: string): string {
+  const hit = Object.keys(RU_PRODUCT).find((k) => name.toLowerCase().includes(k.toLowerCase()));
+  return hit ? RU_PRODUCT[hit] : name;
+}
+
+/**
+ * Russian counts take the genitive plural after any number above four, which is
+ * the only range these box counts ever hit — so one form each is enough.
+ * "коробок" after the count, "коробку" after the preposition "за".
+ */
+const RU_UNIT = "коробок";
+const RU_UNIT_GEN = "коробку";
+
+/**
  * The one emoji a quote carries: the goods themselves, so a buyer scrolling a
  * WhatsApp thread of offers can tell at a glance which one this is.
  *
@@ -126,6 +154,8 @@ export interface QuoteTextInput {
    */
   packUnit?: string;
   packUnitAr?: string;
+  /** Drives the incoterms, the destination vocabulary and the caveat. */
+  market: Market;
   quote: Quote;
 }
 
@@ -286,7 +316,11 @@ export function quoteTerms(
  */
 export function buildQuoteText(input: QuoteTextInput): string {
   const { quote, containers, gwPerCarton } = input;
-  const { fob: fobTerm, cif: cifTerm } = quoteTerms(input.loadingPort, input.dischargePort);
+  const { base: baseTerm, delivered: deliveredTerm } = quoteTerms(
+    input.market,
+    input.loadingPort,
+    input.dischargePort
+  );
   const cartons = qty(quote.totals.cartons);
   const unit = input.packUnit?.trim() || "carton";
   const unitAr = input.packUnitAr?.trim() || "كرتون";
@@ -315,12 +349,36 @@ export function buildQuoteText(input: QuoteTextInput): string {
       `ETD: ${formatEtd(input.etd)}`,
       "",
       // Omitted on a delivered-price market, which quotes one figure.
-      ...(quote.fobPerCarton !== null ? [`*${fobTerm}* ${usd(quote.fobPerCarton)}/${unitAr}`] : []),
-      `*${cifTerm}* ${usd(quote.cifPerCarton)}/${unitAr}`,
+      ...(quote.fobPerCarton !== null ? [`*${baseTerm}* ${usd(quote.fobPerCarton)}/${unitAr}`] : []),
+      `*${deliveredTerm}* ${usd(quote.cifPerCarton)}/${unitAr}`,
       `= ${usd0(quote.quotedPerMT)} لكل طن`,
-      `*الإجمالي* ${usd0(quote.quotedTotal)} (${cifTerm})`,
+      `*الإجمالي* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
       "",
       `أجور الشحن البحري متغيرة — سعر CIF يُعاد تأكيده عند الحجز. سعر FOB ثابت لمدة ${QUOTE_VALID_DAYS} أيام.`,
+      "",
+      WEBSITE,
+    ].join("\n");
+  }
+
+  if (input.lang === "ru") {
+    const product = russianProductName(productName);
+    return [
+      `*${BRAND}* — Коммерческое предложение`,
+      "",
+      `${emoji}*${product}*`,
+      `${containers} × ${CONTAINER_TYPE} · ${cartons} ${RU_UNIT}`,
+      `${qty(gwPerCarton, 1)} кг брутто за ${RU_UNIT_GEN}`,
+      // Overland: the cargo is dispatched from the factory, not sailed.
+      `Отгрузка: ${formatEtd(input.etd)}`,
+      "",
+      // One delivered price. The whole quote is repriced weekly, so a second
+      // figure would read as a competing offer rather than the same one
+      // restated in another unit.
+      `*${deliveredTerm}* ${usd(quote.cifPerCarton)}/${RU_UNIT_GEN}`,
+      `= ${usd0(quote.quotedPerMT)} за тонну`,
+      `*Итого* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
+      "",
+      `Стоимость перевозки меняется — цена подтверждается при бронировании. Предложение действительно ${QUOTE_VALID_DAYS} дней.`,
       "",
       WEBSITE,
     ].join("\n");
@@ -335,10 +393,10 @@ export function buildQuoteText(input: QuoteTextInput): string {
     `ETD: ${formatEtd(input.etd)}`,
     "",
     // Omitted on a delivered-price market, which quotes one figure.
-    ...(quote.fobPerCarton !== null ? [`*${fobTerm}* ${usd(quote.fobPerCarton)}/${unit}`] : []),
-    `*${cifTerm}* ${usd(quote.cifPerCarton)}/${unit}`,
+    ...(quote.fobPerCarton !== null ? [`*${baseTerm}* ${usd(quote.fobPerCarton)}/${unit}`] : []),
+    `*${deliveredTerm}* ${usd(quote.cifPerCarton)}/${unit}`,
     `= ${usd0(quote.quotedPerMT)} per MT`,
-    `*Total* ${usd0(quote.quotedTotal)} (${cifTerm})`,
+    `*Total* ${usd0(quote.quotedTotal)} (${deliveredTerm})`,
     "",
     `Sea freight is unstable — CIF is re-confirmed at booking. FOB is firm for ${QUOTE_VALID_DAYS} days.`,
     "",
