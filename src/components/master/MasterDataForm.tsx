@@ -1263,6 +1263,11 @@ export default function MasterDataForm() {
                       email: picked.email,
                       ...(picked.stampUrl ? { stamp: picked.stampUrl } : {}),
                     },
+                    // The account follows the company. Invoicing as one entity
+                    // while asking for payment into another's account is the
+                    // kind of error that costs a shipment, so this is not left
+                    // to whoever remembers to change it.
+                    bank: picked.bank.account ? picked.bank : prev.bank,
                   }));
                 }}
                 className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-zinc-800"
@@ -1275,8 +1280,8 @@ export default function MasterDataForm() {
                 ))}
               </select>
               <p className="mt-1 text-xs text-slate-500">
-                Sets the letterhead, the signature block and the seller details on every document
-                for this contract.
+                Sets the letterhead, the signature block, the seller details and the bank
+                account on every document for this contract.
               </p>
             </div>
           )}

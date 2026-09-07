@@ -106,6 +106,11 @@ export default function EntityManager() {
               </div>
               {e.nameCn && <p className="mt-0.5 truncate text-sm text-slate-500">{e.nameCn}</p>}
               <p className="mt-0.5 truncate text-xs text-slate-500">{e.addressLines.join(" ")}</p>
+              {e.bank.account && (
+                <p className="mt-0.5 truncate font-mono text-xs text-slate-500">
+                  {e.bank.bank} · {e.bank.account}
+                </p>
+              )}
             </div>
             <div className="flex shrink-0 gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditing(e)}>
@@ -219,6 +224,43 @@ export default function EntityManager() {
                 busy={uploading === "stamp"}
                 onPick={(f) => pickAsset("stamp", f)}
               />
+            </Field>
+
+            {/* Where the buyer pays this company. Per entity because each one
+                banks under its own account — invoicing as one company while
+                asking for payment into another's is a costly mistake. */}
+            <Field full>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-white/10">
+                <Label className="mb-2 block text-sm font-semibold">Bank details</Label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      ["beneficiary", "Beneficiary", "Dar Chang (Shanghai) Co., Ltd"],
+                      ["account", "Account No.", "56512020010090000567"],
+                      ["bank", "Bank", "Zhejiang Chouzhou Commercial Bank Co., Ltd"],
+                      ["swift", "SWIFT", "CZCBCN2X"],
+                      ["bankAddress", "Bank address", "Yiwu Leyuan East Jiangbin Road, Yiwu, Zhejiang, China"],
+                      ["postCode", "Post code", "322100"],
+                    ] as const
+                  ).map(([key, label, placeholder]) => (
+                    <div key={key}>
+                      <Label className="mb-1 block text-xs">{label}</Label>
+                      <Input
+                        value={editing.bank[key]}
+                        placeholder={placeholder}
+                        onChange={(ev) =>
+                          setEditing({ ...editing, bank: { ...editing.bank, [key]: ev.target.value } })
+                        }
+                        className="h-10"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Printed on the contract and invoice, and set automatically when this company is
+                  chosen on Master Data.
+                </p>
+              </div>
             </Field>
 
             <Field full>

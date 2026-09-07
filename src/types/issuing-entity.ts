@@ -1,3 +1,5 @@
+import type { BankDetails } from "@/types/sales-contract";
+
 /**
  * The company whose name is on the document.
  *
@@ -9,6 +11,15 @@
  * two ways: the letterhead in title case across three blocks, the contract body
  * and signature in the uppercase house style those clauses use.
  */
+/**
+ * Where a buyer pays this company.
+ *
+ * Deliberately the same shape as BankDetails in types/sales-contract.ts — that
+ * is what the contract already prints, so picking an entity can set the
+ * contract's bank block wholesale with no mapping.
+ */
+export type EntityBankDetails = BankDetails;
+
 export interface IssuingEntity {
   id: string;
   /** Letterhead, left block. */
@@ -22,6 +33,12 @@ export interface IssuingEntity {
   legalAddress: string;
   tel: string;
   email: string;
+  /**
+   * Where the buyer pays. Per entity, not global: each company banks under its
+   * own account, and invoicing as one company while asking for payment into
+   * another's account is the kind of error that costs a shipment.
+   */
+  bank: EntityBankDetails;
   /** A path under /public, or a full URL from the entity-assets bucket. */
   logoUrl: string;
   stampUrl: string;
@@ -40,6 +57,7 @@ export function emptyIssuingEntity(): IssuingEntity {
     legalAddress: "",
     tel: "",
     email: "",
+    bank: { swift: "", beneficiary: "", account: "", bank: "", bankAddress: "", postCode: "" },
     logoUrl: "",
     stampUrl: "",
     isDefault: false,

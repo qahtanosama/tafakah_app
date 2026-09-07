@@ -15,6 +15,11 @@ describe("the built-in entity", () => {
     expect(TAFAKAH_ENTITY.email).toBe(seller.email);
   });
 
+  it("matches the bank block the contract defaults already use", () => {
+    // Same reasoning: the account a buyer pays into was written down twice.
+    expect(TAFAKAH_ENTITY.bank).toEqual(getDefaultContractData().bank);
+  });
+
   it("reproduces the letterhead that shipped before entities existed", () => {
     expect(TAFAKAH_ENTITY.name).toBe("TAFAKAH Food (Shanghai) Co., Ltd.");
     expect(TAFAKAH_ENTITY.nameCn).toBe("泰福凯食品贸易（上海）有限公司");

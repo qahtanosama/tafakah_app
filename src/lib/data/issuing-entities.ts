@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { IssuingEntity } from "@/types/issuing-entity";
+import type { EntityBankDetails, IssuingEntity } from "@/types/issuing-entity";
 import { createClient } from "@/lib/supabase/client";
 import { withRetryQueue } from "@/lib/db/helpers";
 
@@ -20,6 +20,7 @@ interface DbIssuingEntity {
   legal_address: string;
   tel: string | null;
   email: string | null;
+  bank: Partial<EntityBankDetails> | null;
   logo_url: string | null;
   stamp_url: string | null;
   is_default: boolean;
@@ -36,6 +37,14 @@ function dbToLocal(row: DbIssuingEntity): IssuingEntity {
     legalAddress: row.legal_address,
     tel: row.tel ?? "",
     email: row.email ?? "",
+    bank: {
+      swift: row.bank?.swift ?? "",
+      beneficiary: row.bank?.beneficiary ?? "",
+      account: row.bank?.account ?? "",
+      bank: row.bank?.bank ?? "",
+      bankAddress: row.bank?.bankAddress ?? "",
+      postCode: row.bank?.postCode ?? "",
+    },
     logoUrl: row.logo_url ?? "",
     stampUrl: row.stamp_url ?? "",
     isDefault: Boolean(row.is_default),
@@ -53,6 +62,7 @@ function localToDb(e: IssuingEntity): Omit<DbIssuingEntity, "id"> & { id?: strin
     legal_address: e.legalAddress.trim(),
     tel: e.tel.trim(),
     email: e.email.trim(),
+    bank: e.bank,
     logo_url: e.logoUrl.trim(),
     stamp_url: e.stampUrl.trim(),
     is_default: e.isDefault,
