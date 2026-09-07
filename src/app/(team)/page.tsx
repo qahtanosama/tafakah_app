@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
+import { Building2,
   ClipboardList, Database, FileSearch, FileText, Package, Users, ShoppingCart, Wallet, Calculator,
   Receipt, ScrollText, ArrowRight, PenLine, Merge, Ship, Factory, Sparkles, ChevronRight, CalendarClock
 } from "lucide-react";
@@ -37,6 +37,7 @@ const sections = [
     items: [
       { title: "Buyers", description: "Manage buyer/consignee database", icon: Users, href: "/buyers" },
       { title: "Sellers / Factories", description: "Manage factory & supplier database", icon: Factory, href: "/sellers" },
+      { title: "Our Companies", description: "Companies documents are issued under", icon: Building2, href: "/entities" },
       { title: "Products", description: "Product specs & pricing history", icon: ShoppingCart, href: "/products" },
       { title: "Quote Calculator", description: "Calculate pricing & profit margins", icon: Calculator, href: "/products/calculator" },
     ],

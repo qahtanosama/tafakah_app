@@ -28,7 +28,7 @@ export default function PackingListPDF({ data, totals, contractNumber, invoiceNu
   return (
     <Document>
       <Page size="A4" style={s.page} wrap>
-        <Letterhead />
+        <Letterhead entity={data.letterhead} />
         <Footer />
 
         <Text style={s.title}>PACKING LIST</Text>

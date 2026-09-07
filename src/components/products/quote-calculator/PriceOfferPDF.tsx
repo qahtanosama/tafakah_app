@@ -6,6 +6,7 @@ import { getDefaultContractData } from "@/lib/sales-contract";
 import { CONTAINER_TYPE } from "@/lib/quote/defaults";
 import { QUOTE_BRAND, QUOTE_VALID_DAYS, formatEtd, quoteTerms } from "@/lib/quote/quote-text";
 import type { Market } from "@/lib/quote/markets";
+import type { IssuingEntity } from "@/types/issuing-entity";
 import { qty, usd, usd0 } from "@/lib/money";
 
 /**
@@ -112,6 +113,8 @@ export interface PriceOfferData {
   market: Market;
   /** How the buyer pays — printed in English, as the rest of this document is. */
   paymentTerms?: string;
+  /** The company issuing this offer. Absent falls back to the built-in default. */
+  entity?: IssuingEntity;
   quote: Quote;
 }
 
@@ -137,7 +140,7 @@ export default function PriceOfferPDF({ data }: { data: PriceOfferData }) {
           both are `fixed`, and this is the order the contract and invoice PDFs
           use. Putting Footer last renders nothing at all. */}
       <Page size="A4" style={s.page} wrap>
-        <Letterhead />
+        <Letterhead entity={data.entity} />
         <View style={o.footer} fixed>
           <Text style={o.footerText}>
             {QUOTE_BRAND.website} | {QUOTE_BRAND.email} | {seller.company}

@@ -1,3 +1,4 @@
+import type { IssuingEntity } from "@/types/issuing-entity";
 export interface LineItem {
   id: string;
   product: Product | "";
@@ -125,6 +126,18 @@ export interface SalesContractData {
   terms: TermsInfo;
   /** Optional link to the Seller/Factory database record. Older contracts do not have this. */
   sellerId?: string;
+  /**
+   * The company this document is issued under, snapshotted at the time it was
+   * created — not a reference to a row.
+   *
+   * A contract must print the entity as it stood when it was signed. Looking
+   * the id up at render time would mean a renamed or deleted company silently
+   * rewrote the header of a document already with a buyer or with customs.
+   * Absent on every document created before entities existed, which is exactly
+   * right: Letterhead falls back to the built-in TAFAKAH record and they print
+   * unchanged.
+   */
+  letterhead?: IssuingEntity;
   /** Stage tracker. Older contracts default to "docs-generated" on read via defaultWorkflow(). */
   workflow?: ContractWorkflow;
   /**

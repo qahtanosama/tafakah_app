@@ -22,7 +22,7 @@ export default function SalesContractPDF({ data, totals, contractNumber }: Props
   return (
     <Document>
       <Page size="A4" style={[s.page, { paddingBottom: 42 }]} wrap>
-        <Letterhead />
+        <Letterhead entity={data.letterhead} />
         <Footer />
 
         <Text style={s.title}>SALES CONTRACT</Text>

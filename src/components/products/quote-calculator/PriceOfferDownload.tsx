@@ -5,6 +5,7 @@ import { pdf } from "@react-pdf/renderer";
 import { FileDown, Loader2 } from "lucide-react";
 import type { Quote } from "@/types/quote";
 import type { Market } from "@/lib/quote/markets";
+import type { IssuingEntity } from "@/types/issuing-entity";
 import { Button } from "@/components/ui/button";
 import { saveBlobWithDownload, saveBlobWithPicker, supportsSaveFilePicker } from "@/lib/quick-share/save-file";
 import { useT } from "@/lib/team-i18n";
@@ -26,6 +27,8 @@ interface Props {
   market: Market;
   /** How the buyer pays — printed in English, as the rest of the PDF is. */
   paymentTerms?: string;
+  /** The company issuing this offer. */
+  entity?: IssuingEntity;
   quote: Quote;
   disabled?: boolean;
 }
@@ -49,6 +52,7 @@ export default function PriceOfferDownload({
   packUnit,
   market,
   paymentTerms,
+  entity,
   quote,
   disabled,
 }: Props) {
@@ -70,7 +74,7 @@ export default function PriceOfferDownload({
 
       const blob = await pdf(
         <PriceOfferPDF
-          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, paymentTerms, quote }}
+          data={{ offerNo, date, productName, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, paymentTerms, entity, quote }}
         />
       ).toBlob();
 
@@ -85,7 +89,7 @@ export default function PriceOfferDownload({
     } finally {
       setBusy(false);
     }
-  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, paymentTerms, quote, t]);
+  }, [productName, productPrefix, containers, cartons, gwPerCarton, loadingPort, dischargePort, etd, packUnit, market, paymentTerms, entity, quote, t]);
 
   return (
     <>

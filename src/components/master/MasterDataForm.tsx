@@ -26,6 +26,7 @@ import {
 import PortCombobox from "@/components/ui/port-combobox";
 import BuyerCombobox from "@/components/ui/buyer-combobox";
 import PaymentTermsEditor from "@/components/master/PaymentTermsEditor";
+import { useIssuingEntities } from "@/lib/data/issuing-entities";
 import {
   Plus,
   Trash2,
@@ -134,6 +135,11 @@ export default function MasterDataForm() {
   const [lockedNumbers, setLockedNumbers] = useState<{ contractNo: string; invoiceNo: string } | null>(null);
 
   const [data, setData] = useState<SalesContractData>(getDefaultContractData);
+
+  // The companies we issue documents under. Only surfaced once there is more
+  // than one — a single-entity team has no choice to make.
+  const { data: entitiesData } = useIssuingEntities();
+  const issuingEntities = entitiesData ?? [];
   const [loaded, setLoaded] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [toast, setToast] = useState<{
@@ -1230,6 +1236,50 @@ export default function MasterDataForm() {
             onChange={(v) => update("terms", "paymentTerms", v)}
             dischargePort={data.shipping.dischargePort}
           />
+
+          {/* Which of our companies issues this document. The chosen entity is
+              SNAPSHOTTED onto the contract rather than referenced, so a company
+              later renamed or removed cannot rewrite the header of a document
+              already with a buyer. */}
+          {issuingEntities.length > 1 && (
+            <div className="mt-6 border-t border-slate-100 pt-4 dark:border-white/5">
+              <Label className="mb-1.5 block text-sm font-semibold">Issued by</Label>
+              <select
+                value={data.letterhead?.id ?? (issuingEntities.find((e) => e.isDefault)?.id ?? "")}
+                aria-label="Company this document is issued under"
+                onChange={(e) => {
+                  const picked = issuingEntities.find((x) => x.id === e.target.value);
+                  if (!picked) return;
+                  setData((prev) => ({
+                    ...prev,
+                    letterhead: picked,
+                    // The body and signature follow the letterhead, so the
+                    // header and the company that signs cannot disagree.
+                    seller: {
+                      ...prev.seller,
+                      company: picked.legalName,
+                      address: picked.legalAddress,
+                      tel: picked.tel,
+                      email: picked.email,
+                      ...(picked.stampUrl ? { stamp: picked.stampUrl } : {}),
+                    },
+                  }));
+                }}
+                className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-zinc-800"
+              >
+                {issuingEntities.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                    {e.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Sets the letterhead, the signature block and the seller details on every document
+                for this contract.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

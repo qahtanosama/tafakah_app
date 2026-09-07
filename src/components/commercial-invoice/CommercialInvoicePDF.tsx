@@ -31,7 +31,7 @@ export default function CommercialInvoicePDF({
   return (
     <Document>
       <Page size="A4" style={s.page} wrap>
-        <Letterhead />
+        <Letterhead entity={data.letterhead} />
         <Footer />
 
         <Text style={s.title}>{title}</Text>

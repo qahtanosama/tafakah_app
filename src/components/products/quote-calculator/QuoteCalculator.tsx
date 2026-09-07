@@ -17,6 +17,8 @@ import QuotePreview from "./QuotePreview";
 import SessionHistory from "./SessionHistory";
 import Toast from "./Toast";
 import { useQuoteCalculator } from "./useQuoteCalculator";
+import { useIssuingEntities } from "@/lib/data/issuing-entities";
+import { resolveEntity } from "@/lib/issuing-entities";
 import { useT } from "@/lib/team-i18n";
 
 const COPIED_MS = 2000;
@@ -40,6 +42,12 @@ export default function QuoteCalculator() {
   const [toast, setToast] = useState<string | null>(null);
 
   const { cargo, product, quote, lang } = calc;
+
+  // The company the offer goes out under. The calculator has no picker: an
+  // offer is always issued by the default entity, and the choice is made on
+  // the contract, where it is snapshotted and legally matters.
+  const { data: entitiesData } = useIssuingEntities();
+  const issuingEntity = resolveEntity(entitiesData);
 
   const scenarios = useMemo(
     () => marginScenarios(quote.costPerMT, quote.totals, cargo.nwPerCarton, SCENARIO_MARGINS),
@@ -211,6 +219,7 @@ export default function QuoteCalculator() {
                   packUnit={calc.pack.packUnit}
                   market={calc.market}
                   paymentTerms={calc.paymentTerm.text.en}
+                  entity={issuingEntity}
                   quote={quote}
                   disabled={!quote.ready}
                 />
