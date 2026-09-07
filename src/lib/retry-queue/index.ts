@@ -5,7 +5,7 @@ import { openDB, type IDBPDatabase } from "idb";
 export type QueuedEntity =
   | "products" | "buyers" | "sellers"
   | "contracts" | "contract_finance" | "contract_shipping" | "contract_documents"
-  | "users_profile" | "product_cost_sheets";
+  | "users_profile" | "product_cost_sheets" | "issuing_entities";
 
 export type QueuedOperation = "insert" | "update" | "delete" | "upsert";
 
