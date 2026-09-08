@@ -40,16 +40,6 @@ create table if not exists public.issuing_entities (
   tel           text not null default '',
   email         text not null default '',
 
-  -- Where the buyer pays. Same shape as BankDetails in types/sales-contract.ts,
-  -- which is what the contract already prints:
-  --   { swift, beneficiary, account, bank, bankAddress, postCode }
-  --
-  -- Per entity, not global. Each company banks under its own account, and
-  -- invoicing as one company while asking for payment into another's account
-  -- is the kind of error that costs a shipment. Picking an entity on Master
-  -- Data sets this block along with the letterhead.
-  bank          jsonb not null default '{}'::jsonb,
-
   -- Either a path under /public ("/logo.png") or a full URL from the
   -- entity-assets bucket. Letterhead resolves both — see resolveAsset().
   logo_url      text not null default '',
@@ -88,7 +78,7 @@ create trigger trg_issuing_entities_updated_at
 -- reading the header from this row reproduces today's output character for
 -- character. src/lib/issuing-entities.test.ts pins that.
 insert into public.issuing_entities
-  (name, name_cn, address_lines, legal_name, legal_address, tel, email, bank, logo_url, is_default, sort_order)
+  (name, name_cn, address_lines, legal_name, legal_address, tel, email, logo_url, is_default, sort_order)
 select
   'TAFAKAH Food (Shanghai) Co., Ltd.',
   '泰福凯食品贸易（上海）有限公司',
@@ -97,45 +87,10 @@ select
   'ROOM 116, BUILDING 1, 258-288 YOUDONG ROAD, MINHANG DISTRICT, SHANGHAI, CHINA',
   '+86 187 2116 0270',
   'Info@taifukai.com',
-  -- Copied from getDefaultContractData().bank, unchanged.
-  '{"swift": "CZCBCN2X",
-    "beneficiary": "TAFAKAH Food (Shanghai) CO., LTD",
-    "account": "56512142010360000033",
-    "bank": "Zhejiang Chouzhou Commercial Bank Co., Ltd",
-    "bankAddress": "Yiwu Leyuan East Jiangbin Road, Yiwu, Zhejiang, China",
-    "postCode": "322100"}'::jsonb,
   '/logo.png',
   true,
   0
 where not exists (select 1 from public.issuing_entities);
-
--- ─── the second entity ─────────────────────────────────────────────────────
--- Same bank and SWIFT as TAFAKAH, a DIFFERENT account number — which is
--- exactly why the bank block hangs off the entity rather than sitting global.
---
--- No Chinese name and no logo were supplied; both are left empty and can be
--- filled in on /entities. Letterhead simply omits the Chinese line and the
--- logo when they are blank, so the header renders correctly either way.
-insert into public.issuing_entities
-  (name, name_cn, address_lines, legal_name, legal_address, tel, email, bank, logo_url, is_default, sort_order)
-select
-  'Dar Chang (Shanghai) Co., Ltd',
-  null,
-  '["Building C, No. 888 Huanhu West Second Road,", "Lingang New Area,", "China (Shanghai) Pilot Free Trade Zone"]'::jsonb,
-  'DAR CHANG (SHANGHAI) CO., LTD',
-  'BUILDING C, NO. 888 HUANHU WEST SECOND ROAD, LINGANG NEW AREA, CHINA (SHANGHAI) PILOT FREE TRADE ZONE',
-  '+86 188 1666 0573',
-  'Info@taifukai.com',
-  '{"swift": "CZCBCN2X",
-    "beneficiary": "Dar Chang (Shanghai) Co., Ltd",
-    "account": "56512020010090000567",
-    "bank": "Zhejiang Chouzhou Commercial Bank Co., Ltd",
-    "bankAddress": "Yiwu Leyuan East Jiangbin Road, Yiwu, Zhejiang, China",
-    "postCode": "322100"}'::jsonb,
-  '',
-  false,
-  1
-where not exists (select 1 from public.issuing_entities where legal_name = 'DAR CHANG (SHANGHAI) CO., LTD');
 
 -- ─── logo / stamp uploads ──────────────────────────────────────────────────
 -- Public bucket: a letterhead logo is printed on documents that go to buyers
