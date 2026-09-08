@@ -12,7 +12,7 @@ export interface ActionResult {
   data?: { userId?: string; email?: string; password?: string };
 }
 
-export type Role = "super_admin" | "team" | "client";
+export type Role = "super_admin" | "team" | "client" | "assistant";
 
 export interface UserRow {
   user_id: string;
@@ -226,12 +226,23 @@ export async function toggleUserActive(userId: string, active: boolean): Promise
   return { ok: true };
 }
 
-export async function changeUserRole(userId: string, newRole: "team" | "client"): Promise<ActionResult> {
+/**
+ * `assistant` is assignable here: it grants strictly LESS than team, so making
+ * someone one can only ever narrow their access. `super_admin` stays SQL-only
+ * for the opposite reason — that one hands out everything.
+ */
+export async function changeUserRole(
+  userId: string,
+  newRole: "team" | "client" | "assistant"
+): Promise<ActionResult> {
   const guard = await requireSuperAdmin();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (userId === guard.userId) return { ok: false, error: "You cannot change your own role." };
-  if (newRole !== "team" && newRole !== "client") {
-    return { ok: false, error: "Role must be 'team' or 'client'. Promotion to 'super_admin' must be done via SQL." };
+  if (newRole !== "team" && newRole !== "client" && newRole !== "assistant") {
+    return {
+      ok: false,
+      error: "Role must be 'team', 'client' or 'assistant'. Promotion to 'super_admin' must be done via SQL.",
+    };
   }
 
   const admin = createAdminClient();

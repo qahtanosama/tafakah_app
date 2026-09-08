@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
+import { requireDocStaff } from "@/lib/auth/require-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   CONTRACT_DOCUMENTS_BUCKET,
@@ -13,19 +13,16 @@ export type UploadCertResult =
   | { ok: true; documentId: string; storagePath: string }
   | { ok: false; error: string };
 
+/**
+ * Filing a document is staff work: team, super_admin and assistant.
+ *
+ * This used to be a local check for `role === "team"` alone, which locked out
+ * super_admin — the same omission the contract-documents storage policies had.
+ * Both now go through the shared guard so there is one place to change.
+ */
 async function requireTeam(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
-  const supabase = await createServerClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return { ok: false, error: "Not signed in" };
-  const { data: profile } = await supabase
-    .from("users_profile")
-    .select("role, is_active")
-    .eq("user_id", userData.user.id)
-    .single();
-  if (!profile || profile.role !== "team" || !profile.is_active) {
-    return { ok: false, error: "Team access required" };
-  }
-  return { ok: true, userId: userData.user.id };
+  const guard = await requireDocStaff();
+  return guard.ok ? { ok: true, userId: guard.userId } : { ok: false, error: guard.error };
 }
 
 interface FinalizeInput {

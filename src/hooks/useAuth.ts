@@ -4,7 +4,17 @@ import { useEffect, useState, useCallback } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
-export type Role = "super_admin" | "team" | "client";
+export type Role = "super_admin" | "team" | "client" | "assistant";
+
+/**
+ * An assistant files documents and keeps shipment tracking current. She is
+ * deliberately NOT "team": the database grants her a named handful of tables
+ * and denies everything else, so anything gated on this flag is presentation
+ * only — the protection is in RLS.
+ */
+export function isAssistant(role: Role | null): boolean {
+  return role === "assistant";
+}
 
 export interface UserProfile {
   user_id: string;

@@ -44,6 +44,9 @@ const sections = [
   },
 ];
 
+/** The only tiles an assistant is shown — mirrors ASSISTANT_PATHS in proxy.ts. */
+const ASSISTANT_TILES = ["/documents", "/shipping", "/contract-log"];
+
 export default async function Home() {
   // Resolve role server-side so the page can decide whether to show the
   // super-admin hero. Middleware already gates access; this read is just for
@@ -51,7 +54,7 @@ export default async function Home() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
-  let role: "super_admin" | "team" | "client" | null = null;
+  let role: "super_admin" | "team" | "client" | "assistant" | null = null;
   let fullName: string | null = null;
   if (user) {
     const { data: profile } = await supabase
@@ -59,12 +62,25 @@ export default async function Home() {
       .select("role, full_name")
       .eq("user_id", user.id)
       .single();
-    role = (profile?.role as "super_admin" | "team" | "client" | undefined) ?? null;
+    role = (profile?.role as "super_admin" | "team" | "client" | "assistant" | undefined) ?? null;
     fullName = (profile?.full_name as string | null) ?? null;
   }
   // Safeguard: clients shouldn't reach here (middleware redirects), but if
   // they do (e.g. middleware bypass), bounce them out.
   if (role === "client") redirect("/portal");
+
+  // An assistant sees only the two screens she works in. Cosmetic — the proxy
+  // allowlist stops her reaching the rest, and RLS denies the data behind them
+  // regardless. Showing tiles that lead to a redirect would just be confusing.
+  const visibleSections =
+    role === "assistant"
+      ? sections
+          .map((sec) => ({
+            ...sec,
+            items: sec.items.filter((i) => ASSISTANT_TILES.includes(i.href)),
+          }))
+          .filter((sec) => sec.items.length > 0)
+      : sections;
 
   return (
     <div className="flex flex-col min-h-screen relative font-sans text-slate-900 dark:text-slate-100 selection:bg-indigo-500/30">
@@ -182,7 +198,7 @@ export default async function Home() {
 
         {/* Section Grid */}
         <div className="flex flex-col gap-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-500 fill-mode-both">
-          {sections.map((section) => (
+          {visibleSections.map((section) => (
             <section key={section.label} className="relative">
               <div className="flex items-center gap-4 mb-6">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">{section.label}</h3>

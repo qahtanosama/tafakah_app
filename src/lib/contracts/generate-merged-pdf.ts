@@ -1,7 +1,7 @@
 "use server";
 
 import React from "react";
-import { createClient as createServerClient } from "@/lib/supabase/server";
+import { requireDocStaff } from "@/lib/auth/require-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { renderReactPdfToBuffer } from "@/lib/pdf/render-server";
 import { mergePdfs, type MergeInput } from "@/lib/pdf/merge";
@@ -27,19 +27,13 @@ export type GenerateMergedPdfResult =
     }
   | { ok: false; error: string };
 
+/**
+ * Merging documents for a buyer is staff work: team, super_admin and assistant.
+ * Previously a local `role === "team"` check, which excluded super_admin.
+ */
 async function requireTeam(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const supabase = await createServerClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return { ok: false, error: "Not signed in" };
-  const { data: profile } = await supabase
-    .from("users_profile")
-    .select("role, is_active")
-    .eq("user_id", userData.user.id)
-    .single();
-  if (!profile || profile.role !== "team" || !profile.is_active) {
-    return { ok: false, error: "Team access required" };
-  }
-  return { ok: true };
+  const guard = await requireDocStaff();
+  return guard.ok ? { ok: true } : { ok: false, error: guard.error };
 }
 
 function isPdfFileName(name: string | null | undefined): boolean {

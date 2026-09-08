@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isAssistantPath } from "@/lib/auth/assistant-paths";
 import { createServerClient } from "@supabase/ssr";
 import createIntlMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
@@ -109,6 +110,18 @@ export async function proxy(req: NextRequest) {
     if (!isPortalPath(pathname)) {
       const target = profile.preferred_language === "ar" ? "/ar/portal" : "/portal";
       return NextResponse.redirect(new URL(target, req.url));
+    }
+  } else if (profile.role === "assistant") {
+    // An assistant files documents and keeps shipment tracking current. She is
+    // held to an ALLOWLIST rather than a list of blocked paths, so any screen
+    // added later is denied to her until someone decides otherwise — the same
+    // default-deny stance as her RLS policies.
+    //
+    // This is only the visible surface. The database is what actually protects
+    // the numbers: she has no policy on contract_finance or product_cost_sheets,
+    // so even reaching a page by hand returns nothing.
+    if (!isAssistantPath(pathname)) {
+      return NextResponse.redirect(new URL("/", req.url));
     }
   } else if (profile.role === "team" || profile.role === "super_admin") {
     // Both team and super_admin live on the team-side app. Bounce them out of

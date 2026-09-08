@@ -1,7 +1,9 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeamUser } from "@/lib/auth/require-team";
+// Container and B/L tracking is the assistant's job, so these use the staff
+// guard rather than the team one. Nothing in this file touches money.
+import { requireDocStaff } from "@/lib/auth/require-team";
 import {
   isValidContainerNumber,
   normalizeContainerNumber,
@@ -16,7 +18,7 @@ export async function updateContractContainers(params: {
   blNumber: string | null;
   containers: string[];
 }): Promise<UpdateContractContainersResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
 
   const normalized = params.containers
@@ -53,7 +55,7 @@ export async function getContractContainers(params: {
   | { ok: true; blNumber: string | null; containers: string[] }
   | { ok: false; error: string }
 > {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
 
   const supabase = createAdminClient();
@@ -89,7 +91,7 @@ export async function getContractIdByNo(params: {
 }): Promise<
   { ok: true; contractId: string } | { ok: false; error: string }
 > {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
 
   const supabase = createAdminClient();

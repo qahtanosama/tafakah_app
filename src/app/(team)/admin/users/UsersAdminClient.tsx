@@ -27,9 +27,10 @@ const ROLE_BADGE: Record<Role, string> = {
   super_admin: "border-purple-200 bg-purple-50 text-purple-700",
   team: "border-indigo-200 bg-indigo-50 text-indigo-700",
   client: "border-amber-200 bg-amber-50 text-amber-700",
+  assistant: "border-teal-200 bg-teal-50 text-teal-700",
 };
 
-type Filter = "all" | "super_admin" | "team" | "client";
+type Filter = "all" | "super_admin" | "team" | "client" | "assistant";
 
 export default function UsersAdminClient({
   users,
@@ -84,7 +85,7 @@ export default function UsersAdminClient({
     });
   }, []);
 
-  const handleRoleChange = useCallback((userId: string, newRole: "team" | "client") => {
+  const handleRoleChange = useCallback((userId: string, newRole: "team" | "client" | "assistant") => {
     if (!confirm(`Change this user's role to ${newRole}? This is logged.`)) return;
     startTransition(async () => {
       const r = await changeUserRole(userId, newRole);
@@ -127,7 +128,7 @@ export default function UsersAdminClient({
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1 rounded-lg border bg-white p-1 dark:bg-zinc-900">
-          {(["all", "super_admin", "team", "client"] as const).map((f) => (
+          {(["all", "super_admin", "team", "client", "assistant"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -256,13 +257,21 @@ export default function UsersAdminClient({
                         <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleToggle(u.user_id, u.is_active)}>
                           {u.is_active ? "Disable" : "Enable"}
                         </Button>
-                        {u.role === "team" ? (
-                          <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleRoleChange(u.user_id, "client")}>
-                            ↓ Client
-                          </Button>
-                        ) : (
+                        {/* Assistant sits between client and team: documents and
+                            shipment tracking, never costs, margin or payments. */}
+                        {u.role !== "team" && (
                           <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleRoleChange(u.user_id, "team")}>
                             ↑ Team
+                          </Button>
+                        )}
+                        {u.role !== "assistant" && (
+                          <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleRoleChange(u.user_id, "assistant")}>
+                            → Assistant
+                          </Button>
+                        )}
+                        {u.role !== "client" && (
+                          <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleRoleChange(u.user_id, "client")}>
+                            ↓ Client
                           </Button>
                         )}
                         <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleResetPassword(u.user_id, u.email)} className="gap-1">
