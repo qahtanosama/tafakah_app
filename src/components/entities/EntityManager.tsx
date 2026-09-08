@@ -149,14 +149,14 @@ export default function EntityManager() {
               <Input
                 value={editing.name}
                 onChange={(ev) => setEditing({ ...editing, name: ev.target.value })}
-                placeholder="e.g. NAWA FRESH Trading L.L.C."
+                placeholder="Company name, as it should print"
               />
             </Field>
             <Field label="Chinese name" hint="Optional — printed under the name.">
               <Input
                 value={editing.nameCn}
                 onChange={(ev) => setEditing({ ...editing, nameCn: ev.target.value })}
-                placeholder="泰福凯食品贸易（上海）有限公司"
+                placeholder="Chinese company name, if it has one"
               />
             </Field>
 
@@ -171,7 +171,7 @@ export default function EntityManager() {
                     key={i}
                     value={editing.addressLines[i] ?? ""}
                     aria-label={`Address line ${i + 1}`}
-                    placeholder={["Room 116, Building 1,", "258-288 Youdong Road,", "Minhang District, Shanghai, China"][i]}
+                    placeholder={`Address line ${i + 1}`}
                     onChange={(ev) => {
                       const lines = [...editing.addressLines];
                       while (lines.length < 3) lines.push("");
@@ -187,7 +187,7 @@ export default function EntityManager() {
               <Input
                 value={editing.legalName}
                 onChange={(ev) => setEditing({ ...editing, legalName: ev.target.value })}
-                placeholder="NAWA FRESH TRADING L.L.C."
+                placeholder="COMPANY NAME IN CAPITALS"
               />
             </Field>
             <Field label="Legal address" hint="Uppercase, one line.">
@@ -201,7 +201,7 @@ export default function EntityManager() {
               <Input
                 value={editing.tel}
                 onChange={(ev) => setEditing({ ...editing, tel: ev.target.value })}
-                placeholder="+971 ..."
+                placeholder="Telephone, with country code"
               />
             </Field>
             <Field label="Email">
@@ -235,12 +235,17 @@ export default function EntityManager() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {(
                     [
-                      ["beneficiary", "Beneficiary", "Dar Chang (Shanghai) Co., Ltd"],
-                      ["account", "Account No.", "56512020010090000567"],
-                      ["bank", "Bank", "Zhejiang Chouzhou Commercial Bank Co., Ltd"],
-                      ["swift", "SWIFT", "CZCBCN2X"],
-                      ["bankAddress", "Bank address", "Yiwu Leyuan East Jiangbin Road, Yiwu, Zhejiang, China"],
-                      ["postCode", "Post code", "322100"],
+                      // Placeholders DESCRIBE the field and never show sample
+                      // data. A real account number greyed into an empty box
+                      // reads as a value that is already set — which, on the
+                      // field that decides where a buyer wires money, is the
+                      // one place that must never be ambiguous.
+                      ["beneficiary", "Beneficiary", "Name on the account"],
+                      ["account", "Account No.", "Account number"],
+                      ["bank", "Bank", "Bank name"],
+                      ["swift", "SWIFT", "SWIFT / BIC code"],
+                      ["bankAddress", "Bank address", "Branch address"],
+                      ["postCode", "Post code", "Post code"],
                     ] as const
                   ).map(([key, label, placeholder]) => (
                     <div key={key}>
