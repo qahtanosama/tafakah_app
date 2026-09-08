@@ -539,6 +539,57 @@ export default function MasterDataForm() {
           <CardTitle>A) Company Info (Seller)</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
+          {/* Which of our companies issues this document. Sits above the
+              fields it fills, because choosing here rewrites all of them.
+
+              The chosen entity is SNAPSHOTTED onto the contract rather than
+              referenced by id: a contract must print the company as it stood
+              when it was signed, and a later rename or deletion must not
+              rewrite the header of a document already with a buyer. */}
+          {issuingEntities.length > 1 && (
+            <div className="sm:col-span-2 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-500/25 dark:bg-indigo-500/10">
+              <Label className="mb-1.5 block font-semibold">Issued by</Label>
+              <select
+                value={data.letterhead?.id ?? (issuingEntities.find((e) => e.isDefault)?.id ?? "")}
+                aria-label="Company this document is issued under"
+                onChange={(e) => {
+                  const picked = issuingEntities.find((x) => x.id === e.target.value);
+                  if (!picked) return;
+                  setData((prev) => ({
+                    ...prev,
+                    letterhead: picked,
+                    seller: {
+                      ...prev.seller,
+                      company: picked.legalName,
+                      address: picked.legalAddress,
+                      tel: picked.tel,
+                      email: picked.email,
+                      ...(picked.stampUrl ? { stamp: picked.stampUrl } : {}),
+                    },
+                    // The account follows the company. Both companies bank at
+                    // the same bank under the same SWIFT and their account
+                    // numbers differ only in the middle, so invoicing as one
+                    // while asking for payment into the other's account is a
+                    // mistake that is hard to spot and expensive to unwind.
+                    bank: picked.bank.account ? picked.bank : prev.bank,
+                  }));
+                }}
+                className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium dark:border-white/10 dark:bg-zinc-800"
+              >
+                {issuingEntities.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                    {e.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400">
+                Fills the four fields below, the letterhead on every PDF, and the bank account the
+                buyer pays into.
+              </p>
+            </div>
+          )}
+
           <div className="sm:col-span-2">
             <Label>Company Name</Label>
             <Input
@@ -1237,54 +1288,6 @@ export default function MasterDataForm() {
             dischargePort={data.shipping.dischargePort}
           />
 
-          {/* Which of our companies issues this document. The chosen entity is
-              SNAPSHOTTED onto the contract rather than referenced, so a company
-              later renamed or removed cannot rewrite the header of a document
-              already with a buyer. */}
-          {issuingEntities.length > 1 && (
-            <div className="mt-6 border-t border-slate-100 pt-4 dark:border-white/5">
-              <Label className="mb-1.5 block text-sm font-semibold">Issued by</Label>
-              <select
-                value={data.letterhead?.id ?? (issuingEntities.find((e) => e.isDefault)?.id ?? "")}
-                aria-label="Company this document is issued under"
-                onChange={(e) => {
-                  const picked = issuingEntities.find((x) => x.id === e.target.value);
-                  if (!picked) return;
-                  setData((prev) => ({
-                    ...prev,
-                    letterhead: picked,
-                    // The body and signature follow the letterhead, so the
-                    // header and the company that signs cannot disagree.
-                    seller: {
-                      ...prev.seller,
-                      company: picked.legalName,
-                      address: picked.legalAddress,
-                      tel: picked.tel,
-                      email: picked.email,
-                      ...(picked.stampUrl ? { stamp: picked.stampUrl } : {}),
-                    },
-                    // The account follows the company. Invoicing as one entity
-                    // while asking for payment into another's account is the
-                    // kind of error that costs a shipment, so this is not left
-                    // to whoever remembers to change it.
-                    bank: picked.bank.account ? picked.bank : prev.bank,
-                  }));
-                }}
-                className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-zinc-800"
-              >
-                {issuingEntities.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                    {e.isDefault ? " (default)" : ""}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-500">
-                Sets the letterhead, the signature block, the seller details and the bank
-                account on every document for this contract.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 
