@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Save, X, TrendingUp, Calculator, Package } from "lucide-react";
 import type { MarketPack, ProductProfile, PriceHistoryEntry } from "@/types/product";
 import { useProducts, useSaveProduct, useDeleteProduct } from "@/lib/data/products";
+import { useAuth, isAssistant } from "@/hooks/useAuth";
 import { useContracts } from "@/lib/data/contracts";
 import { priceHistoryFor, productUsageCount } from "@/lib/data/contract-analytics";
 
@@ -17,8 +18,8 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
-function ProductCard({ product, history, onEdit, onDelete }: {
-  product: ProductProfile; history: PriceHistoryEntry[]; onEdit: (p: ProductProfile) => void; onDelete: (p: ProductProfile) => void;
+function ProductCard({ product, history, onEdit, onDelete, canManage }: {
+  product: ProductProfile; history: PriceHistoryEntry[]; onEdit: (p: ProductProfile) => void; onDelete: (p: ProductProfile) => void; canManage: boolean;
 }) {
   const t = useT("products");
   const tc = useT("common");
@@ -40,10 +41,12 @@ function ProductCard({ product, history, onEdit, onDelete }: {
             </div>
           </div>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" onClick={() => onEdit(product)} title={tc("edit")} className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(product)} title={tc("delete")} className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
-        </div>
+        {canManage && (
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button variant="ghost" size="icon" onClick={() => onEdit(product)} title={tc("edit")} className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"><Pencil className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => onDelete(product)} title={tc("delete")} className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-5 pt-5 pb-6">
         <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-[13px] sm:text-sm">
@@ -94,6 +97,10 @@ export default function ProductManager() {
   const saveProductMut = useSaveProduct();
   const deleteProductMut = useDeleteProduct();
   const { data: contractsData } = useContracts();
+  // An assistant reads the catalogue; she does not maintain it. Cosmetic —
+  // she has select and no update on products, so RLS refuses a write anyway.
+  const { role } = useAuth();
+  const canManage = !isAssistant(role);
 
   const [histories, setHistories] = useState<Record<string, PriceHistoryEntry[]>>({});
   const [editing, setEditing] = useState<ProductProfile | null>(null);
@@ -197,9 +204,11 @@ export default function ProductManager() {
               <Calculator className="h-4 w-4" /> {tn("calculator")}
             </Button>
           </Link>
-          <Button className="w-full sm:w-auto gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-6" onClick={handleNew}>
-            <Plus className="h-4 w-4" /> {t("addProduct")}
-          </Button>
+          {canManage && (
+            <Button className="w-full sm:w-auto gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 font-bold px-6" onClick={handleNew}>
+              <Plus className="h-4 w-4" /> {t("addProduct")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -292,7 +301,7 @@ export default function ProductManager() {
       )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {products.map((p) => <ProductCard key={p.id} product={p} history={histories[p.name] ?? []} onEdit={handleEdit} onDelete={handleDelete} />)}
+        {products.map((p) => <ProductCard key={p.id} product={p} history={histories[p.name] ?? []} onEdit={handleEdit} onDelete={handleDelete} canManage={canManage} />)}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Cargo, CostLine, CostSheet, FxRates, MarketId } from "@/types/quote";
 import { useProducts, useSavePack } from "@/lib/data/products";
+import { useAuth, isAssistant } from "@/hooks/useAuth";
 import { useCostSheets, useLatestCostSheet, useSaveCostSheet, todayKey } from "@/lib/data/cost-sheets";
 import {
   DEFAULT_CARTONS,
@@ -85,6 +86,7 @@ export function useQuoteCalculator() {
   const { data: latestAnySheet, isLoading: latestLoading } = useLatestCostSheet(marketId);
   const saveSheet = useSaveCostSheet();
   const savePackMutation = useSavePack();
+  const { role } = useAuth();
 
   const langState = useSyncExternalStore(subscribeLang, getLangSnapshot, getServerLangSnapshot);
 
@@ -280,6 +282,11 @@ export function useQuoteCalculator() {
   const savePack = useCallback(
     (patch: PackPatch) => {
       if (!product) return;
+      // An assistant has select and no update on products. Attempting the
+      // write-back would raise an RLS error on every debounced keystroke, so
+      // skip it: her packaging figures stay in the tab, which is all she needs
+      // for a quote she is not saving anyway.
+      if (isAssistant(role)) return;
       pendingPack.current = { ...pendingPack.current, ...patch };
       if (packTimer.current) clearTimeout(packTimer.current);
       packTimer.current = setTimeout(() => {
@@ -295,7 +302,7 @@ export function useQuoteCalculator() {
         });
       }, SAVE_DEBOUNCE_MS);
     },
-    [product, productId, marketId, savePackMutation]
+    [product, productId, marketId, savePackMutation, role]
   );
 
   const updateCargo = useCallback(

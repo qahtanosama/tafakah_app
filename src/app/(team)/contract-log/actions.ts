@@ -13,7 +13,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeamUser } from "@/lib/auth/require-team";
+import { requireTeamUser, requireDocStaff } from "@/lib/auth/require-team";
 import { logAuditEvent } from "@/lib/audit/log";
 import {
   calcTotals,
@@ -111,7 +111,7 @@ async function resolvePrefix(admin: Admin, firstProduct: string): Promise<string
 export async function saveContract(
   input: SalesContractData & { id?: string }
 ): Promise<SaveContractResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
 
@@ -500,7 +500,7 @@ export async function clearContractCertRef(params: {
 export async function getNextSequence(
   params: { year: number; prefix: string }
 ): Promise<{ ok: true; sequence: number } | { ok: false; error: string }> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = createAdminClient();
 

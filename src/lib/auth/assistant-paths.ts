@@ -17,6 +17,10 @@ export const ASSISTANT_PATHS = [
   "/shipping", // ETD / ETA / vessel / containers — her main job
   "/documents", // download and upload
   "/contract-log", // read-only, so she can find the contract she needs
+  "/schedules", // the sailing board; freight columns stay blank for her
+  "/products", // product list; ALSO admits /products/calculator by sub-path
+  "/buyers", // buyer details, needed to raise paperwork
+  "/master", // generate a contract and its document set
   "/logout",
 ] as const;
 

@@ -3,7 +3,10 @@ import { isAssistantPath } from "./assistant-paths";
 
 describe("isAssistantPath", () => {
   it("admits the screens she works in", () => {
-    for (const p of ["/", "/shipping", "/documents", "/contract-log", "/logout"]) {
+    for (const p of [
+      "/", "/shipping", "/documents", "/contract-log", "/logout",
+      "/schedules", "/products", "/buyers", "/master",
+    ]) {
       expect(isAssistantPath(p)).toBe(true);
     }
   });
@@ -13,20 +16,24 @@ describe("isAssistantPath", () => {
     expect(isAssistantPath("/documents/upload")).toBe(true);
   });
 
+  it("admits the calculator as a sub-path of products", () => {
+    // Deliberate: she reaches it, but RLS still denies product_cost_sheets, so
+    // no saved cost line, margin or profit ever loads. Blank tool, not a leak.
+    expect(isAssistantPath("/products/calculator")).toBe(true);
+  });
+
   it("refuses everything that shows money", () => {
     // The point of the whole role. RLS denies the data too; this stops her
     // landing on a broken screen and wondering why it is empty.
-    for (const p of ["/finance", "/products/calculator", "/products", "/master"]) {
-      expect(isAssistantPath(p)).toBe(false);
-    }
+    expect(isAssistantPath("/finance")).toBe(false);
   });
 
   it("refuses admin, database and document-authoring screens", () => {
     for (const p of [
       "/admin/users", "/admin/super", "/admin/audit",
-      "/buyers", "/sellers", "/entities", "/settings", "/setup",
+      "/sellers", "/entities", "/settings", "/setup",
       "/sales-contract", "/commercial-invoice", "/packing-list",
-      "/customs-invoice", "/freight-invoice", "/schedules",
+      "/customs-invoice", "/freight-invoice",
     ]) {
       expect(isAssistantPath(p)).toBe(false);
     }
@@ -37,6 +44,10 @@ describe("isAssistantPath", () => {
     expect(isAssistantPath("/shippingxyz")).toBe(false);
     expect(isAssistantPath("/documents-secret")).toBe(false);
     expect(isAssistantPath("/contract-log-finance")).toBe(false);
+    expect(isAssistantPath("/productsxyz")).toBe(false);
+    expect(isAssistantPath("/buyers-export")).toBe(false);
+    expect(isAssistantPath("/master-key")).toBe(false);
+    expect(isAssistantPath("/schedulesxyz")).toBe(false);
   });
 
   it("does not let the root entry admit everything", () => {

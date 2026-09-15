@@ -44,8 +44,22 @@ const sections = [
   },
 ];
 
-/** The only tiles an assistant is shown — mirrors ASSISTANT_PATHS in proxy.ts. */
-const ASSISTANT_TILES = ["/documents", "/shipping", "/contract-log"];
+/**
+ * The only tiles an assistant is shown — mirrors ASSISTANT_PATHS.
+ *
+ * The Master Data hero above sits outside `sections`, so it renders for her
+ * anyway; /master is on her allowlist, so it now works instead of bouncing.
+ * /finance stays off this list and out of the allowlist.
+ */
+const ASSISTANT_TILES = [
+  "/documents",
+  "/shipping",
+  "/contract-log",
+  "/schedules",
+  "/buyers",
+  "/products",
+  "/products/calculator",
+];
 
 export default async function Home() {
   // Resolve role server-side so the page can decide whether to show the

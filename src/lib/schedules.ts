@@ -11,11 +11,18 @@
  * never duplicates.
  *
  * Client-side loading-plan actions live in src/lib/portal/loading-plans.ts.
+ *
+ * Every action here is requireDocStaff, not requireTeamUser: the assistant runs
+ * this board outright — import, edit, delete, bulk, keep-open and loading-plan
+ * decisions. That includes sailing_schedule_internal (ocean freight, booking
+ * plan), which updateSailing upserts. She is the one who opens the carrier's
+ * weekly sheet to upload it, and those rates are printed in it, so withholding
+ * them in the app would obstruct her without concealing anything.
  */
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeamUser } from "@/lib/auth/require-team";
+import { requireDocStaff } from "@/lib/auth/require-team";
 import { routing } from "@/i18n/routing";
 import {
   SAILING_STATUSES,
@@ -39,7 +46,7 @@ export type ImportSailingsResult =
   | { ok: false; error: string };
 
 export async function importSailings(rows: SailingInput[]): Promise<ImportSailingsResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
 
   const valid = rows.filter((r) => r.shippingLine.trim() && r.vessel.trim());
@@ -127,7 +134,7 @@ export async function updateSailing(
   id: string,
   input: SailingInput & { status?: SailingStatus },
 ): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (!input.shippingLine.trim() || !input.vessel.trim()) {
     return { ok: false, error: "Shipping line and vessel are required" };
@@ -177,7 +184,7 @@ export async function setSailingStatus(
   id: string,
   status: SailingStatus,
 ): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (!SAILING_STATUSES.includes(status)) return { ok: false, error: "Invalid status" };
 
@@ -191,7 +198,7 @@ export async function setSailingStatus(
 
 /** Deleting a sailing cascades to its loading plans — reserve for mistakes. */
 export async function deleteSailing(id: string): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
 
   const supabase = createAdminClient();
@@ -204,7 +211,7 @@ export async function deleteSailing(id: string): Promise<ScheduleActionResult> {
 
 /** Bulk delete (cleanup of departed/past sailings). Cascades to loading plans. */
 export async function deleteSailings(ids: string[]): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (!ids.length) return { ok: true };
 
@@ -221,7 +228,7 @@ export async function setSailingsStatus(
   ids: string[],
   status: SailingStatus,
 ): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (!SAILING_STATUSES.includes(status)) return { ok: false, error: "Invalid status" };
   if (!ids.length) return { ok: true };
@@ -242,7 +249,7 @@ export async function setSailingKeepOpen(
   id: string,
   keepOpen: boolean,
 ): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
 
   const supabase = createAdminClient();
@@ -260,7 +267,7 @@ export async function setLoadingPlanStatus(
   id: string,
   status: (typeof TEAM_SETTABLE_PLAN_STATUSES)[number],
 ): Promise<ScheduleActionResult> {
-  const guard = await requireTeamUser();
+  const guard = await requireDocStaff();
   if (!guard.ok) return { ok: false, error: guard.error };
   if (!TEAM_SETTABLE_PLAN_STATUSES.includes(status)) {
     return { ok: false, error: "Invalid status" };

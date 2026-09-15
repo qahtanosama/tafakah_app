@@ -17,6 +17,7 @@ import type { Buyer, BuyerLanguage, BuyerDocPreset } from "@/types/buyer";
 import { BUYER_COUNTRIES, isValidE164 } from "@/types/buyer";
 import BuyerPortalAccess from "./BuyerPortalAccess";
 import { useBuyers, useSaveBuyer, useDeleteBuyer, createEmptyBuyer } from "@/lib/data/buyers";
+import { useAuth, isAssistant } from "@/hooks/useAuth";
 import { useContracts } from "@/lib/data/contracts";
 import { contractCountsByBuyer } from "@/lib/data/contract-analytics";
 
@@ -25,6 +26,10 @@ export default function BuyerManager() {
   const buyers = buyersData ?? [];
   const saveBuyerMut = useSaveBuyer();
   const deleteBuyerMut = useDeleteBuyer();
+  // She adds and corrects buyers so the paperwork is right; removing one is
+  // not paperwork, and she has no delete policy on the table either.
+  const { role } = useAuth();
+  const canDelete = !isAssistant(role);
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Buyer | null>(null);
@@ -344,7 +349,9 @@ export default function BuyerManager() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setEditing({ ...b })} title="Edit" className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)} title="Delete" className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></Button>
+                        {canDelete && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)} title="Delete" className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
