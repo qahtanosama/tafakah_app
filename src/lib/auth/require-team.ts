@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isTeamRole, isDocStaffRole } from "./staff-roles";
 
 export type StaffRole = "team" | "super_admin" | "assistant";
 export type GuardOk = { ok: true; userId: string; role: StaffRole; email: string | null };
@@ -27,7 +28,7 @@ export async function requireTeamUser(): Promise<GuardOk | GuardErr> {
     .single();
 
   if (!profile || !profile.is_active) return { ok: false, error: "Account disabled" };
-  if (profile.role !== "team" && profile.role !== "super_admin") {
+  if (!isTeamRole(profile.role as string)) {
     return { ok: false, error: "Team access required" };
   }
   return { ok: true, userId: user.id, role: profile.role as "team" | "super_admin", email: user.email ?? null };
@@ -62,7 +63,7 @@ export async function requireDocStaff(): Promise<GuardOk | GuardErr> {
 
   if (!profile || !profile.is_active) return { ok: false, error: "Account disabled" };
   const role = profile.role as string;
-  if (role !== "team" && role !== "super_admin" && role !== "assistant") {
+  if (!isDocStaffRole(role)) {
     return { ok: false, error: "Staff access required" };
   }
   return { ok: true, userId: user.id, role: role as StaffRole, email: user.email ?? null };

@@ -1,6 +1,6 @@
 "use server";
 
-import { requireDocStaff } from "@/lib/auth/require-team";
+import { requireDocStaff, requireTeamUser } from "@/lib/auth/require-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   CONTRACT_DOCUMENTS_BUCKET,
@@ -15,6 +15,8 @@ export type UploadCertResult =
 
 /**
  * Filing a document is staff work: team, super_admin and assistant.
+ *
+ * Uploads only. Deletion uses requireTeamUser directly — see deleteCertificate.
  *
  * This used to be a local check for `role === "team"` alone, which locked out
  * super_admin — the same omission the contract-documents storage policies had.
@@ -136,9 +138,19 @@ export async function finalizeCertUpload(input: FinalizeInput): Promise<UploadCe
   }
 }
 
+/**
+ * Removing a filed document is a decision, not paperwork — team only.
+ *
+ * This deliberately does NOT go through requireTeam() above. The migration
+ * grants an assistant select + insert on contract_documents and no delete, and
+ * the storage policies keep update/delete on is_team(). None of that was
+ * reaching this path: it archives the row and then permanently removes the
+ * object with the service-role client, which bypasses RLS entirely. The guard
+ * is the only control here, so it has to be the strict one.
+ */
 export async function deleteCertificate(documentId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const guard = await requireTeam();
+    const guard = await requireTeamUser();
     if (!guard.ok) return { ok: false, error: guard.error };
 
     const admin = createAdminClient();
